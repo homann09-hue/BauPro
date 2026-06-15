@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(220, 239, 228, 0.9), transparent 34rem),
+    linear-gradient(180deg, #f7faf6 0%, #eef3ed 100%);
+  color: #17211b;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+@layer components {
+  .field-label {
+    @apply mb-1.5 block text-sm font-semibold text-ink;
+  }
+
+  .field-input {
+    @apply w-full rounded-md border border-line bg-white/95 px-3 py-3 text-sm text-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-moss focus:bg-white focus:ring-4 focus:ring-moss/15 disabled:bg-slate-100;
+  }
+
+  .field-help {
+    @apply mt-1 text-xs text-slate-500;
+  }
+
+  .btn-primary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-moss focus:outline-none focus:ring-4 focus:ring-moss/20 active:translate-y-0;
+  }
+
+  .btn-secondary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-line bg-white/90 px-4 py-2.5 text-sm font-semibold text-ink shadow-sm transition hover:-translate-y-0.5 hover:border-moss/40 hover:bg-mint/70 focus:outline-none focus:ring-4 focus:ring-moss/15 active:translate-y-0;
+  }
+
+  .btn-danger {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-200;
+  }
+
+  .surface {
+    @apply rounded-lg border border-white/70 bg-white/90 shadow-soft backdrop-blur;
+  }
+
+  .surface-strong {
+    @apply rounded-lg border border-white/80 bg-white shadow-lift;
+  }
+
+  .interactive-surface {
+    @apply surface transition duration-200 hover:-translate-y-0.5 hover:border-moss/30 hover:shadow-lift;
+  }
+
+  .section-title {
+    @apply text-base font-bold text-ink sm:text-lg;
+  }
+
+  .meta-label {
+    @apply text-xs font-semibold uppercase tracking-normal text-slate-500;
+  }
+}
