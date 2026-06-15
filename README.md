@@ -33,8 +33,10 @@ BauPro ist eine mobile-first Betriebssoftware fuer deutsche Dachdecker- und Hand
 - Datenschutz-Center mit Auskunftsexport, Firmenexport und Betroffenenanfragen
 - Rechtliche Entwurfsseiten fuer Impressum, Datenschutz, AGB, AVV, Cookies, Loeschkonzept und Subprozessoren
 - Consent-Banner mit Opt-in fuer optionale Analyse/Marketing-Verarbeitung
-- Upload-Validierung fuer Tagesbericht-Fotos
-- Supabase SQL-Schema mit Row Level Security pro Firma
+- Upload-Validierung fuer Tagesbericht-Fotos mit MIME-, Groessen- und Magic-Byte-Pruefung
+- Supabase SQL-Schema mit FORCE Row Level Security pro Firma
+- Atomare Lagerbuchungen und Reservierungen ueber Postgres-RPCs
+- Audit-Log fuer Rollen-, Preis-, Supplier-Key- und Lagerbestandsaenderungen
 
 ## Lokales Setup
 
@@ -50,74 +52,27 @@ npm install
 supabase/schema.sql
 ```
 
-Die Datei erstellt Tabellen, RLS-Policies, Auth-Trigger und den privaten Storage Bucket `report-photos`.
+Die Datei erstellt Tabellen, RLS-Policies, Auth-Trigger, den privaten Storage Bucket `report-photos`, Audit-Hooks und die atomaren Lager-RPCs. Frische Installationen brauchen keine Repair-Hotfixes.
 
-Wenn dein Projekt bereits mit einer aelteren BauPro-Version laeuft, kannst du fuer Kunden und Auftraege alternativ die Delta-Migration ausfuehren:
+Wenn dein Projekt bereits mit einer aelteren BauPro-Version laeuft, fuehre die Delta-Migrationen in dieser Reihenfolge im Supabase SQL Editor aus:
 
 ```text
 supabase/migrations/20260614_customers_orders.sql
-```
-
-Fuer den Live-Preisvergleich gibt es eine eigene Delta-Migration:
-
-```text
 supabase/migrations/20260614_supplier_price_comparison.sql
-```
-
-Fuer Online Price Discovery gibt es ebenfalls eine Delta-Migration:
-
-```text
 supabase/migrations/20260614_online_price_discovery.sql
 supabase/migrations/20260614_online_price_source_adapters.sql
-```
-
-Fuer die Zeiterfassung und PDF-/CSV-Stundenzettel gibt es diese Delta-Migration:
-
-```text
 supabase/migrations/20260614_time_tracking.sql
-```
-
-Fuer Spracheingabe, Mitbringlisten, Materialwarnungen und Einkaufsvorschlaege gibt es diese Delta-Migration:
-
-```text
 supabase/migrations/20260614_voice_bring_lists_inventory_alerts.sql
-```
-
-Falls Supabase danach noch `Could not find the table 'public.material_alerts' in the schema cache` oder `relation "public.bring_lists" does not exist` meldet, fuehre diesen idempotenten Reparatur-Hotfix im Supabase SQL Editor aus. Er legt die fehlende Kette fuer Mitbringlisten, Materialwarnungen, Reservierungen und Einkaufsvorschlaege an:
-
-```text
 supabase/migrations/20260615_material_alerts_repair.sql
-```
-
-Fuer die SaaS-Haertung mit Firmenprofil-Feldern, Archivspalten und Audit-Grundlage gibt es diese Delta-Migration:
-
-```text
 supabase/migrations/20260615_saas_hardening.sql
-```
-
-Fuer produktionsnahe KI-Funktionen mit Usage-Logging, Aktionsvorschlaegen und KI-Einstellungen gibt es diese Migration:
-
-```text
 supabase/migrations/20260615_ai_features.sql
-```
-
-Fuer KI-Auftragsentwuerfe, Chef-Kalkulationen und Kalkulationseinstellungen gibt es diese Migration:
-
-```text
 supabase/migrations/20260615_ai_job_wizard.sql
-```
-
-Fuer die Vorarbeiter-Rolle und Rollen-Haertung gibt es diese Migration:
-
-```text
 supabase/migrations/20260615_roles_security_hardening.sql
-```
-
-Fuer Datenschutz-Center, Betroffenenanfragen und geschaerfte Foto-Storage-Policy gibt es diese Migration:
-
-```text
 supabase/migrations/20260615_privacy_compliance.sql
+supabase/migrations/20260615_zz_redteam_hardening.sql
 ```
+
+`20260615_material_alerts_repair.sql` bleibt idempotent, damit aeltere Testdatenbanken mit fehlender Mitbringlisten-Kette repariert werden koennen. Fuer neue Projekte ist der vollstaendige Stand bereits in `supabase/schema.sql` enthalten.
 
 3. Materialkatalog seed ausfuehren:
 
@@ -199,6 +154,29 @@ http://localhost:3000
 - `mitarbeiter`: sieht eigene Aufgaben, eigene/zugeordnete Berichte, zugeordnete Baustellen, zugeordnete Auftraege, eigene Zeiten, Mitbringlisten und Materialmeldungen. Stammdaten, Preisquellen, EK, VK, Aufschlag und Marge bleiben gesperrt.
 
 Die RLS-Policies in `supabase/schema.sql` erzwingen, dass Nutzer nur Daten ihrer eigenen Firma sehen.
+Preisfelder wie `purchase_price`, `sales_price`, `markup_percent`, `price_net`, `price_gross`, Supplier-Angebote und Online-Preisangebote sind nur fuer `admin` und `chef` freigegeben. Mitarbeiter und Vorarbeiter nutzen preisbereinigte Views wie `inventory_items_public`.
+
+## Security und CI
+
+Der PR-Workflow `.github/workflows/ci.yml` fuehrt aus:
+
+```bash
+npm ci
+npm run lint
+npm run test
+npm run db:schema-check
+npm run build
+```
+
+Der Schema-Check prueft statisch FORCE RLS, preisbereinigte Views, Manager-only Preis-Policies, Storage-Pfade und atomare Lager-RPCs.
+
+Wichtige Härtungen:
+
+- Server Actions validieren kritische IDs serverseitig und uebernehmen keine `company_id` aus Formularen.
+- Supplier API Keys bleiben verschluesselt gespeichert und werden nur serverseitig kurz vor dem Provider-Call entschluesselt.
+- Tagesbericht-Fotos werden nach Dateigroesse, MIME und Magic Bytes geprueft; Storage-Pfade muessen `company_id/reports/report_id/...` entsprechen.
+- Lagerbestand und Reservierungen laufen ueber Postgres-Funktionen mit `for update`, damit parallele Buchungen keinen negativen Bestand erzeugen.
+- Security Headers und Origin-Check fuer schreibende Requests sind in Next.js konfiguriert.
 
 ## Produktnavigation
 

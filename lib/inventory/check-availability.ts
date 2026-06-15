@@ -46,11 +46,16 @@ export async function checkMaterialAvailability({
   }
 
   const [{ data: item }, reservedQuantity] = await Promise.all([
-    supabase.from("inventory_items").select("*").eq("company_id", companyId).eq("id", inventoryItemId).single(),
+    supabase
+      .from("inventory_items_public")
+      .select("id, stock, minimum_stock, unit")
+      .eq("company_id", companyId)
+      .eq("id", inventoryItemId)
+      .single(),
     reservedQuantityForInventoryItem({ supabase, companyId, inventoryItemId, excludeBringListId })
   ]);
 
-  const typedItem = item as InventoryItem | null;
+  const typedItem = item as Pick<InventoryItem, "stock" | "minimum_stock"> | null;
   const stockQuantity = Number(typedItem?.stock ?? 0);
   const availableQuantity = Math.max(0, stockQuantity - reservedQuantity);
   const missingQuantity = Math.max(0, requiredQuantity - availableQuantity);

@@ -34,7 +34,7 @@ export async function createMaterialAction(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/material/neu?error=${toQuery(error.message)}`);
+    redirect(`/material/neu?error=${toQuery("Material konnte nicht angelegt werden.")}`);
   }
 
   revalidatePath("/material");
@@ -62,7 +62,7 @@ export async function updateMaterialAction(formData: FormData) {
     .eq("company_id", context.companyId);
 
   if (error) {
-    redirect(`/material/${id}/bearbeiten?error=${toQuery(error.message)}`);
+    redirect(`/material/${id}/bearbeiten?error=${toQuery("Material konnte nicht aktualisiert werden.")}`);
   }
 
   revalidatePath("/material");
@@ -81,7 +81,7 @@ export async function deleteMaterialAction(formData: FormData) {
     .eq("company_id", context.companyId);
 
   if (error) {
-    redirect(`/material?error=${toQuery(error.message)}`);
+    redirect(`/material?error=${toQuery("Material konnte nicht geloescht werden.")}`);
   }
 
   revalidatePath("/material");

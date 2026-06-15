@@ -18,6 +18,8 @@ import { createStructuredAiResponse, getOpenAiModel } from "@/lib/ai/openai";
 import { aiRuntimeState, canUseAiFeature, loadAiSettings, removePricesForEmployees } from "@/lib/ai/permissions";
 import { logAiUsage } from "@/lib/ai/usage-log";
 import { requireAppContext, requireManager } from "@/lib/auth";
+import { safeErrorMessage } from "@/lib/security/errors";
+import { assertRateLimit } from "@/lib/security/rate-limit";
 import { isMissingSchemaError, migrationMissingMessage } from "@/lib/supabase/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalString, toBoolean } from "@/lib/utils";
@@ -67,7 +69,14 @@ async function getAiGate(feature: AiFeature) {
   const supabase = await createSupabaseServerClient();
   const settings = await loadAiSettings(supabase, context.companyId);
   const runtime = aiRuntimeState(context, settings);
-  const allowed = canUseAiFeature(context, settings, feature);
+  let allowed = canUseAiFeature(context, settings, feature);
+
+  try {
+    assertRateLimit(`ai:${feature}:${context.companyId}:${context.userId}`, context.canManage ? 60 : 25, 60_000);
+  } catch (error) {
+    allowed = false;
+    runtime.message = safeErrorMessage(error, "Zu viele KI-Anfragen in kurzer Zeit.");
+  }
 
   if (!runtime.configured) {
     await logAiUsage({

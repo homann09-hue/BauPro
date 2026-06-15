@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isManager } from "@/lib/utils";
+import { canOperate, isForeman, isManager } from "@/lib/utils";
 import type { Role } from "@/types/app";
 
 describe("role permissions", () => {
@@ -11,5 +11,14 @@ describe("role permissions", () => {
       vorarbeiter: false,
       mitarbeiter: false
     });
+  });
+
+  it("grants operative rights to Vorarbeiter without manager pricing rights", () => {
+    expect(isForeman("vorarbeiter")).toBe(true);
+    expect(canOperate("admin")).toBe(true);
+    expect(canOperate("chef")).toBe(true);
+    expect(canOperate("vorarbeiter")).toBe(true);
+    expect(canOperate("mitarbeiter")).toBe(false);
+    expect(isManager("vorarbeiter")).toBe(false);
   });
 });

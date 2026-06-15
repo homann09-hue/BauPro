@@ -1,3 +1,4 @@
+import { SafeActionError } from "@/lib/security/errors";
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { MaterialReservationStatus } from "@/types/app";
 
@@ -50,6 +51,23 @@ export async function createMaterialReservation({
   unit: string;
   reservedBy: string;
 }) {
+  if (inventoryItemId && quantityReserved > 0) {
+    const { data, error } = await supabase.rpc("reserve_inventory_item", {
+      p_company_id: companyId,
+      p_job_id: jobId ?? null,
+      p_bring_list_id: bringListId ?? null,
+      p_material_id: materialId ?? null,
+      p_inventory_item_id: inventoryItemId,
+      p_quantity_required: quantityRequired,
+      p_quantity_requested: quantityReserved,
+      p_unit: unit,
+      p_reserved_by: reservedBy
+    });
+
+    if (error) throw new SafeActionError("Material konnte nicht atomar reserviert werden.");
+    return (data as string | null) ?? null;
+  }
+
   const status: MaterialReservationStatus =
     quantityReserved <= 0 ? "missing" : quantityReserved < quantityRequired ? "partially_reserved" : "reserved";
 

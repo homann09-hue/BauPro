@@ -10,6 +10,10 @@ import { getProviderConfig } from "@/lib/suppliers/provider-config";
 import { calculateSupplierMatchScore } from "@/lib/suppliers/matcher";
 import type { SupplierOfferInput } from "@/lib/suppliers/types";
 import { SupplierIntegrationError } from "@/lib/suppliers/types";
+import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
+import { optionalFormUuid, requiredFormUuid } from "@/lib/security/form-data";
+import { assertRateLimit } from "@/lib/security/rate-limit";
+import { assertInventoryItemInCompany, assertSupplierIntegrationInCompany } from "@/lib/security/tenant-guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalNumber, optionalString, requiredString } from "@/lib/utils";
 import type {
@@ -19,10 +23,6 @@ import type {
   SupplierOffer,
   SupplierProviderKey
 } from "@/types/app";
-
-function toQuery(value: string) {
-  return encodeURIComponent(value);
-}
 
 function redirectTarget(formData: FormData, fallback = "/materials/live-offers") {
   const value = String(formData.get("return_to") ?? "");
@@ -48,7 +48,7 @@ function encryptApiKey(value: string | null) {
   if (!value) return null;
   const secret = process.env.SUPPLIER_API_ENCRYPTION_KEY;
   if (!secret) {
-    throw new Error("SUPPLIER_API_ENCRYPTION_KEY fehlt. API-Keys werden nicht unverschluesselt gespeichert.");
+    throw new SafeActionError("Serverseitige Key-Verschluesselung ist nicht konfiguriert.");
   }
 
   const iv = crypto.randomBytes(12);
@@ -60,14 +60,35 @@ function encryptApiKey(value: string | null) {
   return `${iv.toString("base64")}.${tag.toString("base64")}.${encrypted.toString("base64")}`;
 }
 
+function decryptApiKey(value: string | null) {
+  if (!value) return null;
+  const secret = process.env.SUPPLIER_API_ENCRYPTION_KEY;
+  if (!secret) {
+    throw new SafeActionError("Serverseitige Key-Verschluesselung ist nicht konfiguriert.");
+  }
+
+  try {
+    const [ivValue, tagValue, encryptedValue] = value.split(".");
+    if (!ivValue || !tagValue || !encryptedValue) throw new Error("invalid-key-payload");
+
+    const key = crypto.createHash("sha256").update(secret).digest();
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(ivValue, "base64"));
+    decipher.setAuthTag(Buffer.from(tagValue, "base64"));
+    return Buffer.concat([decipher.update(Buffer.from(encryptedValue, "base64")), decipher.final()]).toString("utf8");
+  } catch (error) {
+    console.error("supplier-api-key-decrypt-failed", error);
+    throw new SafeActionError("Gespeicherter API-Key konnte nicht verwendet werden. Bitte Key rotieren.");
+  }
+}
+
 function money(formData: FormData, key: string, fallback = 0) {
   return optionalNumber(formData, key) ?? fallback;
 }
 
 function offerPayload(offer: SupplierOfferInput, companyId: string, userId: string) {
-  if (!offer.product_name.trim()) throw new Error("Produktname fehlt.");
+  if (!offer.product_name.trim()) throw new SafeActionError("Produktname fehlt.");
   if (!Number.isFinite(Number(offer.price_gross)) || Number(offer.price_gross) <= 0) {
-    throw new Error(`Bruttopreis fehlt fuer ${offer.product_name}.`);
+    throw new SafeActionError(`Bruttopreis fehlt fuer ${offer.product_name}.`);
   }
 
   return {
@@ -199,9 +220,9 @@ export async function createSupplierIntegrationAction(formData: FormData) {
       created_by: context.userId
     });
 
-    if (error) throw new Error(error.message);
+    if (error) throw new SafeActionError("Integration konnte nicht gespeichert werden.");
   } catch (error) {
-    redirect(`${returnTo}?error=${toQuery(error instanceof Error ? error.message : "Integration konnte nicht gespeichert werden.")}`);
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Integration konnte nicht gespeichert werden."))}`);
   }
 
   revalidateSupplierRoutes();
@@ -212,10 +233,10 @@ export async function updateSupplierIntegrationAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/suppliers");
-  const id = requiredString(formData, "id");
   const apiKey = optionalString(formData, "api_key");
 
   try {
+    const id = requiredFormUuid(formData, "id", "Lieferantenintegration");
     const payload: Record<string, unknown> = {
       name: requiredString(formData, "name"),
       type: integrationTypeValue(formData.get("type")),
@@ -229,6 +250,7 @@ export async function updateSupplierIntegrationAction(formData: FormData) {
       notes: optionalString(formData, "notes")
     };
 
+    if (boolField(formData, "clear_api_key")) payload.api_key_encrypted = null;
     if (apiKey) payload.api_key_encrypted = encryptApiKey(apiKey);
 
     const { error } = await supabase
@@ -237,9 +259,9 @@ export async function updateSupplierIntegrationAction(formData: FormData) {
       .eq("id", id)
       .eq("company_id", context.companyId);
 
-    if (error) throw new Error(error.message);
+    if (error) throw new SafeActionError("Integration konnte nicht aktualisiert werden.");
   } catch (error) {
-    redirect(`${returnTo}?error=${toQuery(error instanceof Error ? error.message : "Integration konnte nicht aktualisiert werden.")}`);
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Integration konnte nicht aktualisiert werden."))}`);
   }
 
   revalidateSupplierRoutes();
@@ -250,11 +272,13 @@ export async function createManualSupplierOfferAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/materials/live-offers/new");
-  const materialId = optionalString(formData, "material_id");
-  const integrationId = optionalString(formData, "supplier_integration_id");
   const providerKey = providerKeyValue(formData.get("provider_key"));
 
   try {
+    const materialId = optionalFormUuid(formData, "material_id", "Material");
+    const integrationId = optionalFormUuid(formData, "supplier_integration_id", "Lieferantenintegration");
+    await assertInventoryItemInCompany({ supabase, companyId: context.companyId, itemId: materialId });
+    await assertSupplierIntegrationInCompany({ supabase, companyId: context.companyId, integrationId });
     const adapter = createSupplierAdapter({ providerKey, supplierName: optionalString(formData, "supplier_name") });
     const offer = adapter.normalizeOffer({
       supplier_integration_id: integrationId,
@@ -285,7 +309,7 @@ export async function createManualSupplierOfferAction(formData: FormData) {
       .select("*")
       .single();
 
-    if (error || !data) throw new Error(error?.message ?? "Angebot konnte nicht gespeichert werden.");
+    if (error || !data) throw new SafeActionError("Angebot konnte nicht gespeichert werden.");
     await createAutoMatches({
       supabase,
       companyId: context.companyId,
@@ -295,7 +319,7 @@ export async function createManualSupplierOfferAction(formData: FormData) {
       approved: Boolean(materialId)
     });
   } catch (error) {
-    redirect(`${returnTo}?error=${toQuery(error instanceof Error ? error.message : "Angebot konnte nicht gespeichert werden.")}`);
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Angebot konnte nicht gespeichert werden."))}`);
   }
 
   revalidateSupplierRoutes();
@@ -307,15 +331,17 @@ export async function importSupplierOffersCsvAction(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/materials/live-offers/import");
   const providerKey = providerKeyValue(formData.get("provider_key"));
-  const integrationId = optionalString(formData, "supplier_integration_id");
-  const materialId = optionalString(formData, "material_id");
 
   try {
+    const integrationId = optionalFormUuid(formData, "supplier_integration_id", "Lieferantenintegration");
+    const materialId = optionalFormUuid(formData, "material_id", "Material");
+    await assertInventoryItemInCompany({ supabase, companyId: context.companyId, itemId: materialId });
+    await assertSupplierIntegrationInCompany({ supabase, companyId: context.companyId, integrationId });
     const file = formData.get("csv_file");
     const pastedCsv = optionalString(formData, "csv_text");
     const csvText = file instanceof File && file.size > 0 ? await file.text() : pastedCsv;
 
-    if (!csvText) throw new Error("Bitte CSV-Datei hochladen oder CSV-Inhalt einfuegen.");
+    if (!csvText) throw new SafeActionError("Bitte CSV-Datei hochladen oder CSV-Inhalt einfuegen.");
 
     const adapter = new CsvSupplierAdapter({
       providerKey,
@@ -327,14 +353,14 @@ export async function importSupplierOffersCsvAction(formData: FormData) {
       provider_key: providerKey
     }));
 
-    if (offers.length === 0) throw new Error("Keine Angebote in der CSV gefunden.");
+    if (offers.length === 0) throw new SafeActionError("Keine Angebote in der CSV gefunden.");
 
     const { data, error } = await supabase
       .from("supplier_offers")
       .insert(offers.map((offer) => offerPayload(offer, context.companyId, context.userId)))
       .select("*");
 
-    if (error) throw new Error(error.message);
+    if (error) throw new SafeActionError("CSV-Import fehlgeschlagen.");
 
     await createAutoMatches({
       supabase,
@@ -345,7 +371,7 @@ export async function importSupplierOffersCsvAction(formData: FormData) {
       approved: Boolean(materialId)
     });
   } catch (error) {
-    redirect(`${returnTo}?error=${toQuery(error instanceof Error ? error.message : "CSV-Import fehlgeschlagen.")}`);
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "CSV-Import fehlgeschlagen."))}`);
   }
 
   revalidateSupplierRoutes();
@@ -356,10 +382,11 @@ export async function fetchSupplierOffersAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/suppliers");
-  const integrationId = requiredString(formData, "supplier_integration_id");
-  const query = requiredString(formData, "query");
 
   try {
+    const integrationId = requiredFormUuid(formData, "supplier_integration_id", "Lieferantenintegration");
+    const query = requiredString(formData, "query");
+    assertRateLimit(`supplier-fetch:${context.companyId}:${context.userId}`, 15, 60_000);
     const { data: integration, error } = await supabase
       .from("supplier_integrations")
       .select("*")
@@ -367,11 +394,11 @@ export async function fetchSupplierOffersAction(formData: FormData) {
       .eq("company_id", context.companyId)
       .single();
 
-    if (error || !integration) throw new Error("Integration wurde nicht gefunden.");
+    if (error || !integration) throw new SafeActionError("Integration wurde nicht gefunden.");
     const typed = integration as SupplierIntegration;
     const adapter = createSupplierAdapter({
       providerKey: typed.provider_key,
-      apiKey: typed.api_key_encrypted,
+      apiKey: decryptApiKey(typed.api_key_encrypted),
       baseUrl: typed.base_url,
       supplierName: typed.name
     });
@@ -385,9 +412,10 @@ export async function fetchSupplierOffersAction(formData: FormData) {
       .from("supplier_offers")
       .insert(offers.map((offer) => offerPayload({ ...offer, supplier_integration_id: typed.id }, context.companyId, context.userId)));
 
-    if (insertError) throw new Error(insertError.message);
+    if (insertError) throw new SafeActionError("Angebote konnten nicht gespeichert werden.");
   } catch (error) {
-    redirect(`${returnTo}?error=${toQuery(error instanceof Error ? error.message : "Angebotssuche fehlgeschlagen.")}`);
+    console.warn("supplier-fetch-failed", error);
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Angebotssuche fehlgeschlagen. Provider-Details wurden nicht angezeigt."))}`);
   }
 
   revalidateSupplierRoutes();
@@ -398,10 +426,10 @@ export async function matchSupplierOfferAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
-  const materialId = requiredString(formData, "material_id");
-  const offerId = requiredString(formData, "offer_id");
 
   try {
+    const materialId = requiredFormUuid(formData, "material_id", "Material");
+    const offerId = requiredFormUuid(formData, "offer_id", "Angebot");
     const [{ data: material }, { data: offer }] = await Promise.all([
       supabase
         .from("inventory_items")
@@ -412,7 +440,7 @@ export async function matchSupplierOfferAction(formData: FormData) {
       supabase.from("supplier_offers").select("*").eq("id", offerId).eq("company_id", context.companyId).single()
     ]);
 
-    if (!material || !offer) throw new Error("Material oder Angebot wurde nicht gefunden.");
+    if (!material || !offer) throw new SafeActionError("Material oder Angebot wurde nicht gefunden.");
 
     const score = calculateSupplierMatchScore(
       matchMaterialRow(material as Record<string, unknown>) as unknown as InventoryItem,
@@ -432,9 +460,9 @@ export async function matchSupplierOfferAction(formData: FormData) {
       { onConflict: "material_id,supplier_offer_id" }
     );
 
-    if (error) throw new Error(error.message);
+    if (error) throw new SafeActionError("Zuordnung fehlgeschlagen.");
   } catch (error) {
-    redirect(`${returnTo}?error=${toQuery(error instanceof Error ? error.message : "Zuordnung fehlgeschlagen.")}`);
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Zuordnung fehlgeschlagen."))}`);
   }
 
   revalidateSupplierRoutes();
@@ -445,10 +473,11 @@ export async function acceptSupplierOfferAsPurchasePriceAction(formData: FormDat
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
-  const materialId = requiredString(formData, "material_id");
-  const offerId = requiredString(formData, "offer_id");
 
   try {
+    const materialId = requiredFormUuid(formData, "material_id", "Material");
+    const offerId = requiredFormUuid(formData, "offer_id", "Angebot");
+    await assertInventoryItemInCompany({ supabase, companyId: context.companyId, itemId: materialId });
     const { data: offer } = await supabase
       .from("supplier_offers")
       .select("*")
@@ -456,7 +485,7 @@ export async function acceptSupplierOfferAsPurchasePriceAction(formData: FormDat
       .eq("company_id", context.companyId)
       .single();
 
-    if (!offer) throw new Error("Angebot wurde nicht gefunden.");
+    if (!offer) throw new SafeActionError("Angebot wurde nicht gefunden.");
     const typedOffer = offer as SupplierOffer;
     const purchasePrice = typedOffer.price_net ?? Math.round((typedOffer.price_gross / (1 + typedOffer.vat_rate / 100)) * 100) / 100;
 
@@ -487,7 +516,7 @@ export async function acceptSupplierOfferAsPurchasePriceAction(formData: FormDat
       .eq("id", materialId)
       .eq("company_id", context.companyId);
 
-    if (updateError) throw new Error(updateError.message);
+    if (updateError) throw new SafeActionError("EK konnte nicht uebernommen werden.");
 
     await supabase.from("supplier_price_history").insert({
       company_id: context.companyId,
@@ -508,7 +537,7 @@ export async function acceptSupplierOfferAsPurchasePriceAction(formData: FormDat
       approved: true
     });
   } catch (error) {
-    redirect(`${returnTo}?error=${toQuery(error instanceof Error ? error.message : "EK konnte nicht uebernommen werden.")}`);
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "EK konnte nicht uebernommen werden."))}`);
   }
 
   revalidateSupplierRoutes();

@@ -7,11 +7,12 @@ describe("report photo upload validation", () => {
     expect(sanitizeUploadFileName("")).toBe("foto");
   });
 
-  it("allows expected image types and rejects risky uploads", () => {
-    expect(() => validateReportPhoto(new File(["ok"], "foto.jpg", { type: "image/jpeg" }))).not.toThrow();
-    expect(() => validateReportPhoto(new File(["bad"], "script.svg", { type: "image/svg+xml" }))).toThrow("Nur JPG");
-    expect(() =>
+  it("allows expected image types and rejects risky uploads", async () => {
+    await expect(validateReportPhoto(new File([new Uint8Array([0xff, 0xd8, 0xff, 0x00])], "foto.jpg", { type: "image/jpeg" }))).resolves.toBeUndefined();
+    await expect(validateReportPhoto(new File(["bad"], "script.svg", { type: "image/svg+xml" }))).rejects.toThrow("Nur JPG");
+    await expect(
       validateReportPhoto(new File([new Uint8Array(MAX_REPORT_PHOTO_BYTES + 1)], "gross.jpg", { type: "image/jpeg" }))
-    ).toThrow("maximal 10 MB");
+    ).rejects.toThrow("maximal 10 MB");
+    await expect(validateReportPhoto(new File(["bad"], "fake.jpg", { type: "image/jpeg" }))).rejects.toThrow("Bildformat");
   });
 });

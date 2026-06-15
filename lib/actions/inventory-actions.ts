@@ -4,13 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireManager } from "@/lib/auth";
 import { ensureDefaultInventoryLocations, toInventoryLocationType } from "@/lib/inventory";
+import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
+import { requiredFormUuid } from "@/lib/security/form-data";
+import { assertSupplierInCompany } from "@/lib/security/tenant-guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { numberOrZero, optionalNumber, optionalString, requiredString } from "@/lib/utils";
 import type { InventoryItem, MaterialCatalogItem } from "@/types/app";
-
-function toQuery(value: string) {
-  return encodeURIComponent(value);
-}
 
 function redirectTarget(formData: FormData, fallback = "/materials/inventory") {
   const value = String(formData.get("return_to") ?? "");
@@ -20,10 +19,15 @@ function redirectTarget(formData: FormData, fallback = "/materials/inventory") {
 function positiveNumber(formData: FormData, key: string) {
   const value = numberOrZero(formData, key);
   if (value <= 0) {
-    throw new Error("Die Menge muss groesser als 0 sein.");
+    throw new SafeActionError("Die Menge muss groesser als 0 sein.");
   }
 
   return value;
+}
+
+function inventoryModeValue(value: FormDataEntryValue | null) {
+  const mode = String(value ?? "increase");
+  return mode === "increase" || mode === "decrease" || mode === "set" ? mode : "increase";
 }
 
 function revalidateMaterialRoutes() {
@@ -93,7 +97,7 @@ export async function addCatalogItemToInventoryAction(formData: FormData) {
 
   try {
     if (!(await assertCompanyLocation(supabase, context.companyId, locationId))) {
-      throw new Error("Der Lagerort gehoert nicht zu deiner Firma.");
+      throw new SafeActionError("Der Lagerort gehoert nicht zu deiner Firma.");
     }
 
     const { data: catalogItem, error: catalogError } = await supabase
@@ -104,7 +108,7 @@ export async function addCatalogItemToInventoryAction(formData: FormData) {
       .single();
 
     if (catalogError || !catalogItem) {
-      throw new Error("Katalogartikel wurde nicht gefunden.");
+      throw new SafeActionError("Katalogartikel wurde nicht gefunden.");
     }
 
     const item = catalogItem as MaterialCatalogItem;
@@ -152,10 +156,10 @@ export async function addCatalogItemToInventoryAction(formData: FormData) {
       : await supabase.from("inventory_items").insert(payload);
 
     if (result.error) {
-      throw new Error(result.error.message);
+      throw new SafeActionError("Material konnte nicht uebernommen werden.");
     }
   } catch (error) {
-    redirect(`${returnTo}?error=${toQuery(error instanceof Error ? error.message : "Material konnte nicht uebernommen werden.")}`);
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Material konnte nicht uebernommen werden."))}`);
   }
 
   revalidateMaterialRoutes();
@@ -172,7 +176,7 @@ export async function createCustomInventoryItemAction(formData: FormData) {
 
   try {
     if (!(await assertCompanyLocation(supabase, context.companyId, locationId))) {
-      throw new Error("Der Lagerort gehoert nicht zu deiner Firma.");
+      throw new SafeActionError("Der Lagerort gehoert nicht zu deiner Firma.");
     }
 
     const { error } = await supabase.from("inventory_items").insert({
@@ -192,10 +196,10 @@ export async function createCustomInventoryItemAction(formData: FormData) {
     });
 
     if (error) {
-      throw new Error(error.message);
+      throw new SafeActionError("Material konnte nicht angelegt werden.");
     }
   } catch (error) {
-    redirect(`${returnTo}?error=${toQuery(error instanceof Error ? error.message : "Material konnte nicht angelegt werden.")}`);
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Material konnte nicht angelegt werden."))}`);
   }
 
   revalidateMaterialRoutes();
@@ -206,42 +210,22 @@ export async function adjustInventoryStockAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
-  const itemId = requiredString(formData, "item_id");
-  const mode = String(formData.get("mode") ?? "increase");
 
   try {
+    const itemId = requiredFormUuid(formData, "item_id", "Material");
+    const mode = inventoryModeValue(formData.get("mode"));
     const amount = mode === "set" ? numberOrZero(formData, "amount") : positiveNumber(formData, "amount");
-    const { data, error } = await supabase
-      .from("inventory_items")
-      .select("*")
-      .eq("id", itemId)
-      .eq("company_id", context.companyId)
-      .single();
+    const { error } = await supabase.rpc("adjust_inventory_stock", {
+      p_company_id: context.companyId,
+      p_item_id: itemId,
+      p_mode: mode,
+      p_amount: amount,
+      p_actor_id: context.userId
+    });
 
-    if (error || !data) {
-      throw new Error("Material wurde nicht gefunden.");
-    }
-
-    const item = data as InventoryItem;
-    const currentStock = Number(item.stock);
-    const nextStock =
-      mode === "decrease" ? currentStock - amount : mode === "set" ? amount : currentStock + amount;
-
-    if (nextStock < 0) {
-      throw new Error("Der Bestand darf nicht negativ werden.");
-    }
-
-    const { error: updateError } = await supabase
-      .from("inventory_items")
-      .update({ stock: nextStock })
-      .eq("id", item.id)
-      .eq("company_id", context.companyId);
-
-    if (updateError) {
-      throw new Error(updateError.message);
-    }
+    if (error) throw new SafeActionError("Bestand konnte nicht gebucht werden.");
   } catch (error) {
-    redirect(`${returnTo}?error=${toQuery(error instanceof Error ? error.message : "Bestand konnte nicht gebucht werden.")}`);
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Bestand konnte nicht gebucht werden."))}`);
   }
 
   revalidateMaterialRoutes();
@@ -252,98 +236,27 @@ export async function transferInventoryAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
-  const sourceItemId = requiredString(formData, "source_item_id");
-  const targetLocationId = requiredString(formData, "target_location_id");
 
   try {
+    const sourceItemId = requiredFormUuid(formData, "source_item_id", "Quellmaterial");
+    const targetLocationId = requiredFormUuid(formData, "target_location_id", "Ziel-Lagerort");
     const amount = positiveNumber(formData, "amount");
 
     if (!(await assertCompanyLocation(supabase, context.companyId, targetLocationId))) {
-      throw new Error("Der Ziel-Lagerort gehoert nicht zu deiner Firma.");
+      throw new SafeActionError("Der Ziel-Lagerort gehoert nicht zu deiner Firma.");
     }
 
-    const { data, error } = await supabase
-      .from("inventory_items")
-      .select("*")
-      .eq("id", sourceItemId)
-      .eq("company_id", context.companyId)
-      .single();
+    const { error } = await supabase.rpc("transfer_inventory_item", {
+      p_company_id: context.companyId,
+      p_source_item_id: sourceItemId,
+      p_target_location_id: targetLocationId,
+      p_amount: amount,
+      p_actor_id: context.userId
+    });
 
-    if (error || !data) {
-      throw new Error("Material wurde nicht gefunden.");
-    }
-
-    const source = data as InventoryItem;
-    if (source.location_id === targetLocationId) {
-      throw new Error("Quelle und Ziel duerfen nicht gleich sein.");
-    }
-
-    if (Number(source.stock) < amount) {
-      throw new Error("Nicht genug Bestand am Quellort.");
-    }
-
-    const { error: sourceError } = await supabase
-      .from("inventory_items")
-      .update({ stock: Number(source.stock) - amount })
-      .eq("id", source.id)
-      .eq("company_id", context.companyId);
-
-    if (sourceError) {
-      throw new Error(sourceError.message);
-    }
-
-    let target: InventoryItem | null = null;
-
-    if (source.catalog_item_id) {
-      const { data: targetData } = await supabase
-        .from("inventory_items")
-        .select("*")
-        .eq("company_id", context.companyId)
-        .eq("catalog_item_id", source.catalog_item_id)
-        .eq("location_id", targetLocationId)
-        .maybeSingle();
-
-      target = (targetData as InventoryItem | null) ?? null;
-    }
-
-    if (target) {
-      const { error: targetError } = await supabase
-        .from("inventory_items")
-        .update({ stock: Number(target.stock) + amount })
-        .eq("id", target.id)
-        .eq("company_id", context.companyId);
-
-      if (targetError) {
-        throw new Error(targetError.message);
-      }
-    } else {
-      const { error: insertError } = await supabase.from("inventory_items").insert({
-        company_id: context.companyId,
-        catalog_item_id: source.catalog_item_id,
-        category_id: source.category_id,
-        subcategory_id: source.subcategory_id,
-        location_id: targetLocationId,
-        supplier_id: source.supplier_id,
-        name: source.name,
-        unit: source.unit,
-        stock: amount,
-        minimum_stock: source.minimum_stock,
-        package_unit: source.package_unit,
-        manufacturer: source.manufacturer,
-        article_number: source.article_number,
-        ean: source.ean,
-        purchase_price: source.purchase_price,
-        sales_price: source.sales_price,
-        notes: source.notes,
-        created_by: context.userId
-      });
-
-      if (insertError) {
-        throw new Error(insertError.message);
-      }
-    }
+    if (error) throw new SafeActionError("Umlagerung konnte nicht gebucht werden.");
   } catch (error) {
-    redirect(`${returnTo}?error=${toQuery(error instanceof Error ? error.message : "Umlagerung konnte nicht gebucht werden.")}`);
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Umlagerung konnte nicht gebucht werden."))}`);
   }
 
   revalidateMaterialRoutes();
@@ -363,7 +276,7 @@ export async function createInventoryLocationAction(formData: FormData) {
   });
 
   if (error) {
-    redirect(`${returnTo}?error=${toQuery(error.message)}`);
+    redirect(`${returnTo}?error=${toQuery("Lagerort konnte nicht angelegt werden.")}`);
   }
 
   revalidateMaterialRoutes();
@@ -388,7 +301,7 @@ export async function updateInventoryLocationAction(formData: FormData) {
     .eq("company_id", context.companyId);
 
   if (error) {
-    redirect(`${returnTo}?error=${toQuery(error.message)}`);
+    redirect(`${returnTo}?error=${toQuery("Lagerort konnte nicht aktualisiert werden.")}`);
   }
 
   revalidateMaterialRoutes();
@@ -408,7 +321,7 @@ export async function deactivateInventoryLocationAction(formData: FormData) {
     .eq("company_id", context.companyId);
 
   if (error) {
-    redirect(`${returnTo}?error=${toQuery(error.message)}`);
+    redirect(`${returnTo}?error=${toQuery("Lagerort konnte nicht deaktiviert werden.")}`);
   }
 
   revalidateMaterialRoutes();
@@ -419,30 +332,35 @@ export async function updateInventoryPricingAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
-  const id = requiredString(formData, "item_id");
   const purchasePrice = optionalNumber(formData, "purchase_price");
   const markupPercent = optionalNumber(formData, "markup_percent") ?? 0;
   const manualSalesPrice = optionalNumber(formData, "sales_price");
   const autoSalesPrice =
     purchasePrice === null ? null : Math.round(purchasePrice * (1 + Math.max(markupPercent, 0) / 100) * 100) / 100;
   const shouldAutoCalculate = String(formData.get("auto_calculate_sales_price") ?? "off") === "on";
+  const supplierId = optionalString(formData, "supplier_id");
 
-  const { error } = await supabase
-    .from("inventory_items")
-    .update({
-      purchase_price: purchasePrice,
-      markup_percent: Math.max(markupPercent, 0),
-      sales_price: shouldAutoCalculate ? autoSalesPrice : manualSalesPrice,
-      sales_unit: optionalString(formData, "sales_unit"),
-      price_per_unit: optionalNumber(formData, "price_per_unit"),
-      supplier_id: optionalString(formData, "supplier_id"),
-      last_price_changed_at: new Date().toISOString()
-    })
-    .eq("id", id)
-    .eq("company_id", context.companyId);
+  try {
+    const id = requiredFormUuid(formData, "item_id", "Material");
+    await assertSupplierInCompany({ supabase, companyId: context.companyId, supplierId });
 
-  if (error) {
-    redirect(`${returnTo}?error=${toQuery(error.message)}`);
+    const { error } = await supabase
+      .from("inventory_items")
+      .update({
+        purchase_price: purchasePrice,
+        markup_percent: Math.max(markupPercent, 0),
+        sales_price: shouldAutoCalculate ? autoSalesPrice : manualSalesPrice,
+        sales_unit: optionalString(formData, "sales_unit"),
+        price_per_unit: optionalNumber(formData, "price_per_unit"),
+        supplier_id: supplierId,
+        last_price_changed_at: new Date().toISOString()
+      })
+      .eq("id", id)
+      .eq("company_id", context.companyId);
+
+    if (error) throw new SafeActionError("Preise konnten nicht aktualisiert werden.");
+  } catch (error) {
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Preise konnten nicht aktualisiert werden."))}`);
   }
 
   revalidateMaterialRoutes();

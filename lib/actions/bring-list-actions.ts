@@ -7,13 +7,12 @@ import { requireAppContext, requireManager } from "@/lib/auth";
 import { checkBringListAvailability } from "@/lib/inventory/check-availability";
 import { createOrUpdateMaterialAlert } from "@/lib/inventory/alerts";
 import { generatePurchaseSuggestions } from "@/lib/inventory/purchase-suggestions";
+import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
+import { optionalFormUuid, requiredFormUuid } from "@/lib/security/form-data";
+import { assertBringListAccess, assertJobsiteInCompany, assertProfilesInCompany, assertVehicleInCompany } from "@/lib/security/tenant-guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalString, requiredString } from "@/lib/utils";
 import type { BringListItemType, JobMaterialRequirement, Order } from "@/types/app";
-
-function toQuery(value: string) {
-  return encodeURIComponent(value);
-}
 
 function redirectTarget(formData: FormData, fallback = "/bring-lists") {
   const value = String(formData.get("return_to") ?? "");
@@ -91,8 +90,37 @@ async function insertBringListItems({
 
   if (rows.length > 0) {
     const { error } = await supabase.from("bring_list_items").insert(rows);
-    if (error) throw new Error(error.message);
+    if (error) throw new SafeActionError("Positionen konnten nicht gespeichert werden.");
   }
+}
+
+async function resolveBringListAssignment({
+  supabase,
+  context,
+  formData
+}: {
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  context: Awaited<ReturnType<typeof requireAppContext>>;
+  formData: FormData;
+}) {
+  if (!context.canManage) {
+    return { assigned_to: context.userId, vehicle_id: null };
+  }
+
+  const assignedTo = optionalFormUuid(formData, "assigned_to", "Mitarbeiter");
+  const vehicleId = optionalFormUuid(formData, "vehicle_id", "Fahrzeug");
+
+  if (assignedTo) {
+    await assertProfilesInCompany({
+      supabase,
+      companyId: context.companyId,
+      profileIds: [assignedTo],
+      allowedRoles: ["vorarbeiter", "mitarbeiter"]
+    });
+  }
+
+  await assertVehicleInCompany({ supabase, companyId: context.companyId, vehicleId });
+  return { assigned_to: assignedTo, vehicle_id: vehicleId };
 }
 
 export async function createBringListAction(formData: FormData) {
@@ -102,14 +130,11 @@ export async function createBringListAction(formData: FormData) {
   let target = returnTo;
 
   try {
-    const jobId = requiredString(formData, "job_id");
-    const { data: job } = await supabase
-      .from("jobsites")
-      .select("id, name")
-      .eq("id", jobId)
-      .eq("company_id", context.companyId)
-      .single();
-    if (!job) throw new Error("Baustelle wurde nicht gefunden.");
+    const jobId = requiredFormUuid(formData, "job_id", "Baustelle");
+    await assertJobsiteInCompany({ supabase, context, jobsiteId: jobId });
+    const { assigned_to, vehicle_id } = await resolveBringListAssignment({ supabase, context, formData });
+    const { data: job } = await supabase.from("jobsites").select("id, name").eq("id", jobId).eq("company_id", context.companyId).single();
+    if (!job) throw new SafeActionError("Baustelle wurde nicht gefunden.");
 
     const { data: list, error } = await supabase
       .from("bring_lists")
@@ -121,13 +146,13 @@ export async function createBringListAction(formData: FormData) {
         notes: optionalString(formData, "notes"),
         status: context.canManage ? "ready" : "draft",
         created_by: context.userId,
-        assigned_to: optionalString(formData, "assigned_to"),
-        vehicle_id: optionalString(formData, "vehicle_id")
+        assigned_to,
+        vehicle_id
       })
       .select("id")
       .single();
 
-    if (error || !list) throw new Error(error?.message ?? "Mitbringliste konnte nicht erstellt werden.");
+    if (error || !list) throw new SafeActionError("Mitbringliste konnte nicht erstellt werden.");
 
     const names = formData.getAll("item_name");
     const quantities = formData.getAll("item_quantity");
@@ -148,7 +173,7 @@ export async function createBringListAction(formData: FormData) {
     await checkBringListAvailability({ supabase, companyId: context.companyId, bringListId: list.id as string });
     target = `/bring-lists/${list.id}?success=${toQuery("Mitbringliste wurde erstellt.")}`;
   } catch (error) {
-    target = `${returnTo}?error=${toQuery(error instanceof Error ? error.message : "Mitbringliste konnte nicht erstellt werden.")}`;
+    target = `${returnTo}?error=${toQuery(safeErrorMessage(error, "Mitbringliste konnte nicht erstellt werden."))}`;
   }
 
   revalidatePath("/bring-lists");
@@ -159,7 +184,7 @@ export async function createBringListAction(formData: FormData) {
 export async function createBringListFromOrderAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
-  const orderId = requiredString(formData, "order_id");
+  const orderId = requiredFormUuid(formData, "order_id", "Auftrag");
   let target = `/orders/${orderId}`;
 
   try {
@@ -169,10 +194,10 @@ export async function createBringListFromOrderAction(formData: FormData) {
       .eq("id", orderId)
       .eq("company_id", context.companyId)
       .single();
-    if (!orderData) throw new Error("Auftrag wurde nicht gefunden.");
+    if (!orderData) throw new SafeActionError("Auftrag wurde nicht gefunden.");
 
     const order = orderData as Order & { jobsites?: { id: string; name: string } | null };
-    if (!order.jobsite_id) throw new Error("Auftrag hat keine verknuepfte Baustelle.");
+    if (!order.jobsite_id) throw new SafeActionError("Auftrag hat keine verknuepfte Baustelle.");
 
     const { data: list, error } = await supabase
       .from("bring_lists")
@@ -188,7 +213,7 @@ export async function createBringListFromOrderAction(formData: FormData) {
       .select("id")
       .single();
 
-    if (error || !list) throw new Error(error?.message ?? "Mitbringliste konnte nicht erstellt werden.");
+    if (error || !list) throw new SafeActionError("Mitbringliste konnte nicht erstellt werden.");
 
     const { data: requirements } = await supabase
       .from("job_material_requirements")
@@ -219,9 +244,7 @@ export async function createBringListFromOrderAction(formData: FormData) {
     await checkBringListAvailability({ supabase, companyId: context.companyId, bringListId: list.id as string });
     target = `/bring-lists/${list.id}?success=${toQuery("Mitbringliste fuer morgen wurde erstellt.")}`;
   } catch (error) {
-    target = `/orders/${orderId}?error=${toQuery(
-      error instanceof Error ? error.message : "Mitbringliste konnte nicht erstellt werden."
-    )}`;
+    target = `/orders/${orderId}?error=${toQuery(safeErrorMessage(error, "Mitbringliste konnte nicht erstellt werden."))}`;
   }
 
   revalidatePath("/bring-lists");
@@ -233,23 +256,30 @@ export async function createBringListFromOrderAction(formData: FormData) {
 export async function updateBringListItemPackedAction(formData: FormData) {
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
-  const itemId = requiredString(formData, "item_id");
-  const bringListId = requiredString(formData, "bring_list_id");
+  const itemId = requiredFormUuid(formData, "item_id", "Position");
+  const bringListId = requiredFormUuid(formData, "bring_list_id", "Mitbringliste");
   const packed = String(formData.get("packed") ?? "") === "true";
 
-  const { error } = await supabase
-    .from("bring_list_items")
-    .update({
-      packed,
-      packed_by: packed ? context.userId : null,
-      packed_at: packed ? new Date().toISOString() : null
-    })
-    .eq("id", itemId)
-    .eq("bring_list_id", bringListId);
+  try {
+    await assertBringListAccess({ supabase, context, bringListId });
 
-  if (error) redirect(`/bring-lists/${bringListId}?error=${toQuery(error.message)}`);
+    const { error } = await supabase
+      .from("bring_list_items")
+      .update({
+        packed,
+        packed_by: packed ? context.userId : null,
+        packed_at: packed ? new Date().toISOString() : null
+      })
+      .eq("id", itemId)
+      .eq("bring_list_id", bringListId);
 
-  await checkBringListAvailability({ supabase, companyId: context.companyId, bringListId });
+    if (error) throw new SafeActionError("Position konnte nicht aktualisiert werden.");
+
+    await checkBringListAvailability({ supabase, companyId: context.companyId, bringListId });
+  } catch (error) {
+    redirect(`/bring-lists/${bringListId}?error=${toQuery(safeErrorMessage(error, "Position konnte nicht aktualisiert werden."))}`);
+  }
+
   revalidatePath(`/bring-lists/${bringListId}`);
   redirect(`/bring-lists/${bringListId}?success=${toQuery(packed ? "Position eingepackt." : "Position wieder offen.")}`);
 }
@@ -257,14 +287,19 @@ export async function updateBringListItemPackedAction(formData: FormData) {
 export async function updateBringListStatusAction(formData: FormData) {
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
-  const bringListId = requiredString(formData, "bring_list_id");
+  const bringListId = requiredFormUuid(formData, "bring_list_id", "Mitbringliste");
   const status = String(formData.get("status") ?? "ready");
   if (!["draft", "ready", "packed", "delivered"].includes(status)) {
     redirect(`/bring-lists/${bringListId}?error=${toQuery("Ungueltiger Status.")}`);
   }
 
-  const { error } = await supabase.from("bring_lists").update({ status }).eq("id", bringListId).eq("company_id", context.companyId);
-  if (error) redirect(`/bring-lists/${bringListId}?error=${toQuery(error.message)}`);
+  try {
+    await assertBringListAccess({ supabase, context, bringListId });
+    const { error } = await supabase.from("bring_lists").update({ status }).eq("id", bringListId).eq("company_id", context.companyId);
+    if (error) throw new SafeActionError("Status konnte nicht gespeichert werden.");
+  } catch (error) {
+    redirect(`/bring-lists/${bringListId}?error=${toQuery(safeErrorMessage(error, "Status konnte nicht gespeichert werden."))}`);
+  }
 
   revalidatePath("/bring-lists");
   revalidatePath(`/bring-lists/${bringListId}`);
@@ -274,26 +309,22 @@ export async function updateBringListStatusAction(formData: FormData) {
 export async function reportMissingBringListItemAction(formData: FormData) {
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
-  const bringListId = requiredString(formData, "bring_list_id");
-  const itemId = requiredString(formData, "item_id");
+  const bringListId = requiredFormUuid(formData, "bring_list_id", "Mitbringliste");
+  const itemId = requiredFormUuid(formData, "item_id", "Position");
 
-  const { data: item } = await supabase
-    .from("bring_list_items")
-    .select("*, bring_lists(company_id, job_id)")
-    .eq("id", itemId)
-    .eq("bring_list_id", bringListId)
-    .single();
+  const list = await assertBringListAccess({ supabase, context, bringListId });
+
+  const { data: item } = await supabase.from("bring_list_items").select("*").eq("id", itemId).eq("bring_list_id", bringListId).single();
 
   if (!item) redirect(`/bring-lists/${bringListId}?error=${toQuery("Position wurde nicht gefunden.")}`);
 
   await supabase.from("bring_list_items").update({ missing_reported: true }).eq("id", itemId);
-  const list = item.bring_lists as { job_id?: string | null } | null;
   await createOrUpdateMaterialAlert({
     supabase,
     companyId: context.companyId,
     materialId: item.material_id as string | null,
     inventoryItemId: item.inventory_item_id as string | null,
-    jobId: list?.job_id ?? null,
+    jobId: list.job_id ?? null,
     bringListId,
     alertType: "missing_for_job",
     severity: "critical",
@@ -310,7 +341,7 @@ export async function reportMissingBringListItemAction(formData: FormData) {
     companyId: context.companyId,
     materialId: item.material_id as string | null,
     inventoryItemId: item.inventory_item_id as string | null,
-    jobId: list?.job_id ?? null,
+    jobId: list.job_id ?? null,
     bringListId,
     quantityNeeded: Number(item.quantity ?? 0),
     unit: String(item.unit ?? "Stueck"),
@@ -325,15 +356,20 @@ export async function reportMissingBringListItemAction(formData: FormData) {
 export async function reserveBringListMaterialsAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
-  const bringListId = requiredString(formData, "bring_list_id");
+  const bringListId = requiredFormUuid(formData, "bring_list_id", "Mitbringliste");
 
-  await checkBringListAvailability({
-    supabase,
-    companyId: context.companyId,
-    bringListId,
-    reserve: true,
-    reservedBy: context.userId
-  });
+  try {
+    await assertBringListAccess({ supabase, context, bringListId });
+    await checkBringListAvailability({
+      supabase,
+      companyId: context.companyId,
+      bringListId,
+      reserve: true,
+      reservedBy: context.userId
+    });
+  } catch (error) {
+    redirect(`/bring-lists/${bringListId}?error=${toQuery(safeErrorMessage(error, "Material konnte nicht reserviert werden."))}`);
+  }
 
   revalidatePath(`/bring-lists/${bringListId}`);
   revalidatePath("/dashboard");
@@ -343,7 +379,7 @@ export async function reserveBringListMaterialsAction(formData: FormData) {
 export async function updatePurchaseSuggestionStatusAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
-  const id = requiredString(formData, "id");
+  const id = requiredFormUuid(formData, "id", "Einkaufsvorschlag");
   const status = String(formData.get("status") ?? "open");
   if (!["open", "ordered", "ignored", "received"].includes(status)) {
     redirect(`/dashboard?error=${toQuery("Ungueltiger Einkaufsvorschlag-Status.")}`);
@@ -355,7 +391,7 @@ export async function updatePurchaseSuggestionStatusAction(formData: FormData) {
     .eq("id", id)
     .eq("company_id", context.companyId);
 
-  if (error) redirect(`/dashboard?error=${toQuery(error.message)}`);
+  if (error) redirect(`/dashboard?error=${toQuery("Einkaufsvorschlag konnte nicht aktualisiert werden.")}`);
 
   revalidatePath("/dashboard");
   redirect(`/dashboard?success=${toQuery("Einkaufsvorschlag wurde aktualisiert.")}`);

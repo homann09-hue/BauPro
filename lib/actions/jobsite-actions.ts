@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireManager } from "@/lib/auth";
+import { requiredFormUuid } from "@/lib/security/form-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formIds, optionalDate, optionalString, requiredString } from "@/lib/utils";
 import type { JobsiteStatus } from "@/types/app";
@@ -36,7 +37,7 @@ async function getAssignableEmployeeIds(
     .in("id", requestedIds);
 
   if (error) {
-    return { ids: [] as string[], error: error.message };
+    return { ids: [] as string[], error: "Mitarbeiter konnten nicht geprueft werden." };
   }
 
   return { ids: (data ?? []).map((profile) => profile.id as string), error: null as string | null };
@@ -64,7 +65,7 @@ export async function createJobsiteAction(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/baustellen/neu?error=${toQuery(error.message)}`);
+    redirect(`/baustellen/neu?error=${toQuery("Baustelle konnte nicht angelegt werden.")}`);
   }
 
   revalidatePath("/baustellen");
@@ -74,7 +75,7 @@ export async function createJobsiteAction(formData: FormData) {
 export async function updateJobsiteAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
-  const id = requiredString(formData, "id");
+  const id = requiredFormUuid(formData, "id", "Baustelle");
   const assignedEmployees = await getAssignableEmployeeIds(supabase, formData, context.companyId);
 
   if (assignedEmployees.error) {
@@ -96,7 +97,7 @@ export async function updateJobsiteAction(formData: FormData) {
     .eq("company_id", context.companyId);
 
   if (error) {
-    redirect(`/baustellen/${id}/bearbeiten?error=${toQuery(error.message)}`);
+    redirect(`/baustellen/${id}/bearbeiten?error=${toQuery("Baustelle konnte nicht aktualisiert werden.")}`);
   }
 
   revalidatePath("/baustellen");
@@ -106,18 +107,18 @@ export async function updateJobsiteAction(formData: FormData) {
 export async function deleteJobsiteAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
-  const id = requiredString(formData, "id");
+  const id = requiredFormUuid(formData, "id", "Baustelle");
 
   const { error } = await supabase
     .from("jobsites")
-    .delete()
+    .update({ archived_at: new Date().toISOString(), status: "abgeschlossen" })
     .eq("id", id)
     .eq("company_id", context.companyId);
 
   if (error) {
-    redirect(`/baustellen?error=${toQuery(error.message)}`);
+    redirect(`/baustellen?error=${toQuery("Baustelle konnte nicht archiviert werden.")}`);
   }
 
   revalidatePath("/baustellen");
-  redirect(`/baustellen?success=${toQuery("Baustelle wurde geloescht.")}`);
+  redirect(`/baustellen?success=${toQuery("Baustelle wurde archiviert.")}`);
 }

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { isManager } from "@/lib/utils";
+import { canOperate, isManager } from "@/lib/utils";
 import type { Profile } from "@/types/app";
 
 export type AppContext = {
@@ -10,6 +10,7 @@ export type AppContext = {
   companyId: string;
   companyName: string;
   canManage: boolean;
+  canOperate: boolean;
 };
 
 export async function getOptionalAppContext(): Promise<AppContext | null> {
@@ -50,7 +51,8 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
     profile: typedProfile,
     companyId: typedProfile.company_id,
     companyName: company?.name ?? "Meine Firma",
-    canManage: isManager(typedProfile.role)
+    canManage: isManager(typedProfile.role),
+    canOperate: canOperate(typedProfile.role)
   };
 }
 

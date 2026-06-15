@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAppContext, requireManager } from "@/lib/auth";
+import { requiredFormUuid } from "@/lib/security/form-data";
+import { assertRateLimit } from "@/lib/security/rate-limit";
 import { isUnsupportedVorarbeiterRoleError } from "@/lib/supabase/errors";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalString, requiredString } from "@/lib/utils";
@@ -23,6 +25,12 @@ export async function signInAction(formData: FormData) {
   const email = requiredString(formData, "email");
   const password = requiredString(formData, "password");
 
+  try {
+    assertRateLimit(`login:${email.toLowerCase()}`, 10, 60_000);
+  } catch {
+    redirect(`/login?error=${toQuery("Zu viele Login-Versuche. Bitte kurz warten.")}`);
+  }
+
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
@@ -30,7 +38,7 @@ export async function signInAction(formData: FormData) {
       ? "Bitte bestaetige zuerst deine E-Mail-Adresse."
       : error.message.includes("Invalid login credentials")
         ? "E-Mail oder Passwort stimmt nicht."
-        : error.message;
+        : "Login fehlgeschlagen. Bitte pruefe E-Mail und Passwort.";
     redirect(`/login?error=${toQuery(message)}`);
   }
 
@@ -73,7 +81,7 @@ export async function signUpCompanyAction(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/register?error=${toQuery(error.message)}`);
+    redirect(`/register?error=${toQuery("Registrierung konnte nicht abgeschlossen werden.")}`);
   }
 
   if (data.session) {
@@ -117,7 +125,7 @@ export async function createEmployeeAction(formData: FormData) {
   });
 
   if (error || !data.user) {
-    redirect(`/team?error=${toQuery(error?.message ?? "Mitarbeiter konnte nicht angelegt werden.")}`);
+    redirect(`/team?error=${toQuery("Mitarbeiter konnte nicht angelegt werden.")}`);
   }
 
   let finalRole = role;
@@ -150,7 +158,7 @@ export async function createEmployeeAction(formData: FormData) {
   }
 
   if (profileResult.error) {
-    redirect(`/team?error=${toQuery(profileResult.error.message)}`);
+    redirect(`/team?error=${toQuery("Mitarbeiterprofil konnte nicht gespeichert werden.")}`);
   }
 
   revalidatePath("/team");
@@ -164,7 +172,7 @@ export async function createEmployeeAction(formData: FormData) {
 export async function updateEmployeeAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
-  const id = requiredString(formData, "id");
+  const id = requiredFormUuid(formData, "id", "Mitarbeiter");
   const fullName = optionalString(formData, "full_name");
   const role = normalizeRole(formData.get("role"));
   const active = formData.get("active") === "on";
@@ -191,7 +199,7 @@ export async function updateEmployeeAction(formData: FormData) {
   }
 
   if (error) {
-    redirect(`/team?error=${toQuery(error.message)}`);
+    redirect(`/team?error=${toQuery("Mitarbeiter konnte nicht aktualisiert werden.")}`);
   }
 
   revalidatePath("/team");
@@ -215,7 +223,7 @@ export async function updateOwnProfileAction(formData: FormData) {
     .eq("company_id", context.companyId);
 
   if (error) {
-    redirect(`${returnTo}?error=${toQuery(error.message)}`);
+    redirect(`${returnTo}?error=${toQuery("Profil konnte nicht gespeichert werden.")}`);
   }
 
   revalidatePath("/profile");
@@ -232,7 +240,7 @@ export async function updateCompanyProfileAction(formData: FormData) {
   const { error } = await supabase.from("companies").update({ name }).eq("id", context.companyId);
 
   if (error) {
-    redirect(`${returnTo}?error=${toQuery(error.message)}`);
+    redirect(`${returnTo}?error=${toQuery("Firmenprofil konnte nicht gespeichert werden.")}`);
   }
 
   revalidatePath("/settings");

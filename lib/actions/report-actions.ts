@@ -2,22 +2,38 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import type { AppContext } from "@/lib/auth";
 import { requireAppContext } from "@/lib/auth";
+import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
+import { optionalFormUuid, requiredFormUuid, formUuidList } from "@/lib/security/form-data";
+import { assertRateLimit } from "@/lib/security/rate-limit";
+import { assertJobsiteInCompany, assertProfilesInCompany } from "@/lib/security/tenant-guards";
 import { sanitizeUploadFileName, validateReportPhoto } from "@/lib/security/uploads";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { formIds, optionalDate, optionalString, requiredString } from "@/lib/utils";
+import { optionalDate, optionalString, requiredString } from "@/lib/utils";
 
-function toQuery(value: string) {
-  return encodeURIComponent(value);
-}
+async function reportEmployees({
+  formData,
+  context,
+  supabase
+}: {
+  formData: FormData;
+  context: AppContext;
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+}) {
+  if (!context.canManage) return [context.userId];
 
-function reportEmployees(formData: FormData, userId: string, canManage: boolean) {
-  const employees = formIds(formData, "employee_ids");
-  if (canManage) {
-    return employees.length > 0 ? employees : [userId];
+  const employees = formUuidList(formData, "employee_ids", "Mitarbeiter");
+  if (employees.length === 0) {
+    return [context.userId];
   }
 
-  return employees.includes(userId) ? employees : [userId];
+  return assertProfilesInCompany({
+    supabase,
+    companyId: context.companyId,
+    profileIds: employees,
+    allowedRoles: ["vorarbeiter", "mitarbeiter"]
+  });
 }
 
 async function uploadReportPhotos({
@@ -38,8 +54,14 @@ async function uploadReportPhotos({
     .getAll("photos")
     .filter((value): value is File => value instanceof File && value.size > 0);
 
+  if (files.length > 12) {
+    throw new SafeActionError("Bitte maximal 12 Fotos pro Bericht hochladen.");
+  }
+
+  assertRateLimit(`report-upload:${companyId}:${userId}`, 25, 60_000);
+
   for (const [index, file] of files.entries()) {
-    validateReportPhoto(file);
+    await validateReportPhoto(file);
     const safeName = sanitizeUploadFileName(file.name);
     const path = `${companyId}/reports/${reportId}/${Date.now()}-${index}-${safeName}`;
 
@@ -51,7 +73,7 @@ async function uploadReportPhotos({
     });
 
     if (uploadError) {
-      throw new Error("Foto konnte nicht hochgeladen werden.");
+      throw new SafeActionError("Foto konnte nicht hochgeladen werden.");
     }
 
     const { error: insertError } = await supabase.from("report_photos").insert({
@@ -59,13 +81,13 @@ async function uploadReportPhotos({
       report_id: reportId,
       jobsite_id: jobsiteId,
       storage_path: path,
-      file_name: file.name,
+      file_name: safeName,
       content_type: file.type || null,
       created_by: userId
     });
 
     if (insertError) {
-      throw new Error("Foto-Metadaten konnten nicht gespeichert werden.");
+      throw new SafeActionError("Foto-Metadaten konnten nicht gespeichert werden.");
     }
   }
 }
@@ -73,32 +95,38 @@ async function uploadReportPhotos({
 export async function createReportAction(formData: FormData) {
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
-  const jobsiteId = optionalString(formData, "jobsite_id");
-
-  const { data, error } = await supabase
-    .from("reports")
-    .insert({
-      company_id: context.companyId,
-      jobsite_id: jobsiteId,
-      report_date: optionalDate(formData, "report_date") ?? new Date().toISOString().slice(0, 10),
-      weather: optionalString(formData, "weather"),
-      work_start: optionalString(formData, "work_start"),
-      work_end: optionalString(formData, "work_end"),
-      employee_ids: reportEmployees(formData, context.userId, context.canManage),
-      activities: requiredString(formData, "activities"),
-      material_usage: optionalString(formData, "material_usage"),
-      issues: optionalString(formData, "issues"),
-      signature_name: optionalString(formData, "signature_name"),
-      created_by: context.userId
-    })
-    .select("id")
-    .single();
-
-  if (error || !data) {
-    redirect(`/berichte/neu?error=${toQuery(error?.message ?? "Bericht konnte nicht angelegt werden.")}`);
-  }
+  const jobsiteId = optionalFormUuid(formData, "jobsite_id", "Baustelle");
+  let createdReportId: string | null = null;
 
   try {
+    await assertJobsiteInCompany({ supabase, context, jobsiteId });
+
+    const employeeIds = await reportEmployees({ formData, context, supabase });
+
+    const { data, error } = await supabase
+      .from("reports")
+      .insert({
+        company_id: context.companyId,
+        jobsite_id: jobsiteId,
+        report_date: optionalDate(formData, "report_date") ?? new Date().toISOString().slice(0, 10),
+        weather: optionalString(formData, "weather"),
+        work_start: optionalString(formData, "work_start"),
+        work_end: optionalString(formData, "work_end"),
+        employee_ids: employeeIds,
+        activities: requiredString(formData, "activities"),
+        material_usage: optionalString(formData, "material_usage"),
+        issues: optionalString(formData, "issues"),
+        signature_name: optionalString(formData, "signature_name"),
+        created_by: context.userId
+      })
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      throw new SafeActionError("Bericht konnte nicht angelegt werden.");
+    }
+
+    createdReportId = data.id;
     await uploadReportPhotos({
       formData,
       reportId: data.id,
@@ -107,41 +135,42 @@ export async function createReportAction(formData: FormData) {
       userId: context.userId
     });
   } catch (uploadError) {
-    redirect(`/berichte/${data.id}?error=${toQuery((uploadError as Error).message)}`);
+    redirect(`/berichte/neu?error=${toQuery(safeErrorMessage(uploadError, "Bericht konnte nicht angelegt werden."))}`);
   }
 
   revalidatePath("/berichte");
-  redirect(`/berichte/${data.id}?success=${toQuery("Tagesbericht wurde angelegt.")}`);
+  redirect(`/${createdReportId ? `berichte/${createdReportId}` : "berichte"}?success=${toQuery("Tagesbericht wurde angelegt.")}`);
 }
 
 export async function updateReportAction(formData: FormData) {
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
-  const id = requiredString(formData, "id");
-  const jobsiteId = optionalString(formData, "jobsite_id");
-
-  const { error } = await supabase
-    .from("reports")
-    .update({
-      jobsite_id: jobsiteId,
-      report_date: optionalDate(formData, "report_date") ?? new Date().toISOString().slice(0, 10),
-      weather: optionalString(formData, "weather"),
-      work_start: optionalString(formData, "work_start"),
-      work_end: optionalString(formData, "work_end"),
-      employee_ids: reportEmployees(formData, context.userId, context.canManage),
-      activities: requiredString(formData, "activities"),
-      material_usage: optionalString(formData, "material_usage"),
-      issues: optionalString(formData, "issues"),
-      signature_name: optionalString(formData, "signature_name")
-    })
-    .eq("id", id)
-    .eq("company_id", context.companyId);
-
-  if (error) {
-    redirect(`/berichte/${id}/bearbeiten?error=${toQuery(error.message)}`);
-  }
+  const id = requiredFormUuid(formData, "id", "Bericht");
+  const jobsiteId = optionalFormUuid(formData, "jobsite_id", "Baustelle");
 
   try {
+    await assertJobsiteInCompany({ supabase, context, jobsiteId });
+    const employeeIds = await reportEmployees({ formData, context, supabase });
+
+    const { error } = await supabase
+      .from("reports")
+      .update({
+        jobsite_id: jobsiteId,
+        report_date: optionalDate(formData, "report_date") ?? new Date().toISOString().slice(0, 10),
+        weather: optionalString(formData, "weather"),
+        work_start: optionalString(formData, "work_start"),
+        work_end: optionalString(formData, "work_end"),
+        employee_ids: employeeIds,
+        activities: requiredString(formData, "activities"),
+        material_usage: optionalString(formData, "material_usage"),
+        issues: optionalString(formData, "issues"),
+        signature_name: optionalString(formData, "signature_name")
+      })
+      .eq("id", id)
+      .eq("company_id", context.companyId);
+
+    if (error) throw new SafeActionError("Bericht konnte nicht aktualisiert werden.");
+
     await uploadReportPhotos({
       formData,
       reportId: id,
@@ -150,7 +179,7 @@ export async function updateReportAction(formData: FormData) {
       userId: context.userId
     });
   } catch (uploadError) {
-    redirect(`/berichte/${id}/bearbeiten?error=${toQuery((uploadError as Error).message)}`);
+    redirect(`/berichte/${id}/bearbeiten?error=${toQuery(safeErrorMessage(uploadError, "Bericht konnte nicht aktualisiert werden."))}`);
   }
 
   revalidatePath("/berichte");
@@ -161,7 +190,18 @@ export async function updateReportAction(formData: FormData) {
 export async function deleteReportAction(formData: FormData) {
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
-  const id = requiredString(formData, "id");
+  const id = requiredFormUuid(formData, "id", "Bericht");
+
+  const { data: report } = await supabase
+    .from("reports")
+    .select("id, created_by")
+    .eq("id", id)
+    .eq("company_id", context.companyId)
+    .maybeSingle();
+
+  if (!report || (!context.canManage && (report as { created_by?: string | null }).created_by !== context.userId)) {
+    redirect(`/berichte/${id}?error=${toQuery("Keine Berechtigung fuer diesen Bericht.")}`);
+  }
 
   const { data: photos } = await supabase
     .from("report_photos")
@@ -182,7 +222,7 @@ export async function deleteReportAction(formData: FormData) {
     .eq("company_id", context.companyId);
 
   if (error) {
-    redirect(`/berichte/${id}?error=${toQuery(error.message)}`);
+    redirect(`/berichte/${id}?error=${toQuery("Bericht konnte nicht geloescht werden.")}`);
   }
 
   revalidatePath("/berichte");
@@ -192,11 +232,22 @@ export async function deleteReportAction(formData: FormData) {
 export async function deleteReportPhotoAction(formData: FormData) {
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
-  const id = requiredString(formData, "id");
-  const reportId = requiredString(formData, "report_id");
-  const storagePath = requiredString(formData, "storage_path");
+  const id = requiredFormUuid(formData, "id", "Foto");
+  const reportId = requiredFormUuid(formData, "report_id", "Bericht");
 
-  await supabase.storage.from("report-photos").remove([storagePath]);
+  const { data: photo } = await supabase
+    .from("report_photos")
+    .select("storage_path, created_by")
+    .eq("id", id)
+    .eq("report_id", reportId)
+    .eq("company_id", context.companyId)
+    .maybeSingle();
+
+  if (!photo || (!context.canManage && (photo as { created_by?: string | null }).created_by !== context.userId)) {
+    redirect(`/berichte/${reportId}/bearbeiten?error=${toQuery("Keine Berechtigung fuer dieses Foto.")}`);
+  }
+
+  await supabase.storage.from("report-photos").remove([(photo as { storage_path: string }).storage_path]);
 
   const { error } = await supabase
     .from("report_photos")
@@ -205,7 +256,7 @@ export async function deleteReportPhotoAction(formData: FormData) {
     .eq("company_id", context.companyId);
 
   if (error) {
-    redirect(`/berichte/${reportId}/bearbeiten?error=${toQuery(error.message)}`);
+    redirect(`/berichte/${reportId}/bearbeiten?error=${toQuery("Foto konnte nicht geloescht werden.")}`);
   }
 
   revalidatePath(`/berichte/${reportId}`);

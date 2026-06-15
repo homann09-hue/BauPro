@@ -4,12 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireManager } from "@/lib/auth";
 import { discoverOnlinePrices } from "@/lib/online-price-discovery/service";
+import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
+import { optionalFormUuid } from "@/lib/security/form-data";
+import { assertRateLimit } from "@/lib/security/rate-limit";
+import { assertInventoryItemInCompany } from "@/lib/security/tenant-guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalString } from "@/lib/utils";
-
-function toQuery(value: string) {
-  return encodeURIComponent(value);
-}
 
 function redirectTarget(formData: FormData, fallback = "/materials/online-discovery") {
   const value = String(formData.get("return_to") ?? "");
@@ -28,12 +28,16 @@ export async function runOnlinePriceDiscoveryAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
-  const materialId = optionalString(formData, "material_id");
+  let materialId: string | null = null;
   let query = optionalString(formData, "query") ?? "";
   let successMessage: string | null = null;
   let errorMessage: string | null = null;
 
   try {
+    materialId = optionalFormUuid(formData, "material_id", "Material");
+    assertRateLimit(`online-price:${context.companyId}:${context.userId}`, 20, 60_000);
+    await assertInventoryItemInCompany({ supabase, companyId: context.companyId, itemId: materialId });
+
     if (materialId && !query) {
       const { data: material } = await supabase
         .from("inventory_items")
@@ -45,7 +49,7 @@ export async function runOnlinePriceDiscoveryAction(formData: FormData) {
     }
 
     if (!query.trim()) {
-      throw new Error("Bitte Suchbegriff oder Material auswaehlen.");
+      throw new SafeActionError("Bitte Suchbegriff oder Material auswaehlen.");
     }
 
     const result = await discoverOnlinePrices(query);
@@ -66,7 +70,7 @@ export async function runOnlinePriceDiscoveryAction(formData: FormData) {
       .single();
 
     if (discoveryError || !discovery) {
-      throw new Error(discoveryError?.message ?? "Online-Recherche konnte nicht gespeichert werden.");
+      throw new SafeActionError("Online-Recherche konnte nicht gespeichert werden.");
     }
 
     if (result.offers.length > 0) {
@@ -97,9 +101,9 @@ export async function runOnlinePriceDiscoveryAction(formData: FormData) {
             : `${row.source_note ? `${row.source_note} | ` : ""}Originalquelle: ${row.source_key}`
         }));
         const { error: fallbackError } = await supabase.from("online_price_offers").insert(fallbackRows);
-        if (fallbackError) throw new Error(fallbackError.message);
+        if (fallbackError) throw new SafeActionError("Online-Angebote konnten nicht gespeichert werden.");
       } else if (offersError) {
-        throw new Error(offersError.message);
+        throw new SafeActionError("Online-Angebote konnten nicht gespeichert werden.");
       }
     }
 
@@ -109,7 +113,8 @@ export async function runOnlinePriceDiscoveryAction(formData: FormData) {
         : "Keine aktuellen Online-Angebote gefunden.";
     successMessage = message;
   } catch (error) {
-    errorMessage = error instanceof Error ? error.message : "Online-Recherche konnte nicht ausgefuehrt werden.";
+    console.warn("online-price-discovery-failed", error);
+    errorMessage = safeErrorMessage(error, "Online-Recherche konnte nicht ausgefuehrt werden.");
   }
 
   revalidateDiscoveryRoutes(materialId);

@@ -9,6 +9,14 @@ export function isManager(role?: Role | null) {
   return role === "admin" || role === "chef";
 }
 
+export function isForeman(role?: Role | null) {
+  return role === "vorarbeiter";
+}
+
+export function canOperate(role?: Role | null) {
+  return isManager(role) || isForeman(role);
+}
+
 export function requiredString(formData: FormData, key: string) {
   const value = String(formData.get(key) ?? "").trim();
   if (!value) {
