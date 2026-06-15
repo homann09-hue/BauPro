@@ -1,0 +1,42 @@
+{
+  "name": "baupro",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "seed:demo": "node scripts/seed-demo-company.mjs"
+  },
+  "dependencies": {
+    "@supabase/ssr": "0.12.0",
+    "@supabase/supabase-js": "2.108.1",
+    "clsx": "2.1.1",
+    "lucide-react": "0.468.0",
+    "next": "16.2.9",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.0",
+    "@types/node": "22.10.2",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitest/coverage-v8": "^4.1.9",
+    "autoprefixer": "10.4.20",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.9",
+    "postcss": "8.5.15",
+    "tailwindcss": "3.4.16",
+    "typescript": "5.7.2",
+    "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "postcss": "8.5.15"
+  }
+}
