@@ -93,7 +93,7 @@ export function VoiceDictation() {
       <button
         type="button"
         onClick={startDictation}
-        className="fixed bottom-24 right-4 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-ink text-white shadow-lift transition hover:-translate-y-0.5 lg:bottom-6"
+        className="fixed bottom-24 left-4 z-40 inline-flex h-14 w-14 items-center justify-center rounded-md bg-anthracite text-white shadow-lift transition hover:-translate-y-0.5 hover:bg-slate-800 lg:bottom-6 lg:left-auto lg:right-6"
         aria-label="Diktieren"
         title="Diktieren"
       >

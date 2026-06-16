@@ -29,7 +29,7 @@ export function ConsentBanner() {
   return (
     <div className="fixed inset-x-3 bottom-3 z-[70] mx-auto max-h-[58dvh] max-w-3xl overflow-y-auto rounded-lg border border-line bg-white p-3 shadow-lift sm:max-h-none sm:p-4">
       <div className="flex items-start gap-3">
-        <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-md bg-mint text-moss sm:flex">
+        <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary sm:flex">
           <Cookie className="h-5 w-5" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
@@ -45,7 +45,7 @@ export function ConsentBanner() {
                 type="checkbox"
                 checked={analytics}
                 onChange={(event) => setAnalytics(event.target.checked)}
-                className="h-4 w-4 rounded border-line text-moss"
+                className="h-4 w-4 rounded border-line text-primary"
               />
               Analyse optional
             </label>
@@ -54,14 +54,14 @@ export function ConsentBanner() {
                 type="checkbox"
                 checked={marketing}
                 onChange={(event) => setMarketing(event.target.checked)}
-                className="h-4 w-4 rounded border-line text-moss"
+                className="h-4 w-4 rounded border-line text-primary"
               />
               Marketing optional
             </label>
           </div>
 
           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Link href="/legal/datenschutz" className="inline-flex items-center gap-2 text-sm font-bold text-moss">
+            <Link href="/legal/datenschutz" className="inline-flex items-center gap-2 text-sm font-bold text-primary">
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />
               Datenschutzhinweise ansehen
             </Link>

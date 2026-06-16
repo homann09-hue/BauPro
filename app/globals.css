@@ -13,10 +13,9 @@
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 12% 0%, rgba(220, 239, 228, 0.95), transparent 34rem),
-    radial-gradient(circle at 96% 8%, rgba(230, 166, 64, 0.1), transparent 26rem),
-    linear-gradient(180deg, #f8fbf7 0%, #edf3ec 100%);
-  color: #17211b;
+    repeating-linear-gradient(135deg, rgba(31, 41, 55, 0.035) 0 1px, transparent 1px 18px),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  color: #1f2937;
 }
 
 a {
@@ -32,11 +31,11 @@ textarea {
 
 @layer components {
   .field-label {
-    @apply mb-1.5 block text-sm font-semibold text-ink;
+    @apply mb-1.5 block text-sm font-bold text-ink;
   }
 
   .field-input {
-    @apply w-full rounded-md border border-line bg-white/95 px-3 py-3 text-sm text-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-moss focus:bg-white focus:ring-4 focus:ring-moss/15 disabled:bg-slate-100;
+    @apply w-full rounded-md border border-line bg-white px-3 py-3 text-sm text-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/15 disabled:bg-slate-100;
   }
 
   .field-help {
@@ -44,23 +43,23 @@ textarea {
   }
 
   .btn-primary {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 py-2.5 text-sm font-bold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-moss focus:outline-none focus:ring-4 focus:ring-moss/20 active:translate-y-0;
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-primary-dark focus:outline-none focus:ring-4 focus:ring-primary/20 active:translate-y-0;
   }
 
   .btn-secondary {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-line bg-white/90 px-4 py-2.5 text-sm font-bold text-ink shadow-sm transition hover:-translate-y-0.5 hover:border-moss/40 hover:bg-mint/70 focus:outline-none focus:ring-4 focus:ring-moss/15 active:translate-y-0;
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 py-2.5 text-sm font-black text-ink shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:bg-mint focus:outline-none focus:ring-4 focus:ring-primary/15 active:translate-y-0;
   }
 
   .btn-danger {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-200;
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-danger transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-200;
   }
 
   .surface {
-    @apply rounded-lg border border-white/75 bg-white/[0.92] shadow-soft backdrop-blur;
+    @apply rounded-lg border border-line bg-surface shadow-soft;
   }
 
   .surface-strong {
-    @apply rounded-lg border border-white/80 bg-white shadow-lift;
+    @apply rounded-lg border border-line bg-surface shadow-lift;
   }
 
   .interactive-surface {
@@ -68,11 +67,11 @@ textarea {
   }
 
   .section-title {
-    @apply text-base font-bold text-ink sm:text-lg;
+    @apply text-base font-black text-ink sm:text-lg;
   }
 
   .section-kicker {
-    @apply text-xs font-black uppercase tracking-normal text-moss;
+    @apply text-xs font-black uppercase tracking-normal text-primary;
   }
 
   .meta-label {
@@ -80,7 +79,7 @@ textarea {
   }
 
   .work-card {
-    @apply rounded-lg border border-line bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-moss/30 hover:shadow-soft;
+    @apply rounded-lg border border-line bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-soft;
   }
 
   .mobile-card-grid {
@@ -88,6 +87,15 @@ textarea {
   }
 
   .dashboard-band {
-    @apply rounded-lg border border-white/80 bg-white/90 p-4 shadow-soft backdrop-blur sm:p-5;
+    @apply rounded-lg border border-line bg-white p-4 shadow-soft sm:p-5;
+  }
+
+  .construction-rail {
+    @apply relative overflow-hidden;
+  }
+
+  .construction-rail::before {
+    content: "";
+    @apply absolute inset-y-0 left-0 w-1.5 bg-primary;
   }
 }

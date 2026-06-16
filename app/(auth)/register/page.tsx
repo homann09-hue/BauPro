@@ -12,8 +12,8 @@ export default async function RegisterPage({
   const { error, success } = searchParamMessage(await searchParams);
 
   return (
-    <div className="surface-strong p-5 sm:p-7">
-      <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-moss">Start in 2 Minuten</p>
+    <div className="surface-strong construction-rail p-5 sm:p-7">
+      <p className="section-kicker mb-2">Start in 2 Minuten</p>
       <h1 className="text-2xl font-black text-ink">Firmenaccount anlegen</h1>
       <p className="mt-2 text-sm leading-6 text-slate-600">
         Der erste Nutzer wird automatisch Admin der Firma.
@@ -62,7 +62,7 @@ export default async function RegisterPage({
 
       <p className="mt-6 rounded-md bg-fog px-3 py-3 text-center text-sm text-slate-600">
         Bereits registriert?{" "}
-        <Link href="/login" className="font-semibold text-moss">
+        <Link href="/login" className="font-semibold text-primary">
           Einloggen
         </Link>
       </p>

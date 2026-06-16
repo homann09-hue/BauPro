@@ -11,8 +11,9 @@ import {
   ListChecks,
   ShoppingCart,
   TriangleAlert,
-  type LucideIcon
+  Users
 } from "lucide-react";
+import { AlertCard, FormSection, QuickActionButton, ResponsiveTableCard, StatCard } from "@/components/construction-ui";
 import { MessageBox } from "@/components/message-box";
 import { StatusBadge } from "@/components/status-badge";
 import { SubmitButton } from "@/components/submit-button";
@@ -126,42 +127,42 @@ export default async function DashboardPage({
     <>
       <MessageBox error={dashboardError} success={success} />
 
-      <section className="surface-strong overflow-hidden">
+      <section className="overflow-hidden rounded-lg border border-slate-800 bg-anthracite text-white shadow-lift">
         <div className="grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="p-5 sm:p-7">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-md bg-mint px-3 py-1.5 text-xs font-bold text-moss">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-1.5 text-xs font-black text-white ring-1 ring-white/10">
               <CalendarDays className="h-4 w-4" aria-hidden="true" />
               {todayLabel}
             </div>
-            <p className="section-kicker mb-2">{context.canManage ? "Heute im Betrieb" : "Heute auf Baustelle"}</p>
-            <h1 className="max-w-3xl text-3xl font-black tracking-normal text-ink sm:text-4xl">{greeting}</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
+            <p className="mb-2 text-xs font-black uppercase tracking-normal text-warning">{context.canManage ? "Heute im Betrieb" : "Heute auf Baustelle"}</p>
+            <h1 className="max-w-3xl text-3xl font-black tracking-normal text-white sm:text-4xl">{greeting}</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-white/70 sm:text-base">
               {context.canManage
                 ? "Aufträge steuern, Material sichern, Zeiten freigeben und Engpässe rechtzeitig erkennen."
                 : "Deine Baustellen, Zeiten, Berichte, Mitbringlisten und Materialmeldungen sind direkt erreichbar."}
             </p>
             <div className="mt-6 flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-signal" aria-hidden="true" />
-              <h2 className="text-sm font-black uppercase tracking-normal text-ink">Schnellaktionen</h2>
+              <span className="h-2 w-2 rounded-full bg-warning" aria-hidden="true" />
+              <h2 className="text-sm font-black uppercase tracking-normal text-white">Schnellaktionen</h2>
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               {context.canManage ? (
-                <QuickAction href="/orders/new" icon={BriefcaseBusiness} title="Auftrag" description="Mit Maßen" primary />
+                <QuickActionButton href="/orders/new" icon={BriefcaseBusiness} title="Auftrag" description="Mit Maßen" primary />
               ) : (
-                <QuickAction href="/time-tracking/new" icon={Clock3} title="Zeit" description="Heute eintragen" primary />
+                <QuickActionButton href="/time-tracking/new" icon={Clock3} title="Zeit" description="Heute eintragen" primary />
               )}
-              {context.canManage ? <QuickAction href="/time-tracking" icon={Clock3} title="Zeiten" description="Freigaben" /> : null}
-              {context.canManage ? <QuickAction href="/calendar" icon={CalendarDays} title="Kalender" description="Planung" /> : null}
-              <QuickAction href="/berichte/neu" icon={ClipboardList} title="Bericht" description="Direkt erfassen" />
+              {context.canManage ? <QuickActionButton href="/time-tracking" icon={Clock3} title="Zeiten" description="Freigaben" /> : null}
+              {context.canManage ? <QuickActionButton href="/calendar" icon={CalendarDays} title="Kalender" description="Planung" /> : null}
+              <QuickActionButton href="/berichte/neu" icon={ClipboardList} title="Bericht" description="Direkt erfassen" />
               {context.canManage ? (
-                <QuickAction href="/materials/inventory" icon={Layers3} title="Lager" description="Bestand buchen" />
+                <QuickActionButton href="/materials/inventory" icon={Layers3} title="Lager" description="Bestand buchen" />
               ) : (
-                <QuickAction href="/material-melden" icon={BellPlus} title="Material" description="Fehlt melden" />
+                <QuickActionButton href="/material-melden" icon={BellPlus} title="Material" description="Fehlt melden" />
               )}
-              <QuickAction href="/bring-lists" icon={ListChecks} title="Mitbringen" description="Packlisten" />
+              <QuickActionButton href="/bring-lists" icon={ListChecks} title="Mitbringen" description="Packlisten" />
             </div>
           </div>
-          <div className="border-t border-line bg-ink p-5 text-white sm:p-7 lg:border-l lg:border-t-0">
+          <div className="border-t border-white/10 bg-slate-900 p-5 text-white sm:p-7 lg:border-l lg:border-t-0">
             <p className="text-sm font-semibold text-white/70">{context.companyName}</p>
             <div className="mt-5 grid grid-cols-3 gap-3">
               <HeroMetric label="Baustellen" value={jobsites.length} />
@@ -184,21 +185,23 @@ export default async function DashboardPage({
       </section>
 
       <div className="mt-6 flex items-center gap-2">
-        <span className="h-2 w-2 rounded-full bg-moss" aria-hidden="true" />
+        <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
         <h2 className="text-sm font-black uppercase tracking-normal text-ink">Wichtig</h2>
       </div>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        <DashboardStat icon={Hammer} label={context.canManage ? "Aktive und geplante Baustellen" : "Meine Baustellen"} value={jobsites.length} href="/baustellen" />
-        <DashboardStat icon={ClipboardList} label="Offene Aufgaben" value={tasks.length} href="#aufgaben" />
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard icon={Hammer} label={context.canManage ? "Offene Baustellen" : "Meine Baustellen"} value={jobsites.length} href="/baustellen" tone="green" />
+        <StatCard icon={ClipboardList} label="Offene Tagesberichte" value={reports.length} href="/berichte" tone="info" />
+        <StatCard icon={Clock3} label={context.canManage ? "Offene Zeiten/Aufgaben" : "Meine Aufgaben"} value={tasks.length} href="#aufgaben" tone={tasks.length > 0 ? "warning" : "neutral"} />
         {context.canManage ? (
-          <DashboardStat icon={Layers3} label="Mindestbestand erreicht" value={lowStock.length} href="/materials/low-stock" />
+          <StatCard icon={Layers3} label="Materialwarnungen" value={lowStock.length} href="/materials/low-stock" tone={lowStock.length > 0 ? "warning" : "green"} />
         ) : (
-          <DashboardStat icon={ListChecks} label="Mitbringlisten" value={bringListCount} href="/bring-lists" />
+          <StatCard icon={ListChecks} label="Mitbringlisten" value={bringListCount} href="/bring-lists" tone="green" />
         )}
+        {context.canManage ? <StatCard icon={Users} label="Team aktiv" value={employees.length} href="/team" tone="dark" /> : null}
       </div>
 
       {context.canManage && (materialAlerts.length > 0 || purchaseSuggestions.length > 0) ? (
-        <section className="surface mt-6 p-4 sm:p-5">
+        <section className="dashboard-band mt-6">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="section-title">Material-Warnungen</h2>
@@ -216,19 +219,19 @@ export default async function DashboardPage({
                 <h3 className="text-sm font-black uppercase tracking-wide text-ink">Offene Meldungen</h3>
               </div>
               {materialAlerts.map((alert) => (
-                <div key={alert.id} className="rounded-lg border border-line bg-white p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-black text-ink">{alert.inventory_items?.name ?? "Materialmeldung"}</p>
-                      <p className="mt-1 text-sm text-slate-600">{alert.message}</p>
-                      <p className="mt-2 text-xs font-semibold text-slate-500">
-                        {alert.jobsites?.name ?? alert.bring_lists?.title ?? "Ohne Zuordnung"}
-                        {alert.missing_quantity ? ` · fehlt ${formatQuantity(alert.missing_quantity)} ${alert.unit ?? ""}` : ""}
-                      </p>
-                    </div>
+                <AlertCard
+                  key={alert.id}
+                  icon={TriangleAlert}
+                  title={alert.inventory_items?.name ?? "Materialmeldung"}
+                  description={alert.message}
+                  meta={`${alert.jobsites?.name ?? alert.bring_lists?.title ?? "Ohne Zuordnung"}${
+                    alert.missing_quantity ? ` · fehlt ${formatQuantity(alert.missing_quantity)} ${alert.unit ?? ""}` : ""
+                  }`}
+                  tone={alert.severity === "critical" ? "danger" : "warning"}
+                  action={
                     <StatusBadge value={alert.severity === "critical" ? "rejected" : "offen"} label={alert.severity === "critical" ? "Kritisch" : "Offen"} />
-                  </div>
-                </div>
+                  }
+                />
               ))}
               {materialAlerts.length === 0 ? (
                 <p className="rounded-md border border-dashed border-line p-4 text-sm text-slate-600">Keine offenen Materialmeldungen.</p>
@@ -241,16 +244,16 @@ export default async function DashboardPage({
                 <h3 className="text-sm font-black uppercase tracking-wide text-ink">Einkaufsvorschläge</h3>
               </div>
               {purchaseSuggestions.map((suggestion) => (
-                <div key={suggestion.id} className="rounded-lg border border-line bg-white p-3">
-                  <div className="flex flex-col gap-3">
-                    <div>
-                      <p className="font-black text-ink">{suggestion.inventory_items?.name ?? "Freier Einkaufsvorschlag"}</p>
-                      <p className="mt-1 text-sm text-slate-600">{suggestion.reason}</p>
-                      <p className="mt-2 text-xs font-semibold text-slate-500">
-                        Vorschlag: {formatQuantity(suggestion.quantity_needed)} {suggestion.unit}
-                        {suggestion.jobsites?.name ? ` · ${suggestion.jobsites.name}` : ""}
-                      </p>
-                    </div>
+                <AlertCard
+                  key={suggestion.id}
+                  icon={ShoppingCart}
+                  title={suggestion.inventory_items?.name ?? "Freier Einkaufsvorschlag"}
+                  description={suggestion.reason}
+                  meta={`Vorschlag: ${formatQuantity(suggestion.quantity_needed)} ${suggestion.unit}${
+                    suggestion.jobsites?.name ? ` · ${suggestion.jobsites.name}` : ""
+                  }`}
+                  tone="green"
+                  action={
                     <form action={updatePurchaseSuggestionStatusAction} className="flex flex-wrap gap-2">
                       <input type="hidden" name="id" value={suggestion.id} />
                       <button className="btn-secondary h-10 px-3 text-xs" type="submit" name="status" value="ordered">
@@ -263,8 +266,8 @@ export default async function DashboardPage({
                         Ignorieren
                       </button>
                     </form>
-                  </div>
-                </div>
+                  }
+                />
               ))}
               {purchaseSuggestions.length === 0 ? (
                 <p className="rounded-md border border-dashed border-line p-4 text-sm text-slate-600">Keine offenen Einkaufsvorschläge.</p>
@@ -275,7 +278,7 @@ export default async function DashboardPage({
       ) : null}
 
       <div className="mt-6 grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-        <section className="surface p-4 sm:p-5">
+        <section className="dashboard-band">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="section-title">Baustellen im Fokus</h2>
@@ -315,7 +318,7 @@ export default async function DashboardPage({
           </div>
         </section>
 
-        <section className="surface p-4 sm:p-5">
+        <section className="dashboard-band">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="section-title">Letzte Berichte</h2>
@@ -350,21 +353,21 @@ export default async function DashboardPage({
       </div>
 
       <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_0.9fr]">
-        <section id="aufgaben" className="surface p-4 sm:p-5">
+        <section id="aufgaben" className="dashboard-band">
           <div className="mb-4">
             <h2 className="section-title">Offene Aufgaben</h2>
             <p className="mt-1 text-sm text-slate-500">Direkt aktualisieren, ohne die Seite zu wechseln.</p>
           </div>
           <div className="space-y-3">
             {tasks.map((task) => (
-              <div key={task.id} className="rounded-lg border border-line bg-white p-4">
+              <ResponsiveTableCard
+                key={task.id}
+                title={task.title}
+                meta={`${task.jobsites?.name ?? "Ohne Baustelle"} · Fällig: ${formatDate(task.due_date)}`}
+              >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="font-semibold text-ink">{task.title}</p>
                     <p className="mt-1 text-sm text-slate-600">{task.description || "Keine Beschreibung"}</p>
-                    <p className="mt-2 text-xs text-slate-500">
-                      {task.jobsites?.name ?? "Ohne Baustelle"} · Fällig: {formatDate(task.due_date)}
-                    </p>
                   </div>
                   <StatusBadge value={task.status} />
                 </div>
@@ -385,7 +388,7 @@ export default async function DashboardPage({
                     </form>
                   ) : null}
                 </div>
-              </div>
+              </ResponsiveTableCard>
             ))}
             {tasks.length === 0 ? (
               <p className="rounded-md border border-dashed border-line p-4 text-sm text-slate-600">
@@ -396,9 +399,7 @@ export default async function DashboardPage({
         </section>
 
         {context.canManage ? (
-          <section className="surface p-4 sm:p-5">
-            <h2 className="section-title mb-1">Neue Aufgabe</h2>
-            <p className="mb-4 text-sm text-slate-500">Kurz erfassen, später im Ablauf schließen.</p>
+          <FormSection title="Neue Aufgabe" description="Kurz erfassen, später im Ablauf schließen.">
             <form action={createTaskAction} className="space-y-3">
               <div>
                 <label className="field-label" htmlFor="title">
@@ -448,9 +449,9 @@ export default async function DashboardPage({
               </div>
               <SubmitButton className="w-full">Aufgabe anlegen</SubmitButton>
             </form>
-          </section>
+          </FormSection>
         ) : (
-          <section className="surface p-4 sm:p-5">
+          <section className="dashboard-band">
             <div className="flex gap-3">
               <TriangleAlert className="mt-1 h-5 w-5 text-signal" aria-hidden="true" />
               <div>
@@ -464,63 +465,6 @@ export default async function DashboardPage({
         )}
       </div>
     </>
-  );
-}
-
-function DashboardStat({
-  icon: Icon,
-  label,
-  value,
-  href
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: number;
-  href: string;
-}) {
-  return (
-    <Link href={href} className="interactive-surface flex items-center gap-3 p-4">
-      <div className="flex h-11 w-11 items-center justify-center rounded-md bg-mint text-moss ring-1 ring-moss/10">
-        <Icon className="h-5 w-5" aria-hidden="true" />
-      </div>
-      <div>
-        <p className="text-2xl font-black text-ink">{value}</p>
-        <p className="text-sm font-medium text-slate-600">{label}</p>
-      </div>
-    </Link>
-  );
-}
-
-function QuickAction({
-  href,
-  icon: Icon,
-  title,
-  description,
-  primary = false
-}: {
-  href: string;
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  primary?: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className={
-        primary
-          ? "flex min-h-24 flex-col justify-between rounded-lg bg-ink p-4 text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-moss"
-          : "flex min-h-24 flex-col justify-between rounded-lg border border-line bg-white p-4 text-ink shadow-sm transition hover:-translate-y-0.5 hover:border-moss/30 hover:bg-mint/60"
-      }
-    >
-      <div className={primary ? "text-white" : "text-moss"}>
-        <Icon className="h-5 w-5" aria-hidden="true" />
-      </div>
-      <div>
-        <p className="font-bold">{title}</p>
-        <p className={primary ? "text-sm text-white/70" : "text-sm text-slate-500"}>{description}</p>
-      </div>
-    </Link>
   );
 }
 

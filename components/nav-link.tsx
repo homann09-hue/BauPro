@@ -10,7 +10,7 @@ import {
   Clock3,
   Cog,
   FileText,
-  Hammer,
+  HardHat,
   Handshake,
   Home,
   Layers3,
@@ -31,7 +31,7 @@ const icons = {
   kunden: UserRound,
   auftraege: BriefcaseBusiness,
   kalender: CalendarDays,
-  baustellen: Hammer,
+  baustellen: HardHat,
   berichte: ClipboardList,
   zeiten: Clock3,
   stundenzettel: FileText,
@@ -68,9 +68,9 @@ export function NavLink({ href, label, icon, variant = "desktop" }: NavLinkProps
         href={href}
         aria-label={label}
         className={cn(
-          "flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 rounded-md px-0.5 py-2 text-center text-[10px] font-bold leading-tight text-slate-500 transition",
-          active && "bg-ink text-white shadow-sm",
-          !active && "hover:bg-mint/70 hover:text-ink"
+          "flex min-h-[62px] min-w-0 flex-col items-center justify-center gap-1 rounded-md px-0.5 py-2 text-center text-[10px] font-black leading-tight text-slate-500 transition",
+          active && "bg-primary text-white shadow-sm",
+          !active && "hover:bg-mint hover:text-ink"
         )}
       >
         <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} aria-hidden="true" />
@@ -83,11 +83,11 @@ export function NavLink({ href, label, icon, variant = "desktop" }: NavLinkProps
     <Link
       href={href}
       className={cn(
-        "group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-mint/80 hover:text-ink",
-        active && "bg-ink text-white shadow-soft"
+        "group flex items-center gap-3 rounded-md px-3 py-3 text-sm font-black text-slate-300 transition hover:bg-white/10 hover:text-white",
+        active && "bg-primary text-white shadow-soft"
       )}
     >
-      <Icon className={cn("h-5 w-5 shrink-0", !active && "text-moss")} aria-hidden="true" />
+      <Icon className={cn("h-5 w-5 shrink-0", !active && "text-slate-400 group-hover:text-white")} aria-hidden="true" />
       <span>{label}</span>
     </Link>
   );

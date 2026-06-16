@@ -1,4 +1,5 @@
-import { ShieldCheck, UserPlus, Users } from "lucide-react";
+import { ShieldCheck, Users } from "lucide-react";
+import { FormSection, ResponsiveTableCard, StatCard } from "@/components/construction-ui";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { SubmitButton } from "@/components/submit-button";
@@ -48,9 +49,9 @@ export default async function TeamPage({
       <MessageBox error={error} success={success} />
 
       <section className="mb-5 grid gap-3 sm:grid-cols-3">
-        <TeamMetric label="Aktive Zugänge" value={activeProfiles} />
-        <TeamMetric label="Vorarbeiter" value={foremen} />
-        <TeamMetric label="Mitarbeiter" value={employees} />
+        <StatCard icon={ShieldCheck} label="Aktive Zugänge" value={activeProfiles} tone="green" />
+        <StatCard icon={Users} label="Vorarbeiter" value={foremen} tone="info" />
+        <StatCard icon={Users} label="Mitarbeiter" value={employees} tone="neutral" />
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
@@ -67,14 +68,7 @@ export default async function TeamPage({
             </div>
           </div>
 
-          <section className="dashboard-band">
-            <div className="mb-4 flex items-center gap-3">
-              <UserPlus className="h-5 w-5 text-moss" aria-hidden="true" />
-              <div>
-                <p className="section-kicker">Zugang</p>
-                <h2 className="text-lg font-black text-ink">Mitarbeiter anlegen</h2>
-              </div>
-            </div>
+          <FormSection title="Mitarbeiter anlegen" description="Zugang mit Rolle erstellen. Chef/Admin behalten die Teamverwaltung.">
             {!hasServiceRole ? (
               <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                 SUPABASE_SERVICE_ROLE_KEY fehlt. Trage ihn in .env.local ein, damit Mitarbeiter serverseitig
@@ -112,7 +106,7 @@ export default async function TeamPage({
               </div>
               <SubmitButton className="w-full">Mitarbeiter anlegen</SubmitButton>
             </form>
-          </section>
+          </FormSection>
         </section>
 
         <section className="dashboard-band">
@@ -131,55 +125,52 @@ export default async function TeamPage({
           ) : (
             <div className="space-y-3">
               {profiles.map((profile) => (
-                <form key={profile.id} action={updateEmployeeAction} className="work-card p-3">
-                  <input type="hidden" name="id" value={profile.id} />
-                  <div className="grid gap-3 md:grid-cols-[1fr_170px_110px_auto] md:items-end">
-                    <div>
-                      <label className="field-label" htmlFor={`full-name-${profile.id}`}>
-                        Name
+                <ResponsiveTableCard
+                  key={profile.id}
+                  title={profile.full_name || profile.email || "Ohne Namen"}
+                  meta={`${profile.email || "Keine E-Mail"} · ${roleLabels[profile.role]}`}
+                >
+                  <form action={updateEmployeeAction}>
+                    <input type="hidden" name="id" value={profile.id} />
+                    <div className="grid gap-3 md:grid-cols-[1fr_170px_110px_auto] md:items-end">
+                      <div>
+                        <label className="field-label" htmlFor={`full-name-${profile.id}`}>
+                          Name
+                        </label>
+                        <input
+                          className="field-input"
+                          id={`full-name-${profile.id}`}
+                          name="full_name"
+                          defaultValue={profile.full_name ?? ""}
+                        />
+                        <p className="field-help">{profile.email}</p>
+                      </div>
+                      <div>
+                        <label className="field-label" htmlFor={`role-${profile.id}`}>
+                          Rolle
+                        </label>
+                        <select className="field-input" id={`role-${profile.id}`} name="role" defaultValue={profile.role}>
+                          <RoleOptions />
+                        </select>
+                      </div>
+                      <label className="flex min-h-12 items-center gap-2 rounded-md border border-line bg-fog px-3 py-2.5 text-sm font-bold text-ink">
+                        <input
+                          type="checkbox"
+                          name="active"
+                          defaultChecked={profile.active}
+                          className="h-4 w-4 rounded border-line text-primary"
+                        />
+                        Aktiv
                       </label>
-                      <input
-                        className="field-input"
-                        id={`full-name-${profile.id}`}
-                        name="full_name"
-                        defaultValue={profile.full_name ?? ""}
-                      />
-                      <p className="field-help">{profile.email}</p>
+                      <SubmitButton variant="secondary">Speichern</SubmitButton>
                     </div>
-                    <div>
-                      <label className="field-label" htmlFor={`role-${profile.id}`}>
-                        Rolle
-                      </label>
-                      <select className="field-input" id={`role-${profile.id}`} name="role" defaultValue={profile.role}>
-                        <RoleOptions />
-                      </select>
-                    </div>
-                    <label className="flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2.5 text-sm">
-                      <input
-                        type="checkbox"
-                        name="active"
-                        defaultChecked={profile.active}
-                        className="h-4 w-4 rounded border-line text-moss"
-                      />
-                      Aktiv
-                    </label>
-                    <SubmitButton variant="secondary">Speichern</SubmitButton>
-                  </div>
-                </form>
+                  </form>
+                </ResponsiveTableCard>
               ))}
             </div>
           )}
         </section>
       </div>
     </>
-  );
-}
-
-function TeamMetric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-white/80 bg-white p-4 text-ink shadow-sm">
-      <p className="text-2xl font-black">{value}</p>
-      <p className="mt-1 text-sm font-bold text-slate-600">{label}</p>
-    </div>
   );
 }

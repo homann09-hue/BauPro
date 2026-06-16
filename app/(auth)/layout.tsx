@@ -7,8 +7,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-6xl items-center gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <section className="hidden lg:block">
           <div className="max-w-xl">
-            <div className="mb-7 inline-flex items-center gap-3 rounded-lg bg-ink p-3 text-white shadow-lift">
-              <div className="flex h-12 w-12 items-center justify-center rounded-md bg-white/10">
+            <div className="mb-7 inline-flex items-center gap-3 rounded-lg bg-anthracite p-3 text-white shadow-lift">
+              <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary">
                 <Building2 className="h-7 w-7" aria-hidden="true" />
               </div>
               <div>
@@ -32,7 +32,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
         <section>
           <div className="mb-6 flex items-center justify-center gap-3 lg:hidden">
-            <div className="flex h-11 w-11 items-center justify-center rounded-md bg-ink text-white">
+            <div className="flex h-11 w-11 items-center justify-center rounded-md bg-anthracite text-white">
               <Building2 className="h-6 w-6" aria-hidden="true" />
             </div>
             <div>
@@ -42,13 +42,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           </div>
           {children}
           <div className="mt-5 flex flex-wrap justify-center gap-3 text-xs font-semibold text-slate-500">
-            <Link href="/legal/impressum" className="hover:text-moss">
+            <Link href="/legal/impressum" className="hover:text-primary">
               Impressum
             </Link>
-            <Link href="/legal/datenschutz" className="hover:text-moss">
+            <Link href="/legal/datenschutz" className="hover:text-primary">
               Datenschutz
             </Link>
-            <Link href="/legal/agb" className="hover:text-moss">
+            <Link href="/legal/agb" className="hover:text-primary">
               AGB
             </Link>
           </div>
@@ -69,7 +69,7 @@ function AuthFeature({
 }) {
   return (
     <div className="flex gap-3 rounded-lg border border-white/70 bg-white/75 p-4 shadow-sm">
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-mint text-moss">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </div>
       <div>

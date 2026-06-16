@@ -66,15 +66,15 @@ export function MaterialSubnav({ active, canManage = true }: { active: string; c
             key={item.href}
             href={item.href}
             className={cn(
-              "rounded-lg border bg-white/90 p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft",
-              isActive ? "border-ink bg-ink text-white" : "border-white/80 text-ink hover:border-moss/30"
+              "rounded-lg border bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft",
+              isActive ? "border-primary bg-primary text-white" : "border-line text-ink hover:border-primary/30 hover:bg-mint"
             )}
           >
             <div className="flex items-center gap-2">
               <span
                 className={cn(
                   "flex h-9 w-9 shrink-0 items-center justify-center rounded-md",
-                  isActive ? "bg-white/15 text-white" : "bg-mint text-moss"
+                  isActive ? "bg-white/15 text-white" : "bg-primary/10 text-primary"
                 )}
               >
                 <Icon className="h-5 w-5" aria-hidden="true" />
