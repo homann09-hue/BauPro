@@ -11,7 +11,6 @@ import {
   ListChecks,
   ShoppingCart,
   TriangleAlert,
-  UserRound,
   type LucideIcon
 } from "lucide-react";
 import { MessageBox } from "@/components/message-box";
@@ -134,21 +133,24 @@ export default async function DashboardPage({
               <CalendarDays className="h-4 w-4" aria-hidden="true" />
               {todayLabel}
             </div>
-            <h1 className="max-w-3xl text-3xl font-black tracking-normal text-ink sm:text-4xl">
-              {greeting}: {context.profile.full_name || "BauPro"}
-            </h1>
+            <p className="section-kicker mb-2">{context.canManage ? "Heute im Betrieb" : "Heute auf Baustelle"}</p>
+            <h1 className="max-w-3xl text-3xl font-black tracking-normal text-ink sm:text-4xl">{greeting}</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
               {context.canManage
-                ? "Heute zählt der Überblick: Aufträge steuern, Material sichern, Zeiten freigeben und Engpässe rechtzeitig erkennen."
-                : "Alles Wichtige für deinen Einsatz: Baustellen, Zeiten, Berichte, Mitbringlisten und schnelle Materialmeldungen."}
+                ? "Aufträge steuern, Material sichern, Zeiten freigeben und Engpässe rechtzeitig erkennen."
+                : "Deine Baustellen, Zeiten, Berichte, Mitbringlisten und Materialmeldungen sind direkt erreichbar."}
             </p>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="mt-6 flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-signal" aria-hidden="true" />
+              <h2 className="text-sm font-black uppercase tracking-normal text-ink">Schnellaktionen</h2>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               {context.canManage ? (
                 <QuickAction href="/orders/new" icon={BriefcaseBusiness} title="Auftrag" description="Mit Maßen" primary />
               ) : (
                 <QuickAction href="/time-tracking/new" icon={Clock3} title="Zeit" description="Heute eintragen" primary />
               )}
-              {context.canManage ? <QuickAction href="/customers/new" icon={UserRound} title="Kunde" description="Neu anlegen" /> : null}
+              {context.canManage ? <QuickAction href="/time-tracking" icon={Clock3} title="Zeiten" description="Freigaben" /> : null}
               {context.canManage ? <QuickAction href="/calendar" icon={CalendarDays} title="Kalender" description="Planung" /> : null}
               <QuickAction href="/berichte/neu" icon={ClipboardList} title="Bericht" description="Direkt erfassen" />
               {context.canManage ? (
@@ -181,7 +183,11 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+      <div className="mt-6 flex items-center gap-2">
+        <span className="h-2 w-2 rounded-full bg-moss" aria-hidden="true" />
+        <h2 className="text-sm font-black uppercase tracking-normal text-ink">Wichtig</h2>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <DashboardStat icon={Hammer} label={context.canManage ? "Aktive und geplante Baustellen" : "Meine Baustellen"} value={jobsites.length} href="/baustellen" />
         <DashboardStat icon={ClipboardList} label="Offene Aufgaben" value={tasks.length} href="#aufgaben" />
         {context.canManage ? (

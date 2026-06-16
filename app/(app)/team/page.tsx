@@ -38,15 +38,24 @@ export default async function TeamPage({
   const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: true });
   const profiles = (data ?? []) as Profile[];
   const hasServiceRole = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const activeProfiles = profiles.filter((profile) => profile.active).length;
+  const foremen = profiles.filter((profile) => profile.role === "vorarbeiter").length;
+  const employees = profiles.filter((profile) => profile.role === "mitarbeiter").length;
 
   return (
     <>
       <PageHeader title="Team" description="Mitarbeiter, Rollen und Zugänge direkt verwalten." />
       <MessageBox error={error} success={success} />
 
+      <section className="mb-5 grid gap-3 sm:grid-cols-3">
+        <TeamMetric label="Aktive Zugänge" value={activeProfiles} />
+        <TeamMetric label="Vorarbeiter" value={foremen} />
+        <TeamMetric label="Mitarbeiter" value={employees} />
+      </section>
+
       <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
         <section className="space-y-4">
-          <div className="surface p-4 sm:p-5">
+          <div className="dashboard-band">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-md bg-moss/10 text-moss">
                 <ShieldCheck className="h-5 w-5" aria-hidden="true" />
@@ -58,10 +67,13 @@ export default async function TeamPage({
             </div>
           </div>
 
-          <section className="surface p-4 sm:p-5">
+          <section className="dashboard-band">
             <div className="mb-4 flex items-center gap-3">
               <UserPlus className="h-5 w-5 text-moss" aria-hidden="true" />
-              <h2 className="text-lg font-semibold text-ink">Mitarbeiter anlegen</h2>
+              <div>
+                <p className="section-kicker">Zugang</p>
+                <h2 className="text-lg font-black text-ink">Mitarbeiter anlegen</h2>
+              </div>
             </div>
             {!hasServiceRole ? (
               <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
@@ -103,10 +115,13 @@ export default async function TeamPage({
           </section>
         </section>
 
-        <section className="surface p-4 sm:p-5">
+        <section className="dashboard-band">
           <div className="mb-4 flex items-center gap-3">
             <Users className="h-5 w-5 text-moss" aria-hidden="true" />
-            <h2 className="text-lg font-semibold text-ink">Team und Rollen</h2>
+            <div>
+              <p className="section-kicker">Rollenverwaltung</p>
+              <h2 className="text-lg font-black text-ink">Team und Rollen</h2>
+            </div>
           </div>
 
           {profiles.length === 0 ? (
@@ -116,7 +131,7 @@ export default async function TeamPage({
           ) : (
             <div className="space-y-3">
               {profiles.map((profile) => (
-                <form key={profile.id} action={updateEmployeeAction} className="rounded-md border border-line p-3">
+                <form key={profile.id} action={updateEmployeeAction} className="work-card p-3">
                   <input type="hidden" name="id" value={profile.id} />
                   <div className="grid gap-3 md:grid-cols-[1fr_170px_110px_auto] md:items-end">
                     <div>
@@ -157,5 +172,14 @@ export default async function TeamPage({
         </section>
       </div>
     </>
+  );
+}
+
+function TeamMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-white/80 bg-white p-4 text-ink shadow-sm">
+      <p className="text-2xl font-black">{value}</p>
+      <p className="mt-1 text-sm font-bold text-slate-600">{label}</p>
+    </div>
   );
 }

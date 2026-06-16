@@ -3,7 +3,7 @@ import { Building2, ClipboardCheck, CloudSun, ShieldCheck } from "lucide-react";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-fog px-4 py-6 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-fog px-4 pb-80 pt-6 sm:px-6 sm:py-6 lg:px-8">
       <div className="mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-6xl items-center gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <section className="hidden lg:block">
           <div className="max-w-xl">

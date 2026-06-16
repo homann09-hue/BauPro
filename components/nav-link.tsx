@@ -68,12 +68,13 @@ export function NavLink({ href, label, icon, variant = "desktop" }: NavLinkProps
         href={href}
         aria-label={label}
         className={cn(
-          "flex min-w-[74px] flex-none flex-col items-center justify-center gap-1 rounded-md px-1 py-2 text-[10px] font-semibold text-slate-500 transition sm:min-w-[86px] sm:text-[11px]",
-          active && "bg-ink text-white shadow-sm"
+          "flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 rounded-md px-0.5 py-2 text-center text-[10px] font-bold leading-tight text-slate-500 transition",
+          active && "bg-ink text-white shadow-sm",
+          !active && "hover:bg-mint/70 hover:text-ink"
         )}
       >
         <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} aria-hidden="true" />
-        <span className="truncate">{label}</span>
+        <span className="line-clamp-2 max-w-full break-words">{label}</span>
       </Link>
     );
   }
@@ -82,11 +83,11 @@ export function NavLink({ href, label, icon, variant = "desktop" }: NavLinkProps
     <Link
       href={href}
       className={cn(
-        "group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-mint/80 hover:text-ink",
-        active && "bg-ink text-white shadow-sm"
+        "group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-mint/80 hover:text-ink",
+        active && "bg-ink text-white shadow-soft"
       )}
     >
-      <Icon className={cn("h-5 w-5", !active && "text-moss")} aria-hidden="true" />
+      <Icon className={cn("h-5 w-5 shrink-0", !active && "text-moss")} aria-hidden="true" />
       <span>{label}</span>
     </Link>
   );

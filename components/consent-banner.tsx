@@ -27,14 +27,14 @@ export function ConsentBanner() {
   if (consent) return null;
 
   return (
-    <div className="fixed inset-x-3 bottom-3 z-[70] mx-auto max-w-3xl rounded-lg border border-line bg-white p-4 shadow-lift">
+    <div className="fixed inset-x-3 bottom-3 z-[70] mx-auto max-h-[58dvh] max-w-3xl overflow-y-auto rounded-lg border border-line bg-white p-3 shadow-lift sm:max-h-none sm:p-4">
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-mint text-moss">
+        <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-md bg-mint text-moss sm:flex">
           <Cookie className="h-5 w-5" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="font-black text-ink">Datenschutz-Einstellungen</p>
-          <p className="mt-1 text-sm leading-6 text-slate-600">
+          <p className="mt-1 line-clamp-3 text-sm leading-6 text-slate-600 sm:line-clamp-none">
             BauPro nutzt notwendige Cookies fuer Login und Sicherheit. Analyse oder Marketing bleiben optional und werden erst nach deiner
             Zustimmung vorbereitet.
           </p>
@@ -65,7 +65,7 @@ export function ConsentBanner() {
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />
               Datenschutzhinweise ansehen
             </Link>
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row">
               <button type="button" className="btn-secondary" onClick={() => save(buildConsentState({ analytics: false, marketing: false }))}>
                 Nur notwendig
               </button>

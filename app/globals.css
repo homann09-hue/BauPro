@@ -13,8 +13,9 @@
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(220, 239, 228, 0.9), transparent 34rem),
-    linear-gradient(180deg, #f7faf6 0%, #eef3ed 100%);
+    radial-gradient(circle at 12% 0%, rgba(220, 239, 228, 0.95), transparent 34rem),
+    radial-gradient(circle at 96% 8%, rgba(230, 166, 64, 0.1), transparent 26rem),
+    linear-gradient(180deg, #f8fbf7 0%, #edf3ec 100%);
   color: #17211b;
 }
 
@@ -43,11 +44,11 @@ textarea {
   }
 
   .btn-primary {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 py-2.5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-moss focus:outline-none focus:ring-4 focus:ring-moss/20 active:translate-y-0;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 py-2.5 text-sm font-bold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-moss focus:outline-none focus:ring-4 focus:ring-moss/20 active:translate-y-0;
   }
 
   .btn-secondary {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-line bg-white/90 px-4 py-2.5 text-sm font-semibold text-ink shadow-sm transition hover:-translate-y-0.5 hover:border-moss/40 hover:bg-mint/70 focus:outline-none focus:ring-4 focus:ring-moss/15 active:translate-y-0;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-line bg-white/90 px-4 py-2.5 text-sm font-bold text-ink shadow-sm transition hover:-translate-y-0.5 hover:border-moss/40 hover:bg-mint/70 focus:outline-none focus:ring-4 focus:ring-moss/15 active:translate-y-0;
   }
 
   .btn-danger {
@@ -55,7 +56,7 @@ textarea {
   }
 
   .surface {
-    @apply rounded-lg border border-white/70 bg-white/90 shadow-soft backdrop-blur;
+    @apply rounded-lg border border-white/75 bg-white/[0.92] shadow-soft backdrop-blur;
   }
 
   .surface-strong {
@@ -70,7 +71,23 @@ textarea {
     @apply text-base font-bold text-ink sm:text-lg;
   }
 
+  .section-kicker {
+    @apply text-xs font-black uppercase tracking-normal text-moss;
+  }
+
   .meta-label {
     @apply text-xs font-semibold uppercase tracking-normal text-slate-500;
+  }
+
+  .work-card {
+    @apply rounded-lg border border-line bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-moss/30 hover:shadow-soft;
+  }
+
+  .mobile-card-grid {
+    @apply grid gap-3 sm:gap-4;
+  }
+
+  .dashboard-band {
+    @apply rounded-lg border border-white/80 bg-white/90 p-4 shadow-soft backdrop-blur sm:p-5;
   }
 }
