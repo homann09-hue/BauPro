@@ -66,6 +66,10 @@ const defectManagementMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260706_defect_management.sql"),
   "utf8"
 );
+const privacySecurityHardeningMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260708_privacy_security_hardening.sql"),
+  "utf8"
+);
 
 function block(start: string, end: string) {
   const startIndex = schema.indexOf(start);
@@ -109,6 +113,18 @@ describe("Supabase RLS and security schema", () => {
     expect(redteamMigration).toContain("redteam managers insert fallback");
     expect(redteamMigration).toContain("redteam managers update fallback");
     expect(redteamMigration).toContain("redteam managers delete fallback");
+  });
+
+  it("keeps a final forced-RLS guard for all tenant tables", () => {
+    for (const sql of [schema, privacySecurityHardeningMigration]) {
+      expect(sql).toContain("information_schema.columns");
+      expect(sql).toContain("column_name = 'company_id'");
+      expect(sql).toContain("force row level security");
+      expect(sql).toContain("alter table if exists public.companies force row level security");
+    }
+
+    expect(schema).toContain("BauPro final privacy/security hardening");
+    expect(privacySecurityHardeningMigration).toContain("20260708_privacy_security_hardening");
   });
 
   it("limits time entries to company managers or the owning employee", () => {

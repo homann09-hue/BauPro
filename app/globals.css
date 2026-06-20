@@ -14,7 +14,7 @@
   --bp-danger: #dc2626;
   --bp-info: #2563eb;
   --bp-radius: 8px;
-  --bp-touch: 48px;
+  --bp-touch: 56px;
   --bp-shadow-soft: 0 12px 28px rgba(31, 41, 55, 0.08);
   --bp-shadow-lift: 0 18px 46px rgba(31, 41, 55, 0.14);
 }
@@ -36,12 +36,17 @@ body {
     repeating-linear-gradient(135deg, rgba(31, 41, 55, 0.035) 0 1px, transparent 1px 18px),
     linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
   color: #1f2937;
+  line-height: 1.5;
   font-feature-settings:
     "kern" 1,
     "liga" 1,
     "tnum" 1;
   text-rendering: optimizeLegibility;
   -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: rgba(46, 125, 50, 0.18);
 }
 
 @media (display-mode: standalone) {
@@ -74,7 +79,7 @@ select {
 
   .field-input {
     min-height: var(--bp-touch);
-    @apply w-full rounded-md border border-line bg-white px-3 py-3 text-sm text-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/15 disabled:bg-slate-100;
+    @apply w-full rounded-md border border-line bg-white px-3 py-3 text-base text-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/15 disabled:bg-slate-100 sm:text-sm;
   }
 
   select.field-input {
@@ -90,15 +95,15 @@ select {
   }
 
   .btn-primary {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-primary-dark focus:outline-none focus:ring-4 focus:ring-primary/20 active:translate-y-0;
+    @apply inline-flex min-h-14 items-center justify-center gap-2 rounded-md bg-primary px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-primary-dark focus:outline-none focus:ring-4 focus:ring-primary/20 active:translate-y-0;
   }
 
   .btn-secondary {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 py-2.5 text-sm font-black text-ink shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:bg-mint focus:outline-none focus:ring-4 focus:ring-primary/15 active:translate-y-0;
+    @apply inline-flex min-h-14 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 py-3 text-sm font-black text-ink shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:bg-mint focus:outline-none focus:ring-4 focus:ring-primary/15 active:translate-y-0;
   }
 
   .btn-danger {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-danger transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-200;
+    @apply inline-flex min-h-14 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-danger transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-200;
   }
 
   .surface {
@@ -188,5 +193,33 @@ select {
   .construction-rail::before {
     content: "";
     @apply absolute inset-y-0 left-0 w-1.5 bg-primary;
+  }
+
+  .baupro-screen {
+    @apply space-y-5 sm:space-y-6;
+  }
+
+  .command-panel {
+    @apply rounded-lg border border-slate-800 bg-anthracite text-white shadow-lift;
+  }
+
+  .command-panel-muted {
+    @apply rounded-lg border border-white/10 bg-white/[0.06] shadow-sm;
+  }
+
+  .outdoor-copy {
+    @apply text-base leading-7 text-slate-700 sm:text-sm sm:leading-6;
+  }
+
+  .mobile-touch-grid {
+    @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-3;
+  }
+
+  .action-tile {
+    @apply flex min-h-20 items-center gap-3 rounded-lg border border-line bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary/35 hover:bg-mint hover:shadow-soft;
+  }
+
+  .role-surface {
+    @apply rounded-lg border border-line bg-white p-4 shadow-soft sm:p-5;
   }
 }

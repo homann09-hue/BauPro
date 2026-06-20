@@ -66,7 +66,7 @@ export function TimeEntryForm({
   }
 
   return (
-    <form action={action} className="space-y-4">
+    <form action={action} className="space-y-4" data-testid="time-entry-form">
       {entry ? <input type="hidden" name="id" value={entry.id} /> : null}
       <input type="hidden" name="return_to" value={entry ? `/time-tracking/${entry.id}/edit` : "/time/new"} />
 

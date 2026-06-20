@@ -403,7 +403,11 @@ function CustomerPortalPanel({
             Lagerdaten und Teamnotizen bleiben ausgeblendet.
           </p>
         </div>
-        <form action={createCustomerPortalLinkAction} className="grid gap-2 rounded-lg border border-line bg-fog p-3 sm:grid-cols-[1fr_120px_auto] lg:min-w-[520px]">
+        <form
+          action={createCustomerPortalLinkAction}
+          className="grid gap-2 rounded-lg border border-line bg-fog p-3 sm:grid-cols-[1fr_120px_auto] lg:min-w-[520px]"
+          data-testid="portal-link-form"
+        >
           <input type="hidden" name="order_id" value={order.id} />
           <label>
             <span className="field-label">Bezeichnung</span>
@@ -493,7 +497,7 @@ function CustomerPortalPanel({
             <h3 className="font-black text-ink">Arbeitsaufträge</h3>
           </div>
 
-          <form action={createWorkOrderAction} className="mb-4 grid gap-3 rounded-lg border border-line bg-fog p-3">
+          <form action={createWorkOrderAction} className="mb-4 grid gap-3 rounded-lg border border-line bg-fog p-3" data-testid="work-order-form">
             <input type="hidden" name="order_id" value={order.id} />
             <label>
               <span className="field-label">Titel</span>

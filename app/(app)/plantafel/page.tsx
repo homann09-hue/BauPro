@@ -282,7 +282,7 @@ export default async function PlanningBoardPage({
       {context.canManage ? (
         <div className="mb-5 grid gap-5 xl:grid-cols-[1.4fr_0.9fr]">
           <FormSection title="Planung eintragen" description="Ressource wählen, Baustelle zuordnen und Zeitraum festlegen. Konflikte werden danach sichtbar markiert.">
-            <form action={createPlanningAssignmentAction} className="grid gap-3 lg:grid-cols-2">
+            <form action={createPlanningAssignmentAction} className="grid gap-3 lg:grid-cols-2" data-testid="planning-assignment-form">
               <input type="hidden" name="return_to" value={returnTo} />
               <div>
                 <label className="field-label" htmlFor="resource_key">
@@ -382,7 +382,7 @@ export default async function PlanningBoardPage({
           </FormSection>
 
           <FormSection title="Gerät oder Ressource anlegen" description="Werkzeuge, Maschinen oder sonstige Ressourcen können danach eingeplant werden.">
-            <form action={createPlanningResourceAction} className="grid gap-3">
+            <form action={createPlanningResourceAction} className="grid gap-3" data-testid="planning-resource-form">
               <input type="hidden" name="return_to" value={returnTo} />
               <div>
                 <label className="field-label" htmlFor="name">

@@ -109,6 +109,8 @@ supabase/migrations/20260704_resource_vehicle_management.sql
 supabase/migrations/20260705_flexible_checklists.sql
 supabase/migrations/20260706_defect_management.sql
 supabase/migrations/20260707_performance_followup_indexes.sql
+supabase/migrations/20260708_privacy_security_hardening.sql
+supabase/migrations/20260709_fix_material_usage_confirmation_rpc.sql
 ```
 
 `20260615_material_alerts_repair.sql` bleibt idempotent, damit aeltere Testdatenbanken mit fehlender Mitbringlisten-Kette repariert werden koennen. Fuer neue Projekte ist der vollstaendige Stand bereits in `supabase/schema.sql` enthalten.
@@ -494,6 +496,14 @@ Optionaler Mobile-E2E-Smoke-Test:
 npx playwright install chromium
 npm run test:e2e
 ```
+
+Vollstaendiger Demo-QA-Lauf mit frischer Demo-Firma:
+
+```bash
+npm run test:e2e:demo
+```
+
+Details zu Demo-Daten, Testlogins, Hauptablaeufen und Fehlerfaellen stehen in `docs/QA_TESTING.md`.
 
 Wenn Supabase-Umgebungsvariablen fehlen, kann die App nicht vollstaendig starten. Die erwarteten Variablen stehen in `.env.example`.
 

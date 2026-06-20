@@ -14,7 +14,7 @@ export function JobsiteForm({ action, jobsite, employees, submitLabel }: Jobsite
   const assigned = new Set(jobsite?.assigned_employee_ids ?? []);
 
   return (
-    <form action={action} className="surface p-4 sm:p-5">
+    <form action={action} className="surface p-4 sm:p-5" data-testid="jobsite-form">
       {jobsite ? <input type="hidden" name="id" value={jobsite.id} /> : null}
 
       <div className="grid gap-4 sm:grid-cols-2">

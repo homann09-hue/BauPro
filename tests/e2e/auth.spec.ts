@@ -1,4 +1,4 @@
-import { expect, login, logout, test, testUser } from "./fixtures";
+import { expect, gotoAppPage, login, logout, test, testUser } from "./fixtures";
 
 test.use({ viewport: { width: 1440, height: 1000 }, isMobile: false, hasTouch: false });
 
@@ -8,7 +8,7 @@ test("Login mit gueltigen Credentials fuehrt zum Dashboard", async ({ page }) =>
 });
 
 test("Login mit falschen Credentials zeigt Fehlermeldung", async ({ page }) => {
-  await page.goto("/login");
+  await gotoAppPage(page, "/login");
   await page.getByLabel("E-Mail").fill(`falsch-${Date.now()}@example.invalid`);
   await page.getByLabel("Passwort").fill("definitiv-falsch");
   await page.getByRole("button", { name: "Einloggen" }).click();

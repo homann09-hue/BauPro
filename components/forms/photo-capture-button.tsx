@@ -84,6 +84,7 @@ export function PhotoCaptureButton({
         ref={inputRef}
         id={inputId}
         name={name}
+        data-testid={`${name}-file-input`}
         type="file"
         accept="image/*"
         capture="environment"

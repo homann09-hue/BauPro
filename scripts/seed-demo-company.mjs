@@ -60,13 +60,19 @@ function minutes(start, end, pause) {
 }
 
 function isMissingSchemaError(error) {
+  const message = error?.message ?? "";
   return (
     error?.code === "42P01" ||
     error?.code === "42703" ||
     error?.code === "PGRST205" ||
-    error?.message?.includes("Could not find the table") ||
-    error?.message?.includes("Could not find the column")
+    message.includes("Could not find the table") ||
+    message.includes("Could not find the column") ||
+    (message.includes("Could not find") && message.includes("column"))
   );
+}
+
+function isOptionalSeedPermissionError(error) {
+  return error?.message === "not_authorized" || error?.message === "actor_mismatch";
 }
 
 async function allowMissing(label, promise) {
@@ -89,6 +95,10 @@ async function insertOptionalRows(table, rows, select = "*") {
   const { data, error } = await supabase.from(table).insert(rows).select(select);
   if (error && isMissingSchemaError(error)) {
     console.warn(`Ueberspringe ${table}: Tabelle/Spalte fehlt in der Live-Datenbank.`);
+    return [];
+  }
+  if (error && isOptionalSeedPermissionError(error)) {
+    console.warn(`Ueberspringe ${table}: Direkter Demo-Seed ist durch Sicherheitsregeln blockiert.`);
     return [];
   }
   if (error) throw new Error(`${table}: ${error.message}`);
@@ -129,6 +139,22 @@ async function ensureCompany() {
   const { data, error } = await supabase.from("companies").insert({ name: COMPANY_NAME }).select("id, name").single();
   if (error) throw new Error(`Demo-Firma konnte nicht angelegt werden: ${error.message}`);
   return data;
+}
+
+async function markDemoCompanyReady(companyId) {
+  await allowMissing(
+    "companies onboarding cleanup",
+    supabase
+      .from("companies")
+      .update({
+        contact_email: `chef@${EMAIL_DOMAIN}`,
+        address: "Dachdeckerweg 8, 50667 Koeln",
+        phone: "0221 555000",
+        website: "https://mueller-dachtechnik.example",
+        onboarding_completed_at: new Date().toISOString()
+      })
+      .eq("id", companyId)
+  );
 }
 
 async function ensureUser({ key, email, fullName, role, companyId }, existingUsers) {
@@ -225,6 +251,13 @@ async function cleanupCompany(companyId) {
   }
 
   const tables = [
+    "work_order_versions",
+    "digital_document_versions",
+    "work_orders",
+    "customer_portal_messages",
+    "customer_portal_events",
+    "customer_documents",
+    "customer_portal_tokens",
     "job_estimates",
     "ai_job_drafts",
     "ai_actions",
@@ -236,6 +269,8 @@ async function cleanupCompany(companyId) {
     "reports",
     "material_alerts",
     "purchase_suggestions",
+    "material_usage_reports",
+    "material_movements",
     "material_reservations",
     "bring_lists",
     "tasks",
@@ -243,6 +278,10 @@ async function cleanupCompany(companyId) {
     "job_material_calculation_items",
     "job_material_calculations",
     "job_dimensions",
+    "planning_weather_checks",
+    "planning_assignments",
+    "resource_documents",
+    "planning_resources",
     "orders",
     "vehicle_materials",
     "vehicles",
@@ -263,6 +302,7 @@ async function cleanupCompany(companyId) {
 
 async function main() {
   const company = await ensureCompany();
+  await markDemoCompanyReady(company.id);
   const existingUsers = await listAllUsers();
   const demoUsers = [
     { key: "chef", email: `chef@${EMAIL_DOMAIN}`, fullName: "Sabine Müller", role: "chef" },
@@ -406,7 +446,7 @@ async function main() {
   ]);
 
   const [jobSchmidt, jobKranz, jobRheinblick] = jobsites;
-  await insertOptionalRows("orders", [
+  const demoOrders = await insertOptionalRows("orders", [
     {
       company_id: company.id,
       customer_id: schmidt.id,
@@ -580,6 +620,122 @@ async function main() {
     { company_id: company.id, name: "Pritsche 211", license_plate: "K-DT 211", tuv_date: todayOffset(95), notes: "Materialtransport, Anhängerkupplung" }
   ]);
 
+  const resources = await insertOptionalRows("planning_resources", [
+    {
+      company_id: company.id,
+      name: "Dachaufzug Boecker Junior",
+      resource_kind: "maschine",
+      status: "defekt",
+      inspection_due_date: todayOffset(28),
+      maintenance_interval_days: 180,
+      last_maintenance_at: todayOffset(-120),
+      next_maintenance_at: todayOffset(60),
+      location_text: "Hauptlager Koeln",
+      responsible_employee_id: users.v1.id,
+      notes: "Kabel pruefen lassen. Bewusst defekt, damit die Demo einen Plantafel-Konflikt zeigt.",
+      created_by: users.chef.id
+    },
+    {
+      company_id: company.id,
+      name: "Gasbrenner-Set gross",
+      resource_kind: "werkzeug",
+      status: "verfuegbar",
+      location_text: "Sprinter K-DT 211",
+      responsible_employee_id: users.v2.id,
+      vehicle_id: vehicles[1]?.id ?? null,
+      notes: "Flachdach-Set mit Ersatzduesen und Druckminderer.",
+      created_by: users.chef.id
+    },
+    {
+      company_id: company.id,
+      name: "Leiterpaket und Geruestboecke",
+      resource_kind: "geraet",
+      status: "verfuegbar",
+      inspection_due_date: todayOffset(45),
+      location_text: "Hauptlager Koeln",
+      responsible_employee_id: users.v1.id,
+      notes: "Fuer kleine Reparaturen und Rinnenarbeiten.",
+      created_by: users.chef.id
+    }
+  ]);
+  const resourceByName = Object.fromEntries(resources.map((row) => [row.name, row]));
+
+  await insertOptionalRows("planning_assignments", [
+    {
+      company_id: company.id,
+      jobsite_id: jobSchmidt.id,
+      title: "Schmidt: Unterspannbahn und Lattung",
+      resource_type: "employee",
+      employee_id: users.m1.id,
+      start_date: todayOffset(1),
+      end_date: todayOffset(1),
+      status: "geplant",
+      color: "#2E7D32",
+      notes: "Hauptteam morgens direkt zur Hauptstrasse.",
+      created_by: users.chef.id
+    },
+    {
+      company_id: company.id,
+      jobsite_id: jobRheinblick.id,
+      title: "Rheinblick: Rinnenaufmass parallel",
+      resource_type: "employee",
+      employee_id: users.m1.id,
+      start_date: todayOffset(1),
+      end_date: todayOffset(1),
+      status: "geplant",
+      color: "#F59E0B",
+      notes: "Demo-Konflikt: Max ist am gleichen Tag doppelt verplant.",
+      created_by: users.chef.id
+    },
+    {
+      company_id: company.id,
+      jobsite_id: jobSchmidt.id,
+      title: "Sprinter 210 fuer Schmidt laden",
+      resource_type: "vehicle",
+      vehicle_id: vehicles[0].id,
+      start_date: todayOffset(1),
+      end_date: todayOffset(1),
+      status: "aktiv",
+      color: "#2563EB",
+      notes: "Mitbringliste vor Abfahrt abhaken.",
+      created_by: users.chef.id
+    },
+    ...(resourceByName["Dachaufzug Boecker Junior"]
+      ? [
+          {
+            company_id: company.id,
+            jobsite_id: jobSchmidt.id,
+            title: "Dachaufzug fuer Schmidt",
+            resource_type: "equipment",
+            planning_resource_id: resourceByName["Dachaufzug Boecker Junior"].id,
+            start_date: todayOffset(1),
+            end_date: todayOffset(1),
+            status: "geplant",
+            color: "#DC2626",
+            notes: "Demo-Konflikt: Geraet ist defekt und trotzdem eingeplant.",
+            created_by: users.chef.id
+          }
+        ]
+      : []),
+    ...(resourceByName["Gasbrenner-Set gross"]
+      ? [
+          {
+            company_id: company.id,
+            jobsite_id: jobKranz.id,
+            title: "Brenner-Set fuer Flachdach Kranz",
+            resource_type: "equipment",
+            planning_resource_id: resourceByName["Gasbrenner-Set gross"].id,
+            start_date: todayOffset(3),
+            end_date: todayOffset(3),
+            status: "geplant",
+            color: "#1B5E20",
+            notes: "Gasflaschen und Duese am Vortag pruefen.",
+            created_by: users.chef.id
+          }
+        ]
+      : [])
+  ]);
+
   const timeEntries = [];
   for (const row of [
     { user: users.m1, job: jobSchmidt, date: todayOffset(-2), start: "07:00", end: "16:00", pause: 45, activity: "Geruestzugang geprueft, alte Lattung aufgenommen" },
@@ -662,6 +818,45 @@ async function main() {
       due_date: todayOffset(2),
       status: "in_arbeit",
       created_by: users.chef.id
+    }
+  ]);
+
+  await insertOptionalRows("material_usage_reports", [
+    {
+      company_id: company.id,
+      inventory_item_id: inventoryByName["Unterspannbahn diffusionsoffen"].id,
+      jobsite_id: jobSchmidt.id,
+      quantity: 18,
+      unit: "m2",
+      booking_type: "consume",
+      status: "reported",
+      reported_by: users.m1.id,
+      notes: "Heute auf Nordseite verbraucht, wartet auf Bestaetigung durch Vorarbeiter."
+    },
+    {
+      company_id: company.id,
+      inventory_item_id: inventoryByName["Rinnenhalter verzinkt RG 333"].id,
+      jobsite_id: jobRheinblick.id,
+      quantity: 4,
+      unit: "Stueck",
+      booking_type: "break",
+      status: "reported",
+      reported_by: users.m5.id,
+      notes: "Vier alte Halter beim Ausbau gebrochen, Ersatz benoetigt."
+    }
+  ]);
+
+  await insertOptionalRows("material_movements", [
+    {
+      company_id: company.id,
+      inventory_item_id: inventoryByName["Tonziegel naturrot"].id,
+      from_location_id: location["Container Schmidt"].id,
+      jobsite_id: jobSchmidt.id,
+      quantity: 80,
+      unit: "Stueck",
+      movement_type: "consume",
+      created_by: users.v1.id,
+      notes: "Demo-Bewegung: erste Palette auf der Nordseite verarbeitet."
     }
   ]);
 
@@ -786,6 +981,44 @@ async function main() {
         status: "reserved",
         reserved_by: users.chef.id,
         reserved_at: new Date().toISOString()
+      }
+    ]);
+  }
+
+  const workOrders = await insertOptionalRows("work_orders", [
+    {
+      company_id: company.id,
+      customer_id: schmidt.id,
+      jobsite_id: jobSchmidt.id,
+      order_id: demoOrders[0]?.id ?? null,
+      title: "Arbeitsauftrag Steildachsanierung Schmidt",
+      description: "Freigabe fuer die naechste Bauphase.",
+      scope_of_work:
+        "Unterspannbahn verlegen, Konterlattung und Dachlattung montieren, Ortgang links pruefen und Fotodokumentation fuer den Kunden bereitstellen.",
+      price_note: "Leistung gemaess Angebot. Interne EK/VK-Preise sind im Kundenportal nicht sichtbar.",
+      status: "sent",
+      version: 1,
+      content_hash: "demo-work-order-schmidt-v1",
+      sent_at: new Date().toISOString(),
+      created_by: users.chef.id
+    }
+  ]);
+
+  if (workOrders[0]) {
+    await insertOptionalRows("work_order_versions", [
+      {
+        company_id: company.id,
+        work_order_id: workOrders[0].id,
+        version: 1,
+        snapshot: {
+          title: workOrders[0].title,
+          description: workOrders[0].description,
+          scope_of_work: workOrders[0].scope_of_work,
+          price_note: workOrders[0].price_note,
+          status: "sent"
+        },
+        content_hash: "demo-work-order-schmidt-v1",
+        created_by: users.chef.id
       }
     ]);
   }

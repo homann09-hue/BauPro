@@ -1,9 +1,22 @@
 import Link from "next/link";
-import { ArrowRight, BellPlus, BriefcaseBusiness, Building2, CheckCircle2, Cog, LogOut, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  BellPlus,
+  BriefcaseBusiness,
+  Building2,
+  Camera,
+  CheckCircle2,
+  ClipboardList,
+  Clock3,
+  Cog,
+  LogOut,
+  ShieldCheck,
+  Sparkles,
+  type LucideIcon
+} from "lucide-react";
 import { signOutAction } from "@/lib/actions/auth-actions";
 import { getInitials } from "@/lib/utils";
 import type { AppContext } from "@/lib/auth";
-import { FloatingActionButton } from "@/components/construction-ui";
 import { NavLink } from "@/components/nav-link";
 import { PredictivePrefetch } from "@/components/performance/PredictivePrefetch";
 import { VoiceDictation } from "@/components/voice-dictation";
@@ -79,13 +92,24 @@ const roleLabels = {
   kunde: "Kunde"
 } as const;
 
+type MobileAction = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  primary?: boolean;
+};
+
 function getShellNavigation(context: AppContext) {
   if (context.canManage) {
     return {
       primaryNav: managerPrimaryNav,
       mobileNav: managerPrimaryNav.slice(0, 5),
       quickLinks: managerQuickLinks,
-      floatingAction: { href: "/orders/new", label: "Auftrag", icon: BriefcaseBusiness },
+      mobileActions: [
+        { href: "/orders/new", label: "Auftrag", icon: BriefcaseBusiness, primary: true },
+        { href: "/time-tracking/daily", label: "Zeiten", icon: Clock3 },
+        { href: "/ai-assistant", label: "KI", icon: Sparkles }
+      ] satisfies MobileAction[],
       notice: "Chef/Admin sieht Preise, Team, Einstellungen und operative Schnellzugriffe."
     };
   }
@@ -95,7 +119,11 @@ function getShellNavigation(context: AppContext) {
       primaryNav: foremanPrimaryNav,
       mobileNav: foremanPrimaryNav.filter((item) => item.href !== "/profile").slice(0, 5),
       quickLinks: employeeQuickLinks,
-      floatingAction: { href: "/material-melden", label: "Material fehlt", icon: BellPlus },
+      mobileActions: [
+        { href: "/time/new", label: "Zeit", icon: Clock3, primary: true },
+        { href: "/berichte/neu", label: "Bericht", icon: ClipboardList },
+        { href: "/material-melden", label: "Material", icon: BellPlus }
+      ] satisfies MobileAction[],
       notice: "Vorarbeiter sieht operative Baustellen, Zeiten, Berichte und Mitbringlisten ohne Preisdetails."
     };
   }
@@ -104,7 +132,11 @@ function getShellNavigation(context: AppContext) {
     primaryNav: employeePrimaryNav,
     mobileNav: employeePrimaryNav.filter((item) => item.href !== "/profile").slice(0, 5),
     quickLinks: employeeQuickLinks,
-    floatingAction: { href: "/material-melden", label: "Material fehlt", icon: BellPlus },
+    mobileActions: [
+      { href: "/time/new", label: "Zeit", icon: Clock3, primary: true },
+      { href: "/berichte/neu", label: "Foto", icon: Camera },
+      { href: "/material-melden", label: "Material", icon: BellPlus }
+    ] satisfies MobileAction[],
     notice: "Mitarbeiter sieht nur zugeordnete Baustellen, eigene Zeiten, Berichte und Mitbringlisten."
   };
 }
@@ -116,7 +148,7 @@ export function AppShell({
   context: AppContext;
   children: React.ReactNode;
 }) {
-  const { primaryNav, mobileNav, quickLinks, floatingAction, notice } = getShellNavigation(context);
+  const { primaryNav, mobileNav, quickLinks, mobileActions, notice } = getShellNavigation(context);
   const roleLabel = roleLabels[context.profile.role];
 
   return (
@@ -154,7 +186,7 @@ export function AppShell({
         <nav className="min-h-0 flex-1 overflow-y-auto pb-4">
           <div className="rounded-lg border border-white/10 bg-white/[0.04] p-2 shadow-sm">
             <p className="px-3 pb-2 pt-1 text-[11px] font-black uppercase tracking-normal text-slate-500">
-              Hauptbereiche
+              Einsatzsteuerung
             </p>
             <div className="space-y-1">
               {primaryNav.map((item) => (
@@ -225,7 +257,7 @@ export function AppShell({
         </div>
       </header>
 
-      <main className="pb-[calc(8rem+env(safe-area-inset-bottom))] lg:ml-80 lg:pb-0">
+      <main className="pb-[calc(11.5rem+env(safe-area-inset-bottom))] lg:ml-80 lg:pb-0">
         <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </div>
@@ -244,7 +276,13 @@ export function AppShell({
         <span>KI fragen</span>
       </Link>
 
-      <FloatingActionButton href={floatingAction.href} icon={floatingAction.icon} label={floatingAction.label} />
+      <div className="fixed inset-x-0 bottom-[calc(4.9rem+env(safe-area-inset-bottom))] z-30 px-3 lg:hidden">
+        <div className="mx-auto grid max-w-3xl grid-cols-3 gap-2 rounded-lg border border-slate-800 bg-anthracite p-2 shadow-lift">
+          {mobileActions.map((action) => (
+            <MobileActionLink key={action.href + action.label} action={action} />
+          ))}
+        </div>
+      </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/80 bg-white/95 px-2 pb-[calc(0.25rem+env(safe-area-inset-bottom))] pt-1 shadow-[0_-16px_40px_rgba(23,33,27,0.12)] backdrop-blur-xl lg:hidden">
         <div className="mx-auto grid max-w-3xl grid-cols-5 gap-1 pb-1">
@@ -254,6 +292,24 @@ export function AppShell({
         </div>
       </nav>
     </div>
+  );
+}
+
+function MobileActionLink({ action }: { action: MobileAction }) {
+  const Icon = action.icon;
+
+  return (
+    <Link
+      href={action.href}
+      className={
+        action.primary
+          ? "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md bg-primary px-2 py-2 text-center text-xs font-black text-white shadow-soft"
+          : "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md border border-white/10 bg-white/10 px-2 py-2 text-center text-xs font-black text-white"
+      }
+    >
+      <Icon className="h-5 w-5" aria-hidden="true" />
+      <span className="leading-tight">{action.label}</span>
+    </Link>
   );
 }
 

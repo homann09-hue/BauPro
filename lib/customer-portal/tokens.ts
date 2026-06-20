@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { isMissingSchemaError } from "@/lib/supabase/errors";
 import type {
   CommercialDocument,
   Customer,
@@ -386,7 +387,23 @@ export async function loadCustomerPortalData(token: string): Promise<CustomerPor
       defectsQuery
     ]);
 
-  if (companyResult.error || customerResult.error || !companyResult.data || !customerResult.data) return null;
+  let companyData = companyResult.data as CustomerPortalData["company"] | null;
+  let companyError = companyResult.error;
+  if (companyError && isMissingSchemaError(companyError)) {
+    const fallbackCompany = await supabase.from("companies").select("id, name").eq("id", portalToken.company_id).single();
+    companyData = fallbackCompany.data
+      ? {
+          id: fallbackCompany.data.id,
+          name: fallbackCompany.data.name,
+          phone: null,
+          contact_email: null,
+          address: null
+        }
+      : null;
+    companyError = fallbackCompany.error;
+  }
+
+  if (companyError || customerResult.error || !companyData || !customerResult.data) return null;
 
   const events = rowsOrEmpty<CustomerPortalEvent>(eventsResult, "events");
   const reports = rowsOrEmpty<PortalReport>(reportsResult, "reports");
@@ -412,7 +429,7 @@ export async function loadCustomerPortalData(token: string): Promise<CustomerPor
 
   return {
     token: portalToken,
-    company: companyResult.data,
+    company: companyData,
     customer: customerResult.data,
     jobsite: jobsiteResult.data ?? null,
     progressPercent: calculateProgress({ jobsite: jobsiteResult.data ?? null, reports, photos, workOrders }),

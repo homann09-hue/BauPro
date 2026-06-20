@@ -8,6 +8,10 @@ const reportArchiveHardening = fs.readFileSync(
   path.join(root, "supabase/migrations/20260617_report_archive_hardening.sql"),
   "utf8"
 );
+const privacySecurityHardening = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260708_privacy_security_hardening.sql"),
+  "utf8"
+);
 
 const failures = [];
 
@@ -29,6 +33,18 @@ const inventoryPublicView = block(
 
 check(schema.includes("force row level security"), "schema.sql must force RLS on public tables.");
 check(hardening.includes("force row level security"), "redteam migration must force RLS.");
+check(
+  privacySecurityHardening.includes("force row level security") &&
+    privacySecurityHardening.includes("information_schema.columns") &&
+    privacySecurityHardening.includes("column_name = 'company_id'"),
+  "privacy/security migration must force RLS on all tenant tables with company_id."
+);
+check(
+  schema.includes("BauPro final privacy/security hardening") &&
+    schema.includes("column_name = 'company_id'") &&
+    schema.includes("force row level security"),
+  "schema.sql must include the final privacy/security hardening block."
+);
 check(schema.includes("redteam managers select fallback"), "schema.sql must include tenant manager CRUD fallback policies.");
 check(hardening.includes("redteam managers delete fallback"), "redteam migration must include tenant delete fallback policies.");
 

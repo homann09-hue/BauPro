@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CalendarDays, ClipboardList, MapPin, Users, type LucideIcon } from "lucide-react";
+import { ArrowRight, BellPlus, CalendarDays, Camera, ClipboardList, Clock3, MapPin, Mic2, Users, type LucideIcon } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { cn, formatDate } from "@/lib/utils";
 import type { Jobsite } from "@/types/app";
@@ -71,7 +71,7 @@ export function StatCard({
   );
 
   const className = cn(
-    "construction-rail min-h-24 rounded-lg border p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft",
+    "construction-rail min-h-28 rounded-lg border p-4 pl-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft",
     toneStyles[tone].card
   );
 
@@ -101,7 +101,7 @@ export function QuickActionButton({
     <Link
       href={href}
       className={cn(
-        "group flex min-h-24 flex-col justify-between rounded-lg border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft",
+        "group flex min-h-28 flex-col justify-between rounded-lg border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft",
         primary
           ? "border-primary-dark bg-primary text-white hover:bg-primary-dark"
           : "border-line bg-white text-ink hover:border-primary/35 hover:bg-mint"
@@ -118,6 +118,99 @@ export function QuickActionButton({
         {description ? <p className={cn("mt-1 text-sm", primary ? "text-white/75" : "text-slate-500")}>{description}</p> : null}
       </div>
     </Link>
+  );
+}
+
+export function SectionHeader({
+  eyebrow,
+  title,
+  description,
+  actionHref,
+  actionLabel
+}: {
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  actionHref?: string;
+  actionLabel?: string;
+}) {
+  return (
+    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        {eyebrow ? (
+          <p className="mb-1 inline-flex items-center gap-2 rounded-md bg-mint px-2.5 py-1 text-xs font-black uppercase tracking-normal text-moss">
+            {eyebrow}
+          </p>
+        ) : null}
+        <h2 className="section-title">{title}</h2>
+        {description ? <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">{description}</p> : null}
+      </div>
+      {actionHref && actionLabel ? (
+        <Link href={actionHref} className="btn-secondary w-full sm:w-auto">
+          {actionLabel}
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
+export function TodayJobsiteFocus({
+  jobsite,
+  roleLabel
+}: {
+  jobsite?: Jobsite;
+  roleLabel: string;
+}) {
+  if (!jobsite) {
+    return (
+      <section className="role-surface">
+        <SectionHeader
+          eyebrow={roleLabel}
+          title="Heute keine Baustelle zugeordnet"
+          description="Wenn du heute eingesetzt bist, aktualisiert Chef oder Vorarbeiter die Zuordnung. Du kannst trotzdem Zeiten, Materialmeldungen oder Berichte vorbereiten."
+        />
+        <div className="mobile-touch-grid">
+          <QuickActionButton href="/time/new" icon={Clock3} title="Zeit erfassen" description="Manuell eintragen" primary />
+          <QuickActionButton href="/material-melden" icon={BellPlus} title="Material fehlt" description="Schnell melden" />
+          <QuickActionButton href="/berichte/neu" icon={ClipboardList} title="Bericht schreiben" description="Dokumentieren" />
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-line bg-white shadow-lift">
+      <div className="grid gap-0 lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="construction-rail p-5 pl-6 sm:p-6 sm:pl-7">
+          <p className="section-kicker">{roleLabel}</p>
+          <h2 className="mt-2 text-2xl font-black tracking-normal text-ink sm:text-3xl">Heute: {jobsite.name}</h2>
+          <p className="mt-2 text-sm font-bold text-slate-700">{jobsite.customer}</p>
+          <p className="mt-3 flex items-start gap-2 text-sm leading-6 text-slate-600">
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+            {jobsite.address}
+          </p>
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Link href={`/baustellen/${jobsite.id}`} className="btn-primary w-full sm:w-auto">
+              Baustelle öffnen
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <Link href="/bring-lists" className="btn-secondary w-full sm:w-auto">
+              Mitbringliste
+            </Link>
+          </div>
+        </div>
+        <div className="border-t border-line bg-fog p-4 sm:p-5 lg:border-l lg:border-t-0">
+          <p className="mb-3 text-xs font-black uppercase tracking-normal text-slate-500">Direkt erledigen</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <QuickActionButton href="/time/new" icon={Clock3} title="Arbeit starten" description="Zeit erfassen" primary />
+            <QuickActionButton href="/berichte/neu" icon={Mic2} title="Bericht sprechen" description="Text oder Sprache" />
+            <QuickActionButton href="/berichte/neu" icon={Camera} title="Foto hochladen" description="Nachweis sichern" />
+            <QuickActionButton href="/material-melden" icon={BellPlus} title="Material fehlt" description="Chef warnen" />
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 

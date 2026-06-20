@@ -4,7 +4,8 @@ const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
 
 export default defineConfig({
   testDir: "tests/e2e",
-  timeout: 30_000,
+  timeout: 120_000,
+  workers: 1,
   webServer: {
     command: "npm run dev",
     url: BASE_URL,

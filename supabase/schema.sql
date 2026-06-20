@@ -6397,7 +6397,7 @@ declare
   report_row public.material_usage_reports%rowtype;
   current_item public.inventory_items%rowtype;
   next_stock numeric;
-  movement_id uuid;
+  v_movement_id uuid;
   existing_alert_id uuid;
   actor_can_confirm boolean;
 begin
@@ -6523,14 +6523,14 @@ begin
     p_actor_id,
     coalesce(nullif(p_note, ''), report_row.notes)
   )
-  returning id into movement_id;
+  returning id into v_movement_id;
 
   update public.material_usage_reports
   set status = 'confirmed',
-      movement_id = movement_id,
+      movement_id = v_movement_id,
       confirmed_by = p_actor_id,
       confirmed_at = now(),
-      notes = coalesce(nullif(p_note, ''), notes),
+      notes = coalesce(nullif(p_note, ''), public.material_usage_reports.notes),
       updated_at = now()
   where id = report_row.id
     and company_id = p_company_id;
@@ -6606,7 +6606,7 @@ begin
     jsonb_build_object(
       'stock', next_stock,
       'status', 'confirmed',
-      'movement_id', movement_id,
+      'movement_id', v_movement_id,
       'inventory_item_id', current_item.id,
       'jobsite_id', report_row.jobsite_id,
       'booking_type', report_row.booking_type,
@@ -6614,7 +6614,7 @@ begin
     )
   );
 
-  return movement_id;
+  return v_movement_id;
 end;
 $$;
 
@@ -8798,5 +8798,40 @@ create index if not exists idx_job_material_calculations_company_jobsite_created
 create index if not exists idx_job_material_calculation_items_company_calc on public.job_material_calculation_items (company_id, calculation_id);
 create index if not exists idx_job_material_requirements_company_order_active on public.job_material_requirements (company_id, order_id, created_at desc) where archived_at is null;
 create index if not exists idx_privacy_requests_company_status_due on public.privacy_requests (company_id, status, due_at);
+
+-- BauPro final privacy/security hardening:
+-- Jede Mandantentabelle mit company_id wird am Ende des Vollschemas erneut auf FORCE RLS gesetzt.
+do $$
+declare
+  tenant_table record;
+begin
+  for tenant_table in
+    select table_schema, table_name
+    from information_schema.columns
+    where table_schema = 'public'
+      and column_name = 'company_id'
+      and table_name not like 'pg_%'
+  loop
+    execute format('alter table %I.%I enable row level security', tenant_table.table_schema, tenant_table.table_name);
+    execute format('alter table %I.%I force row level security', tenant_table.table_schema, tenant_table.table_name);
+  end loop;
+end $$;
+
+alter table if exists public.companies enable row level security;
+alter table if exists public.companies force row level security;
+
+comment on table public.company_audit_log is
+  'Audit-Log fuer kritische Aktionen. Datenschutz-/Firmenexporte loggen nur Metadaten, keine exportierten personenbezogenen Inhalte.';
+
+comment on column public.materials.purchase_price is
+  'EK-Preis: darf nur ueber Chef/Admin-Views, Server Actions oder eingeschraenkte Firmenexports sichtbar sein.';
+comment on column public.materials.sales_price is
+  'VK-Preis: darf nur ueber Chef/Admin-Views, Server Actions oder eingeschraenkte Firmenexports sichtbar sein.';
+comment on column public.inventory_items.purchase_price is
+  'EK-Preis: darf niemals an Mitarbeiter-, Vorarbeiter- oder Kundenportal-Responses ausgeliefert werden.';
+comment on column public.inventory_items.sales_price is
+  'VK-Preis: darf niemals an Mitarbeiter-, Vorarbeiter- oder Kundenportal-Responses ausgeliefert werden.';
+comment on column public.inventory_items.markup_percent is
+  'Marge/Aufschlag: nur fuer Chef/Admin, nicht fuer Mitarbeiter/Vorarbeiter/Kundenportal.';
 
 select pg_notify('pgrst', 'reload schema');

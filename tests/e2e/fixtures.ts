@@ -1,6 +1,7 @@
 import { expect, test as base, type BrowserContext, type Locator, type Page } from "@playwright/test";
 
 export const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
+export const E2E_NAVIGATION_TIMEOUT = 60_000;
 
 export const testUser = {
   email: process.env.E2E_CHEF_EMAIL || "chef@mueller-dachtechnik.example",
@@ -22,6 +23,18 @@ export const testPng = {
 };
 
 async function mockExternalServices(context: BrowserContext) {
+  await context.addInitScript(() => {
+    window.localStorage.setItem(
+      "baupro-consent-v1",
+      JSON.stringify({
+        version: "2026-06-15",
+        essential: true,
+        analytics: false,
+        marketing: false,
+        decidedAt: "2026-06-20T00:00:00.000Z"
+      })
+    );
+  });
   await context.route(/https:\/\/api\.openai\.com\/.*/i, async (route) => {
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ output: [] }) });
   });
@@ -43,16 +56,29 @@ export const test = base.extend({
 export { expect };
 
 export async function login(page: Page, user = testUser) {
-  await page.goto("/login");
-  await page.getByLabel("E-Mail").fill(user.email);
-  await page.getByLabel("Passwort").fill(user.password);
-  await page.getByRole("button", { name: "Einloggen" }).click();
-  await expect(page).toHaveURL(/\/dashboard/);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.goto("/login", { waitUntil: "domcontentloaded", timeout: E2E_NAVIGATION_TIMEOUT });
+    await page.getByLabel("E-Mail").fill(user.email);
+    await page.getByLabel("Passwort").fill(user.password);
+    await page.getByRole("button", { name: "Einloggen" }).click();
+
+    try {
+      await expect(page).toHaveURL(/\/dashboard/, { timeout: E2E_NAVIGATION_TIMEOUT });
+      return;
+    } catch (error) {
+      if (attempt === 0 && page.url().startsWith("chrome-error://")) {
+        await page.waitForTimeout(1_000);
+        continue;
+      }
+
+      throw error;
+    }
+  }
 }
 
 export async function logout(page: Page) {
   await page.getByRole("button", { name: "Abmelden" }).click();
-  await expect(page).toHaveURL(/\/login/);
+  await expect(page).toHaveURL(/\/login/, { timeout: E2E_NAVIGATION_TIMEOUT });
 }
 
 export async function selectFirstNonEmptyOption(select: Locator) {
@@ -68,6 +94,10 @@ export async function selectFirstNonEmptyOption(select: Locator) {
   }
 
   return false;
+}
+
+export async function gotoAppPage(page: Page, path: string) {
+  await page.goto(path, { waitUntil: "domcontentloaded", timeout: E2E_NAVIGATION_TIMEOUT });
 }
 
 export function todayIsoDate() {

@@ -588,7 +588,7 @@ function WorkOrderCard({ token, workOrder }: { token: string; workOrder: PortalW
       ) : null}
 
       {isOpen ? (
-        <form action={signWorkOrderFromPortalAction} className="mt-4 grid gap-3 rounded-lg border border-line bg-fog p-3">
+        <form action={signWorkOrderFromPortalAction} className="mt-4 grid gap-3 rounded-lg border border-line bg-fog p-3" data-testid="portal-work-order-sign-form">
           <input type="hidden" name="token" value={token} />
           <input type="hidden" name="work_order_id" value={workOrder.id} />
           <label>

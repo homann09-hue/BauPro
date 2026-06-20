@@ -285,7 +285,7 @@ declare
   report_row public.material_usage_reports%rowtype;
   current_item public.inventory_items%rowtype;
   next_stock numeric;
-  movement_id uuid;
+  v_movement_id uuid;
   existing_alert_id uuid;
   actor_can_confirm boolean;
 begin
@@ -411,14 +411,14 @@ begin
     p_actor_id,
     coalesce(nullif(p_note, ''), report_row.notes)
   )
-  returning id into movement_id;
+  returning id into v_movement_id;
 
   update public.material_usage_reports
   set status = 'confirmed',
-      movement_id = movement_id,
+      movement_id = v_movement_id,
       confirmed_by = p_actor_id,
       confirmed_at = now(),
-      notes = coalesce(nullif(p_note, ''), notes),
+      notes = coalesce(nullif(p_note, ''), public.material_usage_reports.notes),
       updated_at = now()
   where id = report_row.id
     and company_id = p_company_id;
@@ -494,7 +494,7 @@ begin
     jsonb_build_object(
       'stock', next_stock,
       'status', 'confirmed',
-      'movement_id', movement_id,
+      'movement_id', v_movement_id,
       'inventory_item_id', current_item.id,
       'jobsite_id', report_row.jobsite_id,
       'booking_type', report_row.booking_type,
@@ -502,7 +502,7 @@ begin
     )
   );
 
-  return movement_id;
+  return v_movement_id;
 end;
 $$;
 

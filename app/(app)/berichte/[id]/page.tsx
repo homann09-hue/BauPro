@@ -12,6 +12,7 @@ import { createReportRevisionAction, deleteReportAction, signReportAction, updat
 import { requireAppContext } from "@/lib/auth";
 import { reportFormSelect, reportPhotoSelect, vehicleOptionSelect } from "@/lib/data/selects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isMissingSchemaError } from "@/lib/supabase/errors";
 import { formatDate, formatDateTime, searchParamMessage } from "@/lib/utils";
 import { weatherDetailsLine, weatherNumber, weatherSummary } from "@/lib/weather/display";
 import type { Profile, Report, ReportPhoto, TimeEntry, Vehicle } from "@/types/app";
@@ -28,11 +29,19 @@ export default async function ReportDetailPage({
   const { id } = await params;
   const { error, success } = searchParamMessage(await searchParams);
   const reportSelect = `${reportFormSelect}, jobsites(id, name, customer, address)`;
+  const legacyReportSelect =
+    "id, company_id, jobsite_id, report_date, weather, weather_summary, weather_temperature_c, weather_precipitation_mm, weather_wind_kmh, weather_source, weather_fetched_at, weather_lat, weather_lng, work_start, work_end, employee_ids, activities, material_usage, machine_usage, vehicle_ids, linked_time_entry_ids, issues, report_status, submitted_at, reviewed_by, reviewed_at, approved_by, approved_at, visible_to_customer, customer_summary, customer_released_at, customer_released_by, created_by, created_at, jobsites(id, name, customer, address)";
 
-  let reportQuery = supabase.from("reports").select(reportSelect).eq("id", id).eq("company_id", context.companyId).is("archived_at", null);
-  if (!context.canManage) reportQuery = reportQuery.eq("created_by", context.userId);
+  function buildReportQuery(select: string) {
+    let reportQuery = supabase.from("reports").select(select).eq("id", id).eq("company_id", context.companyId).is("archived_at", null);
+    if (!context.canManage) reportQuery = reportQuery.eq("created_by", context.userId);
+    return reportQuery;
+  }
 
-  const reportResult = await reportQuery.single();
+  let reportResult = await buildReportQuery(reportSelect).single();
+  if (isMissingSchemaError(reportResult.error)) {
+    reportResult = await buildReportQuery(legacyReportSelect).single();
+  }
 
   if (!reportResult.data) {
     notFound();

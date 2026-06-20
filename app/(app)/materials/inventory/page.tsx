@@ -286,7 +286,7 @@ export default async function InventoryPage({
               Für eine Materialbuchung brauchst du sichtbares Material und eine zugewiesene aktive Baustelle.
             </div>
           ) : (
-            <form action={reportMaterialUsageAction} className="grid gap-3 lg:grid-cols-6">
+            <form action={reportMaterialUsageAction} className="grid gap-3 lg:grid-cols-6" data-testid="material-usage-form">
               <input type="hidden" name="return_to" value={returnTo} />
               <label className="lg:col-span-2">
                 <span className="field-label">Material</span>
@@ -349,7 +349,7 @@ export default async function InventoryPage({
                 Sobald Material und aktive Baustellen vorhanden sind, kannst du hier reservieren.
               </p>
             ) : (
-              <form action={reserveMaterialForJobsiteAction} className="grid gap-3">
+              <form action={reserveMaterialForJobsiteAction} className="grid gap-3" data-testid="material-reservation-form">
                 <input type="hidden" name="return_to" value={returnTo} />
                 <label>
                   <span className="field-label">Material</span>
@@ -427,7 +427,7 @@ export default async function InventoryPage({
                   </div>
 
                   {context.canOperate ? (
-                    <form action={confirmMaterialUsageReportAction} className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                    <form action={confirmMaterialUsageReportAction} className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]" data-testid="material-confirmation-form">
                       <input type="hidden" name="return_to" value={returnTo} />
                       <input type="hidden" name="usage_report_id" value={report.id} />
                       <input className="field-input" name="confirmation_note" placeholder="Kommentar / Grund optional" />
@@ -492,7 +492,7 @@ export default async function InventoryPage({
       {context.canManage ? (
         <details className="surface mb-5 p-4">
           <summary className="cursor-pointer text-sm font-black text-ink">Eigenes Material erfassen</summary>
-          <form action={createCustomInventoryItemAction} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <form action={createCustomInventoryItemAction} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6" data-testid="custom-inventory-form">
             <input type="hidden" name="return_to" value={returnTo} />
             <label className="lg:col-span-2">
               <span className="field-label">Materialname</span>

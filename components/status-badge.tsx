@@ -52,6 +52,7 @@ export function StatusBadge({ value, label }: { value: string; label?: string })
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-bold capitalize ring-1",
+        "min-h-8",
         styles[value] || "bg-slate-100 text-slate-700"
       )}
     >

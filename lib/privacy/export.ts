@@ -3,7 +3,6 @@ import {
   bringListItemSelect,
   bringListOperationalSelect,
   customerFormSelect,
-  inventoryItemManagerDetailSelect,
   inventoryLocationSelect,
   jobsiteFormSelect,
   materialAlertSelect,
@@ -30,7 +29,19 @@ const companyExportSelect =
 const orderExportSelect =
   "id, company_id, customer_id, jobsite_id, order_number, title, order_type, status, priority, jobsite_address, start_date, end_date, description, internal_notes, assigned_employee_ids, has_dimensions, created_by, created_at, updated_at, archived_at";
 const materialExportSelect =
-  "id, company_id, name, category, unit, stock, minimum_stock, location, purchase_price, sales_price, created_by, created_at, updated_at";
+  "id, company_id, name, category, unit, stock, minimum_stock, location, created_by, created_at, updated_at";
+const materialPriceExportSelect =
+  "id, company_id, name, category, unit, location, purchase_price, sales_price, created_by, created_at, updated_at";
+const inventoryItemOperationalExportSelect =
+  "id, company_id, catalog_item_id, category_id, subcategory_id, location_id, supplier_id, name, unit, stock, minimum_stock, package_unit, manufacturer, article_number, ean, sales_unit, notes, created_by, created_at, updated_at, archived_at";
+const inventoryPriceExportSelect =
+  "id, company_id, name, unit, purchase_price, sales_price, markup_percent, sales_unit, price_per_unit, supplier_id, last_price_changed_at, updated_at";
+const supplierOfferFinancialExportSelect =
+  "id, company_id, supplier_integration_id, provider_key, supplier_name, external_product_id, product_name, manufacturer, category, unit, package_size, price_net, price_gross, currency, vat_rate, shipping_cost, total_price_gross, delivery_time_text, stock_status, product_url, last_checked_at, valid_until, source_type, created_at, updated_at";
+const onlinePriceDiscoveryFinancialExportSelect =
+  "id, company_id, material_id, query, status, source_statuses, cheapest_price_gross, average_price_gross, offer_count, created_by, created_at";
+const onlinePriceOfferFinancialExportSelect =
+  "id, company_id, discovery_id, material_id, source_key, supplier_name, product_name, product_url, price_gross, shipping_cost, total_price_gross, delivery_time_text, checked_at, source_note";
 const vehicleExportSelect =
   "id, company_id, name, license_plate, tuv_date, notes, created_by, created_at, updated_at, archived_at";
 const timeReportExportSelect =
@@ -51,7 +62,7 @@ const companyTableSelects: Record<string, string> = {
   time_reports: timeReportExportSelect,
   materials: materialExportSelect,
   inventory_locations: inventoryLocationSelect,
-  inventory_items: `${inventoryItemManagerDetailSelect}, created_at, updated_at, archived_at`,
+  inventory_items: inventoryItemOperationalExportSelect,
   vehicles: vehicleExportSelect,
   tasks: taskExportSelect,
   bring_lists: bringListOperationalSelect,
@@ -215,20 +226,59 @@ export async function buildCompanyDataExport({
       )
     : [];
 
+  const restrictedFinancialData = {
+    materials_with_prices: await safeRows(
+      "materials_with_prices",
+      supabase.from("materials").select(materialPriceExportSelect).eq("company_id", companyId),
+      issues
+    ),
+    inventory_prices: await safeRows(
+      "inventory_prices",
+      supabase.from("inventory_items").select(inventoryPriceExportSelect).eq("company_id", companyId),
+      issues
+    ),
+    supplier_offers: await safeRows(
+      "supplier_offers",
+      supabase.from("supplier_offers").select(supplierOfferFinancialExportSelect).eq("company_id", companyId),
+      issues
+    ),
+    online_price_discoveries: await safeRows(
+      "online_price_discoveries",
+      supabase.from("online_price_discoveries").select(onlinePriceDiscoveryFinancialExportSelect).eq("company_id", companyId),
+      issues
+    ),
+    online_price_offers: await safeRows(
+      "online_price_offers",
+      supabase.from("online_price_offers").select(onlinePriceOfferFinancialExportSelect).eq("company_id", companyId),
+      issues
+    )
+  };
+
   await auditExport({
     supabase,
     companyId,
     actorId,
     action: "company_data_export",
-    metadata: { table_count: tableNames.length, issue_count: issues.length }
+    metadata: {
+      table_count: tableNames.length,
+      restricted_financial_sections: Object.keys(restrictedFinancialData),
+      issue_count: issues.length
+    }
   });
 
   return {
     export_type: "company_data",
     generated_at: new Date().toISOString(),
     company: { id: companyId, name: companyName },
+    export_policy: {
+      access: "chef_admin_only",
+      operational_data_is_price_redacted: true,
+      restricted_financial_data_contains_prices: true,
+      employee_exports_exclude_price_margin_and_supplier_offer_fields: true
+    },
     issues,
-    data
+    data,
+    restricted_financial_data: restrictedFinancialData
   };
 }
 

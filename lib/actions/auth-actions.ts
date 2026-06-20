@@ -11,15 +11,15 @@ import { safeErrorMessage } from "@/lib/security/errors";
 import { publicAppOrigin } from "@/lib/security/origin";
 import { assertRateLimit } from "@/lib/security/rate-limit";
 import { safeReturnPath } from "@/lib/security/redirects";
-import { isUnsupportedVorarbeiterRoleError } from "@/lib/supabase/errors";
+import { isMissingSchemaError, isUnsupportedVorarbeiterRoleError } from "@/lib/supabase/errors";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalString, requiredString } from "@/lib/utils";
 import type { Role } from "@/types/app";
 
 type LoginProfile = {
   id: string;
+  company_id: string;
   role: Role;
-  companies?: { onboarding_completed_at?: string | null } | null;
 };
 
 function toQuery(value: string) {
@@ -57,21 +57,35 @@ export async function signInAction(formData: FormData) {
 
   await supabase.rpc("bootstrap_my_profile");
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, role, companies(onboarding_completed_at)")
+    .select("id, company_id, role")
     .eq("id", data.user.id)
     .maybeSingle();
 
-  if (!profile) {
+  if (profileError || !profile) {
     redirect(
       `/login?error=${toQuery("Login war erfolgreich, aber das Firmenprofil fehlt. Bitte supabase/schema.sql in Supabase ausfuehren und erneut einloggen.")}`
     );
   }
 
   const loginProfile = profile as unknown as LoginProfile;
-  if ((loginProfile.role === "admin" || loginProfile.role === "chef") && !loginProfile.companies?.onboarding_completed_at) {
-    redirect("/onboarding");
+  if (loginProfile.role === "admin" || loginProfile.role === "chef") {
+    const { data: company, error: companyError } = await supabase
+      .from("companies")
+      .select("onboarding_completed_at")
+      .eq("id", loginProfile.company_id)
+      .maybeSingle();
+
+    if (!companyError && !company?.onboarding_completed_at) {
+      redirect("/onboarding");
+    }
+
+    if (companyError && !isMissingSchemaError(companyError)) {
+      redirect(
+        `/login?error=${toQuery("Login war erfolgreich, aber die Firmendaten konnten nicht geladen werden.")}`
+      );
+    }
   }
 
   redirect("/dashboard");

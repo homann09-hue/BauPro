@@ -49,7 +49,7 @@ export function ReportForm({
   const status = report?.report_status ?? "draft";
 
   return (
-    <form action={action} className="surface p-4 sm:p-5">
+    <form action={action} className="surface p-4 sm:p-5" data-testid="report-form">
       {report ? <input type="hidden" name="id" value={report.id} /> : null}
       <ReportDraftAssistant existingPhotos={photos.map((photo) => ({ id: photo.id, fileName: photo.file_name }))} />
       <div className="mb-5 rounded-lg border border-line bg-fog p-4">

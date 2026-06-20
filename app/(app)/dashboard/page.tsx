@@ -17,7 +17,15 @@ import {
   UserMinus,
   Users
 } from "lucide-react";
-import { AlertCard, FormSection, QuickActionButton, ResponsiveTableCard, StatCard } from "@/components/construction-ui";
+import {
+  AlertCard,
+  FormSection,
+  QuickActionButton,
+  ResponsiveTableCard,
+  SectionHeader,
+  StatCard,
+  TodayJobsiteFocus
+} from "@/components/construction-ui";
 import { MessageBox } from "@/components/message-box";
 import { StatusBadge } from "@/components/status-badge";
 import { SubmitButton } from "@/components/submit-button";
@@ -80,10 +88,10 @@ export default async function DashboardPage({
   const greeting = context.canManage ? "Betriebszentrale" : "Mein Arbeitstag";
 
   return (
-    <>
+    <div className="baupro-screen">
       <MessageBox error={dashboardError} success={success} />
 
-      <section className="overflow-hidden rounded-lg border border-slate-800 bg-anthracite text-white shadow-lift">
+      <section className="command-panel overflow-hidden">
         <div className="grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="p-5 sm:p-7">
             <div className="mb-4 inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-1.5 text-xs font-black text-white ring-1 ring-white/10">
@@ -102,7 +110,7 @@ export default async function DashboardPage({
               <h2 className="text-sm font-black uppercase tracking-normal text-white">Schnellaktionen</h2>
             </div>
             {context.canManage ? (
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <QuickActionButton href="/orders/new" icon={BriefcaseBusiness} title="Auftrag" description="Mit Maßen" primary />
                 <QuickActionButton href="/time-tracking/daily" icon={Clock3} title="Tagesstunden" description="Prüfen" />
                 <QuickActionButton href="/plantafel" icon={CalendarDays} title="Plantafel" description="Team planen" />
@@ -111,7 +119,7 @@ export default async function DashboardPage({
                 <VoiceQuickAction title="Sprache" description="Direkt sortieren" />
               </div>
             ) : (
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <QuickActionButton href="/time/new" icon={Clock3} title="Stunden" description="Heute eintragen" primary />
                 <VoiceQuickAction title="Sprache" description="Aufnehmen" kind="time_tracking" />
                 <QuickActionButton href="/berichte/neu" icon={ClipboardList} title="Bericht" description="Schreiben" />
@@ -143,11 +151,24 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <div className="mt-6 flex items-center gap-2">
-        <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
-        <h2 className="text-sm font-black uppercase tracking-normal text-ink">Wichtig</h2>
-      </div>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {!context.canManage ? (
+        <TodayJobsiteFocus
+          jobsite={jobsites[0]}
+          roleLabel={context.profile.role === "vorarbeiter" ? "Team-Einsatz heute" : "Mein Einsatz heute"}
+        />
+      ) : null}
+
+      <section>
+        <SectionHeader
+          eyebrow="Wichtig"
+          title={context.canManage ? "Betriebsampel" : "Mein Überblick"}
+          description={
+            context.canManage
+              ? "Die wichtigsten Kennzahlen für Baustellen, Zeiten und Material auf einen Blick."
+              : "Alles, was du auf der Baustelle schnell brauchst, ohne Preise oder interne Chef-Daten."
+          }
+        />
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={Hammer} label={context.canManage ? "Offene Baustellen" : "Meine Baustellen"} value={jobsites.length} href="/baustellen" tone="green" />
         <StatCard icon={ClipboardList} label="Offene Tagesberichte" value={reports.length} href="/berichte" tone="info" />
         <StatCard
@@ -155,7 +176,7 @@ export default async function DashboardPage({
           label={context.canManage ? "Heute erfasste Stunden" : "Meine Aufgaben"}
           value={context.canManage ? formatMinutesAsHours(todayTimeMinutes) : tasks.length}
           detail={context.canManage ? `${unapprovedTimeEntries.length} noch nicht genehmigt` : undefined}
-          href={context.canManage ? "/time-tracking/daily?range=today" : "#aufgaben"}
+          href={context.canManage ? "/time-tracking/daily?range=today" : "/dashboard#aufgaben"}
           tone={context.canManage ? (unapprovedTimeEntries.length > 0 ? "warning" : "green") : tasks.length > 0 ? "warning" : "neutral"}
         />
         {context.canManage ? (
@@ -173,7 +194,8 @@ export default async function DashboardPage({
           />
         ) : null}
         {context.canManage ? <StatCard icon={Users} label="Team aktiv" value={employees.length} href="/team" tone="dark" /> : null}
-      </div>
+        </div>
+      </section>
 
       {context.canManage ? (
         <section className="mt-6 surface-strong p-4 sm:p-5">
@@ -209,18 +231,14 @@ export default async function DashboardPage({
         {context.canManage ? <DashboardManagedDetails supabase={supabase} context={context} summary={summary} /> : null}
       </Suspense>
 
-      <div className="mt-6 grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
         <section className="dashboard-band">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="section-title">Baustellen im Fokus</h2>
-              <p className="mt-1 text-sm text-slate-500">Geplant und aktiv, nach Startdatum sortiert.</p>
-            </div>
-            <Link href="/baustellen" className="inline-flex items-center gap-1 text-sm font-bold text-moss">
-              Alle ansehen
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
-          </div>
+          <SectionHeader
+            title={context.canManage ? "Baustellen im Fokus" : "Meine Baustellen"}
+            description="Geplant und aktiv, nach Startdatum sortiert."
+            actionHref="/baustellen"
+            actionLabel="Alle ansehen"
+          />
           <div className="space-y-3">
             {jobsites.map((jobsite) => (
               <Link
@@ -251,16 +269,12 @@ export default async function DashboardPage({
         </section>
 
         <section className="dashboard-band">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="section-title">Letzte Berichte</h2>
-              <p className="mt-1 text-sm text-slate-500">Was zuletzt dokumentiert wurde.</p>
-            </div>
-            <Link href="/berichte" className="inline-flex items-center gap-1 text-sm font-bold text-moss">
-              Alle ansehen
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
-          </div>
+          <SectionHeader
+            title="Letzte Berichte"
+            description="Was zuletzt dokumentiert wurde."
+            actionHref="/berichte"
+            actionLabel="Alle ansehen"
+          />
           <div className="space-y-3">
             {reports.map((report) => (
               <Link
@@ -284,12 +298,9 @@ export default async function DashboardPage({
         </section>
       </div>
 
-      <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_0.9fr]">
+      <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
         <section id="aufgaben" className="dashboard-band">
-          <div className="mb-4">
-            <h2 className="section-title">Offene Aufgaben</h2>
-            <p className="mt-1 text-sm text-slate-500">Direkt aktualisieren, ohne die Seite zu wechseln.</p>
-          </div>
+          <SectionHeader title="Offene Aufgaben" description="Direkt aktualisieren, ohne die Seite zu wechseln." />
           <div className="space-y-3">
             {tasks.map((task) => (
               <ResponsiveTableCard
@@ -396,7 +407,7 @@ export default async function DashboardPage({
           </section>
         )}
       </div>
-    </>
+    </div>
   );
 }
 
