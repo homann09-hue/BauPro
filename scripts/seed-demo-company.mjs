@@ -59,6 +59,60 @@ function minutes(start, end, pause) {
   return { gross_minutes: gross, net_minutes: gross - pause };
 }
 
+function rounded(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function buildCalculationItem({
+  companyId,
+  calculationId,
+  jobsiteId,
+  inventoryItem,
+  materialName,
+  unit,
+  baseQuantity,
+  wastePercent = 20,
+  locationName,
+  source = "rule",
+  aiReason,
+  createdBy
+}) {
+  const wasteQuantity = rounded((baseQuantity * wastePercent) / 100);
+  const totalQuantity = rounded(baseQuantity + wasteQuantity);
+  const purchasePrice = Number(inventoryItem?.purchase_price ?? 0);
+  const salesPrice = Number(inventoryItem?.sales_price ?? 0);
+  const stock = Number(inventoryItem?.stock ?? 0);
+  const minimumStock = Number(inventoryItem?.minimum_stock ?? 0);
+  const purchaseTotal = purchasePrice > 0 ? rounded(totalQuantity * purchasePrice) : null;
+  const salesTotal = salesPrice > 0 ? rounded(totalQuantity * salesPrice) : null;
+  const marginTotal = purchaseTotal !== null && salesTotal !== null ? rounded(salesTotal - purchaseTotal) : null;
+
+  return {
+    company_id: companyId,
+    calculation_id: calculationId,
+    jobsite_id: jobsiteId,
+    inventory_item_id: inventoryItem?.id ?? null,
+    material_name: materialName,
+    unit,
+    base_quantity: baseQuantity,
+    waste_percent: wastePercent,
+    waste_quantity: wasteQuantity,
+    total_quantity: totalQuantity,
+    purchase_price: purchasePrice || null,
+    sales_price: salesPrice || null,
+    purchase_total: purchaseTotal,
+    sales_total: salesTotal,
+    margin_total: marginTotal,
+    location_name: locationName ?? null,
+    stock,
+    minimum_stock: minimumStock,
+    missing_quantity: rounded(Math.max(totalQuantity - stock, 0)),
+    source,
+    ai_reason: aiReason ?? null,
+    created_by: createdBy
+  };
+}
+
 function isMissingSchemaError(error) {
   const message = error?.message ?? "";
   return (
@@ -277,6 +331,7 @@ async function cleanupCompany(companyId) {
     "job_material_requirements",
     "job_material_calculation_items",
     "job_material_calculations",
+    "order_measurement_items",
     "job_dimensions",
     "planning_weather_checks",
     "planning_assignments",
@@ -408,7 +463,7 @@ async function main() {
     }
   ]);
 
-  const [schmidt, kranz] = customers;
+  const [schmidt, kranz, rheinblick] = customers;
   const jobsites = await insertRows("jobsites", [
     {
       company_id: company.id,
@@ -480,8 +535,107 @@ async function main() {
       assigned_employee_ids: [users.v2.id, users.m4.id, users.m5.id],
       has_dimensions: true,
       created_by: users.chef.id
+    },
+    {
+      company_id: company.id,
+      customer_id: rheinblick.id,
+      jobsite_id: jobRheinblick.id,
+      order_number: `AU-${new Date().getFullYear()}-0003`,
+      title: "Rinnenanlage Rosenweg",
+      order_type: "dachrinne",
+      status: "geplant",
+      priority: "normal",
+      jobsite_address: jobRheinblick.address,
+      start_date: todayOffset(2),
+      description: "Dachrinne 28 m, zwei Fallrohre, Rinnenhalter und Ablaufstutzen erneuern.",
+      internal_notes: "Bewohnerinfo beachten. Materialbedarf mit 20 Prozent Reserve vorbereitet.",
+      assigned_employee_ids: [users.v1.id, users.m1.id, users.m5.id],
+      has_dimensions: true,
+      created_by: users.chef.id
     }
   ]);
+  const [orderSchmidt, orderKranz, orderRheinblick] = demoOrders;
+
+  const dimensions =
+    orderSchmidt && orderKranz && orderRheinblick
+      ? await insertOptionalRows("job_dimensions", [
+          {
+            company_id: company.id,
+            order_id: orderSchmidt.id,
+            length_m: 10.8,
+            width_m: 14.52,
+            area_m2: 112,
+            roof_pitch: 35,
+            eaves_length_m: 18,
+            ridge_length_m: 11,
+            verge_length_m: 16,
+            valley_length_m: 4,
+            wall_connection_length_m: 3.5,
+            building_height_m: 7.2,
+            roof_windows_count: 2,
+            penetrations_count: 3,
+            roof_drains_count: 0,
+            emergency_overflows_count: 0,
+            waste_percent: 20,
+            notes: "Demo-Aufmass: zwei Dachflaechen, Abzug Dachfenster/Gaube, Ortgang links beschaedigt.",
+            created_by: users.chef.id
+          },
+          {
+            company_id: company.id,
+            order_id: orderKranz.id,
+            length_m: 9.5,
+            width_m: 10,
+            area_m2: 95,
+            wall_connection_length_m: 22,
+            building_height_m: 4.8,
+            roof_windows_count: 0,
+            penetrations_count: 0,
+            roof_drains_count: 2,
+            emergency_overflows_count: 1,
+            waste_percent: 20,
+            notes: "Demo-Flachdach: Produktionsdach, Attika und zwei Ablaeufe, Arbeiten nachmittags planen.",
+            created_by: users.chef.id
+          },
+          {
+            company_id: company.id,
+            order_id: orderRheinblick.id,
+            area_m2: 0,
+            eaves_length_m: 28,
+            building_height_m: 6.5,
+            downpipe_length_m: 14,
+            roof_windows_count: 0,
+            penetrations_count: 0,
+            roof_drains_count: 0,
+            emergency_overflows_count: 0,
+            waste_percent: 20,
+            notes: "Demo-Entwaesserung: RG 333, zwei Fallrohre, Ablaufstutzen korrodiert.",
+            created_by: users.chef.id
+          }
+        ])
+      : [];
+  const dimensionByOrder = Object.fromEntries(dimensions.map((row) => [row.order_id, row]));
+
+  if (orderSchmidt && orderKranz && orderRheinblick) {
+    await insertOptionalRows("order_measurement_items", [
+      { company_id: company.id, order_id: orderSchmidt.id, item_type: "roof_area", label: "Hauptdach links", length_m: 10, width_m: 6, quantity: 1, pitch_deg: 35, calculated_area_m2: 73.24, calculated_length_m: 0, count_value: 0, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderSchmidt.id, item_type: "roof_area", label: "Hauptdach rechts", length_m: 9, width_m: 5.2, quantity: 1, pitch_deg: 35, calculated_area_m2: 57.13, calculated_length_m: 0, count_value: 0, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderSchmidt.id, item_type: "deduction_area", label: "Dachfenster und Gaube", length_m: 3.4, width_m: 5.4, quantity: 1, calculated_area_m2: 18.36, calculated_length_m: 0, count_value: 0, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderSchmidt.id, item_type: "eaves_length", label: "Traufe vorne/hinten", length_m: 9, quantity: 2, calculated_area_m2: 0, calculated_length_m: 18, count_value: 0, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderSchmidt.id, item_type: "ridge_length", label: "First", length_m: 11, quantity: 1, calculated_area_m2: 0, calculated_length_m: 11, count_value: 0, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderSchmidt.id, item_type: "verge_length", label: "Ortgang links/rechts", length_m: 8, quantity: 2, calculated_area_m2: 0, calculated_length_m: 16, count_value: 0, notes: "Ortgang links beschaedigt, Chef prueft Ersatz.", created_by: users.chef.id },
+      { company_id: company.id, order_id: orderSchmidt.id, item_type: "valley_length", label: "Kehle an Gaube", length_m: 4, quantity: 1, calculated_area_m2: 0, calculated_length_m: 4, count_value: 0, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderSchmidt.id, item_type: "wall_connection_length", label: "Wandanschluss Gaube", length_m: 3.5, quantity: 1, calculated_area_m2: 0, calculated_length_m: 3.5, count_value: 0, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderSchmidt.id, item_type: "roof_window", label: "Dachfenster", quantity: 2, calculated_area_m2: 0, calculated_length_m: 0, count_value: 2, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderSchmidt.id, item_type: "penetration", label: "Schornstein/Luefter", quantity: 3, calculated_area_m2: 0, calculated_length_m: 0, count_value: 3, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderKranz.id, item_type: "roof_area", label: "Flachdach Produktion", length_m: 9.5, width_m: 10, quantity: 1, calculated_area_m2: 95, calculated_length_m: 0, count_value: 0, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderKranz.id, item_type: "wall_connection_length", label: "Attika/Wandanschluss", length_m: 22, quantity: 1, calculated_area_m2: 0, calculated_length_m: 22, count_value: 0, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderKranz.id, item_type: "roof_drain", label: "Dachablaeufe", quantity: 2, calculated_area_m2: 0, calculated_length_m: 0, count_value: 2, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderKranz.id, item_type: "emergency_overflow", label: "Notueberlauf", quantity: 1, calculated_area_m2: 0, calculated_length_m: 0, count_value: 1, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderRheinblick.id, item_type: "eaves_length", label: "Dachrinne Vorderseite", length_m: 28, quantity: 1, calculated_area_m2: 0, calculated_length_m: 28, count_value: 0, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderRheinblick.id, item_type: "downpipe_length", label: "Zwei Fallrohre", length_m: 7, quantity: 2, calculated_area_m2: 0, calculated_length_m: 14, count_value: 0, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderRheinblick.id, item_type: "penetration", label: "Ablaufstutzen ersetzen", quantity: 2, calculated_area_m2: 0, calculated_length_m: 0, count_value: 2, notes: "Altbestand korrodiert.", created_by: users.chef.id }
+    ]);
+  }
 
   const locations = await insertRows("inventory_locations", [
     { company_id: company.id, name: "Hauptlager Koeln", location_type: "Hauptlager", notes: "Regal A-C, Palettenplatz hinten" },
@@ -584,6 +738,102 @@ async function main() {
       company_id: company.id,
       location_id: location["Hauptlager Koeln"].id,
       supplier_id: suppliers[0].id,
+      name: "Dampfsperre Alu-Bitumen",
+      unit: "m2",
+      stock: 130,
+      minimum_stock: 100,
+      package_unit: "Rolle 10 m2",
+      purchase_price: 4.3,
+      sales_price: 7.2,
+      markup_percent: 40,
+      sales_unit: "m2",
+      price_per_unit: 7.2,
+      created_by: users.chef.id
+    },
+    {
+      company_id: company.id,
+      location_id: location["Hauptlager Koeln"].id,
+      supplier_id: suppliers[0].id,
+      name: "Daemmung PIR 120 mm",
+      unit: "m2",
+      stock: 90,
+      minimum_stock: 120,
+      package_unit: "Paket",
+      purchase_price: 14.8,
+      sales_price: 24.5,
+      markup_percent: 40,
+      sales_unit: "m2",
+      price_per_unit: 24.5,
+      created_by: users.chef.id
+    },
+    {
+      company_id: company.id,
+      location_id: location["Hauptlager Koeln"].id,
+      supplier_id: suppliers[0].id,
+      name: "Voranstrich Bitumen",
+      unit: "l",
+      stock: 24,
+      minimum_stock: 20,
+      package_unit: "Kanister 10 l",
+      purchase_price: 3.9,
+      sales_price: 6.8,
+      markup_percent: 43,
+      sales_unit: "l",
+      price_per_unit: 6.8,
+      created_by: users.chef.id
+    },
+    {
+      company_id: company.id,
+      location_id: location["Hauptlager Koeln"].id,
+      supplier_id: suppliers[0].id,
+      name: "Firstrolle Alu rot",
+      unit: "m",
+      stock: 18,
+      minimum_stock: 12,
+      package_unit: "Rolle 5 m",
+      purchase_price: 4.8,
+      sales_price: 8.2,
+      markup_percent: 41,
+      sales_unit: "m",
+      price_per_unit: 8.2,
+      created_by: users.chef.id
+    },
+    {
+      company_id: company.id,
+      location_id: location["Hauptlager Koeln"].id,
+      supplier_id: suppliers[0].id,
+      name: "Traufblech Titanzink",
+      unit: "m",
+      stock: 24,
+      minimum_stock: 30,
+      package_unit: "Stab 2 m",
+      purchase_price: 5.6,
+      sales_price: 9.2,
+      markup_percent: 39,
+      sales_unit: "m",
+      price_per_unit: 9.2,
+      created_by: users.chef.id
+    },
+    {
+      company_id: company.id,
+      location_id: location["Hauptlager Koeln"].id,
+      supplier_id: suppliers[0].id,
+      name: "Dachrinne RG 333 Zink",
+      unit: "m",
+      stock: 18,
+      minimum_stock: 30,
+      package_unit: "Stab 3 m",
+      purchase_price: 9.4,
+      sales_price: 15.9,
+      markup_percent: 41,
+      sales_unit: "m",
+      price_per_unit: 15.9,
+      created_by: users.chef.id
+    },
+    {
+      company_id: company.id,
+      location_id: location["Hauptlager Koeln"].id,
+      supplier_id: suppliers[0].id,
       name: "Rinnenhalter verzinkt RG 333",
       unit: "Stueck",
       stock: 38,
@@ -594,6 +844,38 @@ async function main() {
       markup_percent: 42,
       sales_unit: "Stueck",
       price_per_unit: 4.1,
+      created_by: users.chef.id
+    },
+    {
+      company_id: company.id,
+      location_id: location["Hauptlager Koeln"].id,
+      supplier_id: suppliers[0].id,
+      name: "Fallrohr Zink DN100",
+      unit: "m",
+      stock: 10,
+      minimum_stock: 18,
+      package_unit: "Stab 3 m",
+      purchase_price: 8.1,
+      sales_price: 13.4,
+      markup_percent: 40,
+      sales_unit: "m",
+      price_per_unit: 13.4,
+      created_by: users.chef.id
+    },
+    {
+      company_id: company.id,
+      location_id: location["Sprinter K-DT 210"].id,
+      supplier_id: suppliers[0].id,
+      name: "Rohrschelle DN100",
+      unit: "Stueck",
+      stock: 16,
+      minimum_stock: 20,
+      package_unit: "Stueck",
+      purchase_price: 1.6,
+      sales_price: 3,
+      markup_percent: 47,
+      sales_unit: "Stueck",
+      price_per_unit: 3,
       created_by: users.chef.id
     },
     {
@@ -614,6 +896,116 @@ async function main() {
     }
   ]);
   const inventoryByName = Object.fromEntries(inventory.map((row) => [row.name, row]));
+
+  if (orderSchmidt && orderKranz && orderRheinblick) {
+    await insertOptionalRows("job_material_requirements", [
+      { company_id: company.id, order_id: orderSchmidt.id, dimension_id: dimensionByOrder[orderSchmidt.id]?.id ?? null, jobsite_id: jobSchmidt.id, inventory_item_id: inventoryByName["Unterspannbahn diffusionsoffen"].id, material_name: "Unterspannbahn diffusionsoffen", unit: "m2", base_quantity: 112, waste_percent: 20, waste_quantity: 22.4, total_quantity: 134.4, purchase_price: 1.85, sales_price: 3.1, purchase_total: 248.64, sales_total: 416.64, margin_total: 168, location_name: "Hauptlager Koeln", stock: 160, minimum_stock: 80, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderSchmidt.id, dimension_id: dimensionByOrder[orderSchmidt.id]?.id ?? null, jobsite_id: jobSchmidt.id, inventory_item_id: inventoryByName["Konterlatte 40/60 impr."].id, material_name: "Konterlatte 40/60 impr.", unit: "lfm", base_quantity: 260, waste_percent: 20, waste_quantity: 52, total_quantity: 312, purchase_price: 0.9, sales_price: 1.42, purchase_total: 280.8, sales_total: 443.04, margin_total: 162.24, location_name: "Hauptlager Koeln", stock: 210, minimum_stock: 250, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderSchmidt.id, dimension_id: dimensionByOrder[orderSchmidt.id]?.id ?? null, jobsite_id: jobSchmidt.id, inventory_item_id: inventoryByName["Dachlatte 30/50 impr."].id, material_name: "Dachlatte 30/50 impr.", unit: "lfm", base_quantity: 420, waste_percent: 20, waste_quantity: 84, total_quantity: 504, purchase_price: 0.72, sales_price: 1.15, purchase_total: 362.88, sales_total: 579.6, margin_total: 216.72, location_name: "Hauptlager Koeln", stock: 420, minimum_stock: 300, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderSchmidt.id, dimension_id: dimensionByOrder[orderSchmidt.id]?.id ?? null, jobsite_id: jobSchmidt.id, inventory_item_id: inventoryByName["Tonziegel naturrot"].id, material_name: "Tonziegel naturrot", unit: "Stueck", base_quantity: 1288, waste_percent: 20, waste_quantity: 257.6, total_quantity: 1545.6, purchase_price: 0.94, sales_price: 1.55, purchase_total: 1452.86, sales_total: 2395.68, margin_total: 942.82, location_name: "Container Schmidt", stock: 1380, minimum_stock: 0, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderSchmidt.id, dimension_id: dimensionByOrder[orderSchmidt.id]?.id ?? null, jobsite_id: jobSchmidt.id, inventory_item_id: inventoryByName["Firstrolle Alu rot"].id, material_name: "Firstrolle Alu rot", unit: "m", base_quantity: 11, waste_percent: 20, waste_quantity: 2.2, total_quantity: 13.2, purchase_price: 4.8, sales_price: 8.2, purchase_total: 63.36, sales_total: 108.24, margin_total: 44.88, location_name: "Hauptlager Koeln", stock: 18, minimum_stock: 12, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderSchmidt.id, dimension_id: dimensionByOrder[orderSchmidt.id]?.id ?? null, jobsite_id: jobSchmidt.id, inventory_item_id: inventoryByName["Traufblech Titanzink"].id, material_name: "Traufblech Titanzink", unit: "m", base_quantity: 18, waste_percent: 20, waste_quantity: 3.6, total_quantity: 21.6, purchase_price: 5.6, sales_price: 9.2, purchase_total: 120.96, sales_total: 198.72, margin_total: 77.76, location_name: "Hauptlager Koeln", stock: 24, minimum_stock: 30, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderKranz.id, dimension_id: dimensionByOrder[orderKranz.id]?.id ?? null, jobsite_id: jobKranz.id, inventory_item_id: inventoryByName["Dampfsperre Alu-Bitumen"].id, material_name: "Dampfsperre Alu-Bitumen", unit: "m2", base_quantity: 95, waste_percent: 20, waste_quantity: 19, total_quantity: 114, purchase_price: 4.3, sales_price: 7.2, purchase_total: 490.2, sales_total: 820.8, margin_total: 330.6, location_name: "Hauptlager Koeln", stock: 130, minimum_stock: 100, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderKranz.id, dimension_id: dimensionByOrder[orderKranz.id]?.id ?? null, jobsite_id: jobKranz.id, inventory_item_id: inventoryByName["Daemmung PIR 120 mm"].id, material_name: "Daemmung PIR 120 mm", unit: "m2", base_quantity: 95, waste_percent: 20, waste_quantity: 19, total_quantity: 114, purchase_price: 14.8, sales_price: 24.5, purchase_total: 1687.2, sales_total: 2793, margin_total: 1105.8, location_name: "Hauptlager Koeln", stock: 90, minimum_stock: 120, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderKranz.id, dimension_id: dimensionByOrder[orderKranz.id]?.id ?? null, jobsite_id: jobKranz.id, inventory_item_id: inventoryByName["Schweissbahn PYE PV200 S5 Oberlage"].id, material_name: "Schweissbahn PYE PV200 S5 Oberlage", unit: "m2", base_quantity: 95, waste_percent: 20, waste_quantity: 19, total_quantity: 114, purchase_price: 8.4, sales_price: 13.9, purchase_total: 957.6, sales_total: 1584.6, margin_total: 627, location_name: "Hauptlager Koeln", stock: 70, minimum_stock: 120, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderKranz.id, dimension_id: dimensionByOrder[orderKranz.id]?.id ?? null, jobsite_id: jobKranz.id, inventory_item_id: inventoryByName["Voranstrich Bitumen"].id, material_name: "Voranstrich Bitumen", unit: "l", base_quantity: 28.5, waste_percent: 20, waste_quantity: 5.7, total_quantity: 34.2, purchase_price: 3.9, sales_price: 6.8, purchase_total: 133.38, sales_total: 232.56, margin_total: 99.18, location_name: "Hauptlager Koeln", stock: 24, minimum_stock: 20, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderRheinblick.id, dimension_id: dimensionByOrder[orderRheinblick.id]?.id ?? null, jobsite_id: jobRheinblick.id, inventory_item_id: inventoryByName["Dachrinne RG 333 Zink"].id, material_name: "Dachrinne RG 333 Zink", unit: "m", base_quantity: 28, waste_percent: 20, waste_quantity: 5.6, total_quantity: 33.6, purchase_price: 9.4, sales_price: 15.9, purchase_total: 315.84, sales_total: 534.24, margin_total: 218.4, location_name: "Hauptlager Koeln", stock: 18, minimum_stock: 30, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderRheinblick.id, dimension_id: dimensionByOrder[orderRheinblick.id]?.id ?? null, jobsite_id: jobRheinblick.id, inventory_item_id: inventoryByName["Rinnenhalter verzinkt RG 333"].id, material_name: "Rinnenhalter verzinkt RG 333", unit: "Stueck", base_quantity: 47, waste_percent: 0, waste_quantity: 0, total_quantity: 47, purchase_price: 2.2, sales_price: 4.1, purchase_total: 103.4, sales_total: 192.7, margin_total: 89.3, location_name: "Hauptlager Koeln", stock: 38, minimum_stock: 60, created_by: users.chef.id },
+      { company_id: company.id, order_id: orderRheinblick.id, dimension_id: dimensionByOrder[orderRheinblick.id]?.id ?? null, jobsite_id: jobRheinblick.id, inventory_item_id: inventoryByName["Fallrohr Zink DN100"].id, material_name: "Fallrohr Zink DN100", unit: "m", base_quantity: 14, waste_percent: 20, waste_quantity: 2.8, total_quantity: 16.8, purchase_price: 8.1, sales_price: 13.4, purchase_total: 136.08, sales_total: 225.12, margin_total: 89.04, location_name: "Hauptlager Koeln", stock: 10, minimum_stock: 18, created_by: users.chef.id }
+    ]);
+
+    const calculations = await insertOptionalRows(
+      "job_material_calculations",
+      [
+        {
+          company_id: company.id,
+          jobsite_id: jobSchmidt.id,
+          roof_type: "steildach",
+          roof_form: "satteldach",
+          material_type: "tonziegel",
+          length_m: 10.8,
+          width_m: 14.52,
+          area_m2: 112,
+          roof_pitch: 35,
+          eaves_length_m: 18,
+          ridge_length_m: 11,
+          verge_length_m: 16,
+          valley_length_m: 4,
+          wall_connection_length_m: 3.5,
+          penetrations_count: 3,
+          roof_windows_count: 2,
+          dormers_count: 1,
+          chimneys_count: 1,
+          waste_percent: 20,
+          ai_enabled: false,
+          review_notice: "Demo: Vorschlag aus Aufmass und Dachdecker-Regeln. Vor Bestellung fachlich pruefen.",
+          notes: "Ziegel ca. 11,5 Stueck/m2, Lattung grob aus Dachflaeche geschaetzt.",
+          created_by: users.chef.id
+        },
+        {
+          company_id: company.id,
+          jobsite_id: jobKranz.id,
+          roof_type: "flachdach",
+          roof_form: "flachdach_mit_attika",
+          material_type: "bitumenbahn",
+          length_m: 9.5,
+          width_m: 10,
+          area_m2: 95,
+          roof_pitch: 2,
+          wall_connection_length_m: 22,
+          penetrations_count: 3,
+          roof_windows_count: 0,
+          dormers_count: 0,
+          chimneys_count: 0,
+          waste_percent: 20,
+          ai_enabled: false,
+          review_notice: "Demo: Flachdach-Materialliste ist ein Angebotsvorschlag und muss vor Ausfuehrung geprueft werden.",
+          notes: "Dampfsperre, Daemmung und Oberlage jeweils mit 20 Prozent Zuschlag.",
+          created_by: users.chef.id
+        },
+        {
+          company_id: company.id,
+          jobsite_id: jobRheinblick.id,
+          roof_type: "entwaesserung",
+          roof_form: "satteldach_rinne",
+          material_type: "zink",
+          length_m: 28,
+          area_m2: 0,
+          eaves_length_m: 28,
+          penetrations_count: 2,
+          roof_windows_count: 0,
+          dormers_count: 0,
+          chimneys_count: 0,
+          waste_percent: 20,
+          ai_enabled: false,
+          review_notice: "Demo: Entwaesserungsbedarf mit 20 Prozent Zuschlag fuer Zuschnitt und Reserve.",
+          notes: "Rinnenhalter nach 60 cm Abstand, Fallrohre 2 x 7 m.",
+          created_by: users.chef.id
+        }
+      ],
+      "id, jobsite_id"
+    );
+    const [calcSchmidt, calcKranz, calcRheinblick] = calculations;
+
+    if (calcSchmidt && calcKranz && calcRheinblick) {
+      await insertOptionalRows("job_material_calculation_items", [
+        buildCalculationItem({ companyId: company.id, calculationId: calcSchmidt.id, jobsiteId: jobSchmidt.id, inventoryItem: inventoryByName["Tonziegel naturrot"], materialName: "Tonziegel naturrot", unit: "Stueck", baseQuantity: 1288, locationName: "Container Schmidt", aiReason: "112 m2 x ca. 11,5 Stueck/m2 plus 20 Prozent Reserve.", createdBy: users.chef.id }),
+        buildCalculationItem({ companyId: company.id, calculationId: calcSchmidt.id, jobsiteId: jobSchmidt.id, inventoryItem: inventoryByName["Unterspannbahn diffusionsoffen"], materialName: "Unterspannbahn diffusionsoffen", unit: "m2", baseQuantity: 112, locationName: "Hauptlager Koeln", createdBy: users.chef.id }),
+        buildCalculationItem({ companyId: company.id, calculationId: calcSchmidt.id, jobsiteId: jobSchmidt.id, inventoryItem: inventoryByName["Konterlatte 40/60 impr."], materialName: "Konterlatte 40/60 impr.", unit: "lfm", baseQuantity: 260, locationName: "Hauptlager Koeln", aiReason: "Grobe Schaetzung aus Dachflaeche und Sparrenabstand.", createdBy: users.chef.id }),
+        buildCalculationItem({ companyId: company.id, calculationId: calcSchmidt.id, jobsiteId: jobSchmidt.id, inventoryItem: inventoryByName["Dachlatte 30/50 impr."], materialName: "Dachlatte 30/50 impr.", unit: "lfm", baseQuantity: 420, locationName: "Hauptlager Koeln", aiReason: "Grobe Schaetzung aus Dachflaeche und Lattenabstand.", createdBy: users.chef.id }),
+        buildCalculationItem({ companyId: company.id, calculationId: calcSchmidt.id, jobsiteId: jobSchmidt.id, inventoryItem: inventoryByName["Firstrolle Alu rot"], materialName: "Firstrolle Alu rot", unit: "m", baseQuantity: 11, locationName: "Hauptlager Koeln", createdBy: users.chef.id }),
+        buildCalculationItem({ companyId: company.id, calculationId: calcSchmidt.id, jobsiteId: jobSchmidt.id, inventoryItem: inventoryByName["Traufblech Titanzink"], materialName: "Traufblech Titanzink", unit: "m", baseQuantity: 18, locationName: "Hauptlager Koeln", createdBy: users.chef.id }),
+        buildCalculationItem({ companyId: company.id, calculationId: calcKranz.id, jobsiteId: jobKranz.id, inventoryItem: inventoryByName["Dampfsperre Alu-Bitumen"], materialName: "Dampfsperre Alu-Bitumen", unit: "m2", baseQuantity: 95, locationName: "Hauptlager Koeln", createdBy: users.chef.id }),
+        buildCalculationItem({ companyId: company.id, calculationId: calcKranz.id, jobsiteId: jobKranz.id, inventoryItem: inventoryByName["Daemmung PIR 120 mm"], materialName: "Daemmung PIR 120 mm", unit: "m2", baseQuantity: 95, locationName: "Hauptlager Koeln", createdBy: users.chef.id }),
+        buildCalculationItem({ companyId: company.id, calculationId: calcKranz.id, jobsiteId: jobKranz.id, inventoryItem: inventoryByName["Schweissbahn PYE PV200 S5 Oberlage"], materialName: "Schweissbahn PYE PV200 S5 Oberlage", unit: "m2", baseQuantity: 95, locationName: "Hauptlager Koeln", createdBy: users.chef.id }),
+        buildCalculationItem({ companyId: company.id, calculationId: calcKranz.id, jobsiteId: jobKranz.id, inventoryItem: inventoryByName["Voranstrich Bitumen"], materialName: "Voranstrich Bitumen", unit: "l", baseQuantity: 28.5, locationName: "Hauptlager Koeln", aiReason: "0,3 l/m2 fuer 95 m2 plus 20 Prozent Reserve.", createdBy: users.chef.id }),
+        buildCalculationItem({ companyId: company.id, calculationId: calcRheinblick.id, jobsiteId: jobRheinblick.id, inventoryItem: inventoryByName["Dachrinne RG 333 Zink"], materialName: "Dachrinne RG 333 Zink", unit: "m", baseQuantity: 28, locationName: "Hauptlager Koeln", createdBy: users.chef.id }),
+        buildCalculationItem({ companyId: company.id, calculationId: calcRheinblick.id, jobsiteId: jobRheinblick.id, inventoryItem: inventoryByName["Rinnenhalter verzinkt RG 333"], materialName: "Rinnenhalter verzinkt RG 333", unit: "Stueck", baseQuantity: 47, wastePercent: 0, locationName: "Hauptlager Koeln", aiReason: "28 m Traufe / 0,6 m Halterabstand aufgerundet.", createdBy: users.chef.id }),
+        buildCalculationItem({ companyId: company.id, calculationId: calcRheinblick.id, jobsiteId: jobRheinblick.id, inventoryItem: inventoryByName["Fallrohr Zink DN100"], materialName: "Fallrohr Zink DN100", unit: "m", baseQuantity: 14, locationName: "Hauptlager Koeln", createdBy: users.chef.id }),
+        buildCalculationItem({ companyId: company.id, calculationId: calcRheinblick.id, jobsiteId: jobRheinblick.id, inventoryItem: inventoryByName["Rohrschelle DN100"], materialName: "Rohrschelle DN100", unit: "Stueck", baseQuantity: 8, wastePercent: 0, locationName: "Sprinter K-DT 210", createdBy: users.chef.id })
+      ]);
+    }
+  }
 
   const vehicles = await insertRows("vehicles", [
     { company_id: company.id, name: "Sprinter 210", license_plate: "K-DT 210", tuv_date: todayOffset(210), notes: "Leitertraeger, Gasflaschenhalter" },
@@ -866,14 +1258,38 @@ async function main() {
       job_id: jobSchmidt.id,
       date: todayOffset(1),
       title: "Morgen: Schmidt Dachflaeche vorbereiten",
-      notes: "Vom Hauptlager und Container Schmidt laden. Fehlende Konterlatten melden.",
+      notes: "Vom Hauptlager und Container Schmidt laden. Fehlende Konterlatten und Ziegelmenge melden.",
       status: "ready",
       created_by: users.chef.id,
       assigned_to: users.v1.id,
       vehicle_id: vehicles[0].id
+    },
+    {
+      company_id: company.id,
+      job_id: jobKranz.id,
+      date: todayOffset(2),
+      title: "Flachdach Kranz packen",
+      notes: "Brenner-Set, Dampfsperre, Daemmung und Oberlage pruefen. Daemmung und Oberlage sind knapp.",
+      status: "draft",
+      created_by: users.chef.id,
+      assigned_to: users.v2.id,
+      vehicle_id: vehicles[1].id
+    },
+    {
+      company_id: company.id,
+      job_id: jobRheinblick.id,
+      date: todayOffset(1),
+      title: "Rinnenanlage Rosenweg",
+      notes: "Rinne, Halter, Fallrohre und Rohrschellen laden. Bestand reicht nicht vollstaendig.",
+      status: "ready",
+      created_by: users.chef.id,
+      assigned_to: users.v1.id,
+      vehicle_id: vehicles[1].id
     }
   ]);
   const bringList = bringLists[0] ?? null;
+  const bringListKranz = bringLists[1] ?? null;
+  const bringListRheinblick = bringLists[2] ?? null;
 
   if (bringList) {
     await insertOptionalRows("bring_list_items", [
@@ -882,7 +1298,7 @@ async function main() {
         inventory_item_id: inventoryByName["Unterspannbahn diffusionsoffen"].id,
         custom_item_name: "Unterspannbahn diffusionsoffen",
         item_type: "material",
-        quantity: 120,
+        quantity: 134.4,
         unit: "m2",
         storage_location: "Hauptlager Koeln",
         vehicle_id: vehicles[0].id,
@@ -893,12 +1309,58 @@ async function main() {
         inventory_item_id: inventoryByName["Konterlatte 40/60 impr."].id,
         custom_item_name: "Konterlatte 40/60 impr.",
         item_type: "material",
-        quantity: 260,
+        quantity: 312,
         unit: "lfm",
         storage_location: "Hauptlager Koeln",
         vehicle_id: vehicles[0].id,
         missing_reported: true,
         notes: "Bestand reicht voraussichtlich nicht."
+      },
+      {
+        bring_list_id: bringList.id,
+        inventory_item_id: inventoryByName["Dachlatte 30/50 impr."].id,
+        custom_item_name: "Dachlatte 30/50 impr.",
+        item_type: "material",
+        quantity: 504,
+        unit: "lfm",
+        storage_location: "Hauptlager Koeln",
+        vehicle_id: vehicles[0].id,
+        missing_reported: true,
+        notes: "84 lfm fehlen gegen kalkulierten Bedarf."
+      },
+      {
+        bring_list_id: bringList.id,
+        inventory_item_id: inventoryByName["Tonziegel naturrot"].id,
+        custom_item_name: "Tonziegel naturrot",
+        item_type: "material",
+        quantity: 1546,
+        unit: "Stueck",
+        storage_location: "Container Schmidt",
+        vehicle_id: vehicles[0].id,
+        missing_reported: true,
+        notes: "Containerbestand reicht nicht fuer komplette Dachflaeche."
+      },
+      {
+        bring_list_id: bringList.id,
+        inventory_item_id: inventoryByName["Firstrolle Alu rot"].id,
+        custom_item_name: "Firstrolle Alu rot",
+        item_type: "material",
+        quantity: 13.2,
+        unit: "m",
+        storage_location: "Hauptlager Koeln",
+        vehicle_id: vehicles[0].id,
+        missing_reported: false
+      },
+      {
+        bring_list_id: bringList.id,
+        inventory_item_id: inventoryByName["Traufblech Titanzink"].id,
+        custom_item_name: "Traufblech Titanzink",
+        item_type: "material",
+        quantity: 21.6,
+        unit: "m",
+        storage_location: "Hauptlager Koeln",
+        vehicle_id: vehicles[0].id,
+        missing_reported: false
       },
       {
         bring_list_id: bringList.id,
@@ -913,6 +1375,23 @@ async function main() {
     ]);
   }
 
+  if (bringListKranz) {
+    await insertOptionalRows("bring_list_items", [
+      { bring_list_id: bringListKranz.id, inventory_item_id: inventoryByName["Dampfsperre Alu-Bitumen"].id, custom_item_name: "Dampfsperre Alu-Bitumen", item_type: "material", quantity: 114, unit: "m2", storage_location: "Hauptlager Koeln", vehicle_id: vehicles[1].id, missing_reported: false },
+      { bring_list_id: bringListKranz.id, inventory_item_id: inventoryByName["Daemmung PIR 120 mm"].id, custom_item_name: "Daemmung PIR 120 mm", item_type: "material", quantity: 114, unit: "m2", storage_location: "Hauptlager Koeln", vehicle_id: vehicles[1].id, missing_reported: true, notes: "24 m2 fehlen." },
+      { bring_list_id: bringListKranz.id, inventory_item_id: inventoryByName["Schweissbahn PYE PV200 S5 Oberlage"].id, custom_item_name: "Schweissbahn PYE PV200 S5 Oberlage", item_type: "material", quantity: 114, unit: "m2", storage_location: "Hauptlager Koeln", vehicle_id: vehicles[1].id, missing_reported: true, notes: "44 m2 fehlen." },
+      { bring_list_id: bringListKranz.id, custom_item_name: "Gasbrenner-Set gross", item_type: "tool", quantity: 1, unit: "Set", storage_location: "Pritsche K-DT 211", vehicle_id: vehicles[1].id, missing_reported: false }
+    ]);
+  }
+
+  if (bringListRheinblick) {
+    await insertOptionalRows("bring_list_items", [
+      { bring_list_id: bringListRheinblick.id, inventory_item_id: inventoryByName["Dachrinne RG 333 Zink"].id, custom_item_name: "Dachrinne RG 333 Zink", item_type: "material", quantity: 33.6, unit: "m", storage_location: "Hauptlager Koeln", vehicle_id: vehicles[1].id, missing_reported: true, notes: "15,6 m fehlen." },
+      { bring_list_id: bringListRheinblick.id, inventory_item_id: inventoryByName["Rinnenhalter verzinkt RG 333"].id, custom_item_name: "Rinnenhalter verzinkt RG 333", item_type: "material", quantity: 47, unit: "Stueck", storage_location: "Hauptlager Koeln", vehicle_id: vehicles[1].id, missing_reported: true, notes: "9 Stueck fehlen." },
+      { bring_list_id: bringListRheinblick.id, inventory_item_id: inventoryByName["Fallrohr Zink DN100"].id, custom_item_name: "Fallrohr Zink DN100", item_type: "material", quantity: 16.8, unit: "m", storage_location: "Hauptlager Koeln", vehicle_id: vehicles[1].id, missing_reported: true, notes: "6,8 m fehlen." }
+    ]);
+  }
+
   await insertOptionalRows("material_alerts", [
     {
       company_id: company.id,
@@ -922,10 +1401,42 @@ async function main() {
       alert_type: "low_stock",
       severity: "critical",
       message: "Konterlatten reichen fuer Baustelle Schmidt voraussichtlich nicht aus.",
-      required_quantity: 260,
+      required_quantity: 312,
       available_quantity: 210,
-      missing_quantity: 50,
+      missing_quantity: 102,
       unit: "lfm",
+      status: "open",
+      created_by_system: true,
+      assigned_to_admin: users.chef.id
+    },
+    {
+      company_id: company.id,
+      inventory_item_id: inventoryByName["Daemmung PIR 120 mm"].id,
+      job_id: jobKranz.id,
+      bring_list_id: bringListKranz?.id ?? null,
+      alert_type: "low_stock",
+      severity: "warning",
+      message: "Daemmung fuer Flachdach Kranz ist zu knapp.",
+      required_quantity: 114,
+      available_quantity: 90,
+      missing_quantity: 24,
+      unit: "m2",
+      status: "open",
+      created_by_system: true,
+      assigned_to_admin: users.chef.id
+    },
+    {
+      company_id: company.id,
+      inventory_item_id: inventoryByName["Dachrinne RG 333 Zink"].id,
+      job_id: jobRheinblick.id,
+      bring_list_id: bringListRheinblick?.id ?? null,
+      alert_type: "low_stock",
+      severity: "critical",
+      message: "Dachrinne fuer Rosenweg reicht nicht aus.",
+      required_quantity: 33.6,
+      available_quantity: 18,
+      missing_quantity: 15.6,
+      unit: "m",
       status: "open",
       created_by_system: true,
       assigned_to_admin: users.chef.id
@@ -952,9 +1463,19 @@ async function main() {
       inventory_item_id: inventoryByName["Konterlatte 40/60 impr."].id,
       job_id: jobSchmidt.id,
       bring_list_id: bringList?.id ?? null,
-      quantity_needed: 150,
+      quantity_needed: 160,
       unit: "lfm",
-      reason: "Bestand unter Mindestbestand und Baustelle Schmidt benoetigt 260 lfm.",
+      reason: "Bestand unter Mindestbestand und Baustelle Schmidt benoetigt 312 lfm.",
+      status: "open"
+    },
+    {
+      company_id: company.id,
+      inventory_item_id: inventoryByName["Daemmung PIR 120 mm"].id,
+      job_id: jobKranz.id,
+      bring_list_id: bringListKranz?.id ?? null,
+      quantity_needed: 40,
+      unit: "m2",
+      reason: "Flachdach Kranz braucht 114 m2 Daemmung, Lager hat 90 m2.",
       status: "open"
     },
     {
@@ -964,6 +1485,16 @@ async function main() {
       quantity_needed: 60,
       unit: "m2",
       reason: "Flachdach Kranz braucht kalkuliert 95 m2 plus Verschnitt.",
+      status: "open"
+    },
+    {
+      company_id: company.id,
+      inventory_item_id: inventoryByName["Dachrinne RG 333 Zink"].id,
+      job_id: jobRheinblick.id,
+      bring_list_id: bringListRheinblick?.id ?? null,
+      quantity_needed: 24,
+      unit: "m",
+      reason: "Rosenweg braucht 33,6 m Dachrinne, Lager hat 18 m.",
       status: "open"
     }
   ]);
@@ -975,8 +1506,8 @@ async function main() {
         job_id: jobSchmidt.id,
         bring_list_id: bringList.id,
         inventory_item_id: inventoryByName["Unterspannbahn diffusionsoffen"].id,
-        quantity_required: 120,
-        quantity_reserved: 120,
+        quantity_required: 134.4,
+        quantity_reserved: 134.4,
         unit: "m2",
         status: "reserved",
         reserved_by: users.chef.id,
