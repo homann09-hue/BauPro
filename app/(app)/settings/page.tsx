@@ -9,6 +9,7 @@ import { updatePricingSettingsAction } from "@/lib/actions/material-calculation-
 import { loadCalculationSettings } from "@/lib/ai/job-drafts";
 import { aiRuntimeState, loadAiSettings } from "@/lib/ai/permissions";
 import { requireManager } from "@/lib/auth";
+import { companyPricingSettingsSelect } from "@/lib/data/selects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { searchParamMessage } from "@/lib/utils";
 import type { CompanyPricingSettings } from "@/types/app";
@@ -24,7 +25,11 @@ export default async function SettingsPage({
 
   const [{ data: company }, { data: pricing }, aiSettings, calculationSettings] = await Promise.all([
     supabase.from("companies").select("id, name").eq("id", context.companyId).single(),
-    supabase.from("company_pricing_settings").select("*").eq("company_id", context.companyId).maybeSingle(),
+    supabase
+      .from("company_pricing_settings")
+      .select(companyPricingSettingsSelect)
+      .eq("company_id", context.companyId)
+      .maybeSingle(),
     loadAiSettings(supabase, context.companyId),
     loadCalculationSettings(supabase, context.companyId)
   ]);
@@ -67,7 +72,7 @@ export default async function SettingsPage({
             </button>
           </form>
           <p className="mt-3 rounded-md border border-line bg-fog p-3 text-sm text-slate-600">
-            Weitere Firmenfelder wie Logo, Briefkopf, Steuernummer und Zahlungsbedingungen sind fuer die Angebots- und Rechnungsstrecke
+            Weitere Firmenfelder wie Logo, Briefkopf, Steuernummer und Zahlungsbedingungen sind für die Angebots- und Rechnungsstrecke
             vorbereitet.
           </p>
         </section>
@@ -200,7 +205,7 @@ export default async function SettingsPage({
                 defaultChecked={calculationSettings.require_admin_confirmation}
                 className="h-4 w-4 rounded border-line text-moss"
               />
-              Chef/Admin-Bestaetigung immer erforderlich
+              Chef/Admin-Bestätigung immer erforderlich
             </label>
           </div>
           <button className="btn-primary md:col-span-4" type="submit">
@@ -257,7 +262,7 @@ export default async function SettingsPage({
               defaultChecked={aiSettings.allow_ai_daily_reports}
               className="h-4 w-4 rounded border-line text-moss"
             />
-            Tagesbericht-Entwuerfe erlauben
+            Tagesbericht-Entwürfe erlauben
           </label>
           <label className="flex items-center gap-3 rounded-md border border-line bg-white px-3 py-2 text-sm font-semibold text-ink">
             <input

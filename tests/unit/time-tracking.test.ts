@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { calculateTimeMinutes, formatMinutesAsHours, monthRange, timeEntryWarnings } from "@/lib/time-tracking";
+import {
+  breakMinuteOptions,
+  buildHalfHourTimeOptions,
+  calculateTimeMinutes,
+  cycleOption,
+  formatMinutesAsHours,
+  monthRange,
+  timeEntryWarnings
+} from "@/lib/time-tracking";
 
 describe("time tracking calculations", () => {
   it("calculates gross and net minutes", () => {
@@ -30,5 +38,23 @@ describe("time tracking calculations", () => {
 
   it("builds a stable month range", () => {
     expect(monthRange(2026, 2)).toEqual({ dateFrom: "2026-02-01", dateTo: "2026-02-28" });
+  });
+
+  it("builds mobile-friendly half-hour dropdown options", () => {
+    const options = buildHalfHourTimeOptions();
+    expect(options[0]).toBe("05:00");
+    expect(options[1]).toBe("05:30");
+    expect(options).toContain("20:00");
+    expect(options).not.toContain("20:30");
+    expect(options).toHaveLength(31);
+    expect(breakMinuteOptions).toEqual([0, 15, 30, 45, 60, 90, 120]);
+  });
+
+  it("cycles time and break choices instead of ending at the highest value", () => {
+    const options = buildHalfHourTimeOptions();
+    expect(cycleOption(options, "20:00", 1)).toBe("05:00");
+    expect(cycleOption(options, "05:00", -1)).toBe("20:00");
+    expect(cycleOption(breakMinuteOptions, 120, 1)).toBe(0);
+    expect(cycleOption(breakMinuteOptions, 0, -1)).toBe(120);
   });
 });

@@ -6,8 +6,10 @@ import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { addCatalogItemToInventoryAction } from "@/lib/actions/inventory-actions";
 import { requireAppContext } from "@/lib/auth";
+import { materialCatalogItemSelect, materialCategorySelect } from "@/lib/data/selects";
 import { ensureDefaultInventoryLocations, formatQuantity } from "@/lib/inventory";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { includesGermanSearch } from "@/lib/text/german";
 import { cn, searchParamMessage } from "@/lib/utils";
 import type { InventoryLocation, MaterialCatalogItem, MaterialCategory } from "@/types/app";
 
@@ -29,10 +31,9 @@ function matchesSearch(item: MaterialCatalogItem, aliases: string[], search: str
     ...aliases
   ]
     .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+    .join(" ");
 
-  return haystack.includes(search.toLowerCase());
+  return includesGermanSearch(haystack, search);
 }
 
 export default async function MaterialCatalogPage({
@@ -49,7 +50,7 @@ export default async function MaterialCatalogPage({
   if (!context.canManage) {
     return (
       <>
-        <PageHeader title="Materialkatalog" description="Praxisnahe Dachdeckerartikel suchen und ins Lager uebernehmen." />
+        <PageHeader title="Materialkatalog" description="Praxisnahe Dachdeckerartikel suchen und ins Lager übernehmen." />
         <MaterialSubnav active="/materials/catalog" />
         <MessageBox error={error} success={success} />
         <EmptyState
@@ -62,18 +63,16 @@ export default async function MaterialCatalogPage({
   }
 
   const supabase = await createSupabaseServerClient();
-  const locations = await ensureDefaultInventoryLocations(supabase, context.companyId);
-
-  const [{ data: categoryRows }, { data: aliasRows }] = await Promise.all([
-    supabase.from("material_categories").select("*").eq("active", true).order("sort_order", { ascending: true }),
-    supabase.from("material_aliases").select("catalog_item_id, alias")
+  const [locations, { data: categoryRows }] = await Promise.all([
+    ensureDefaultInventoryLocations(supabase, context.companyId),
+    supabase.from("material_categories").select(materialCategorySelect).eq("active", true).order("sort_order", { ascending: true })
   ]);
 
   const categories = (categoryRows ?? []) as MaterialCategory[];
   const category = categories.find((item) => item.slug === activeCategory);
   let catalogQuery = supabase
     .from("material_catalog")
-    .select("*, material_categories(id, name, slug), material_subcategories(id, name, slug)")
+    .select(materialCatalogItemSelect)
     .eq("active", true)
     .order("popularity", { ascending: false })
     .order("name", { ascending: true })
@@ -84,6 +83,11 @@ export default async function MaterialCatalogPage({
   }
 
   const { data: catalogRows } = await catalogQuery;
+  const catalogItemIds = ((catalogRows ?? []) as Array<{ id: string }>).map((item) => item.id);
+  const { data: aliasRows } =
+    catalogItemIds.length > 0
+      ? await supabase.from("material_aliases").select("catalog_item_id, alias").in("catalog_item_id", catalogItemIds).limit(1200)
+      : { data: [] };
   const aliasesByCatalogId = new Map<string, string[]>();
   for (const row of aliasRows ?? []) {
     const id = String(row.catalog_item_id);
@@ -92,7 +96,7 @@ export default async function MaterialCatalogPage({
     aliasesByCatalogId.set(id, list);
   }
 
-  const catalogItems = ((catalogRows ?? []) as MaterialCatalogItem[]).filter((item) =>
+  const catalogItems = ((catalogRows ?? []) as unknown as MaterialCatalogItem[]).filter((item) =>
     matchesSearch(item, aliasesByCatalogId.get(item.id) ?? [], search)
   );
 
@@ -104,7 +108,7 @@ export default async function MaterialCatalogPage({
     <>
       <PageHeader
         title="Materialkatalog"
-        description="Typische Lagerartikel fuer deutsche Dachdeckerbetriebe. Suche, waehle Lagerort, setze Startbestand, fertig."
+        description="Typische Lagerartikel für deutsche Dachdeckerbetriebe. Suche, wähle Lagerort, setze Startbestand, fertig."
       />
       <MaterialSubnav active="/materials/catalog" />
       <MessageBox error={error} success={success} />

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireManager } from "@/lib/auth";
+import { requiredFormUuid } from "@/lib/security/form-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { numberOrZero, optionalNumber, optionalString, requiredString } from "@/lib/utils";
 import type { MaterialLocation } from "@/types/app";
@@ -20,20 +21,24 @@ export async function createMaterialAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
 
-  const { error } = await supabase.from("materials").insert({
-    company_id: context.companyId,
-    name: requiredString(formData, "name"),
-    category: optionalString(formData, "category"),
-    unit: requiredString(formData, "unit"),
-    stock: numberOrZero(formData, "stock"),
-    minimum_stock: numberOrZero(formData, "minimum_stock"),
-    location: locationValue(formData.get("location")),
-    purchase_price: optionalNumber(formData, "purchase_price"),
-    sales_price: optionalNumber(formData, "sales_price"),
-    created_by: context.userId
-  });
+  const { data, error } = await supabase
+    .from("materials")
+    .insert({
+      company_id: context.companyId,
+      name: requiredString(formData, "name"),
+      category: optionalString(formData, "category"),
+      unit: requiredString(formData, "unit"),
+      stock: numberOrZero(formData, "stock"),
+      minimum_stock: numberOrZero(formData, "minimum_stock"),
+      location: locationValue(formData.get("location")),
+      purchase_price: optionalNumber(formData, "purchase_price"),
+      sales_price: optionalNumber(formData, "sales_price"),
+      created_by: context.userId
+    })
+    .select("id")
+    .maybeSingle();
 
-  if (error) {
+  if (error || !data) {
     redirect(`/material/neu?error=${toQuery("Material konnte nicht angelegt werden.")}`);
   }
 
@@ -44,9 +49,9 @@ export async function createMaterialAction(formData: FormData) {
 export async function updateMaterialAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
-  const id = requiredString(formData, "id");
+  const id = requiredFormUuid(formData, "id", "Material");
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("materials")
     .update({
       name: requiredString(formData, "name"),
@@ -59,9 +64,12 @@ export async function updateMaterialAction(formData: FormData) {
       sales_price: optionalNumber(formData, "sales_price")
     })
     .eq("id", id)
-    .eq("company_id", context.companyId);
+    .eq("company_id", context.companyId)
+    .is("archived_at", null)
+    .select("id")
+    .maybeSingle();
 
-  if (error) {
+  if (error || !data) {
     redirect(`/material/${id}/bearbeiten?error=${toQuery("Material konnte nicht aktualisiert werden.")}`);
   }
 
@@ -72,18 +80,21 @@ export async function updateMaterialAction(formData: FormData) {
 export async function deleteMaterialAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
-  const id = requiredString(formData, "id");
+  const id = requiredFormUuid(formData, "id", "Material");
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("materials")
-    .delete()
+    .update({ archived_at: new Date().toISOString() })
     .eq("id", id)
-    .eq("company_id", context.companyId);
+    .eq("company_id", context.companyId)
+    .is("archived_at", null)
+    .select("id")
+    .maybeSingle();
 
-  if (error) {
-    redirect(`/material?error=${toQuery("Material konnte nicht geloescht werden.")}`);
+  if (error || !data) {
+    redirect(`/material?error=${toQuery("Material konnte nicht archiviert werden.")}`);
   }
 
   revalidatePath("/material");
-  redirect(`/material?success=${toQuery("Material wurde geloescht.")}`);
+  redirect(`/material?success=${toQuery("Material wurde archiviert.")}`);
 }

@@ -21,9 +21,9 @@ type MaterialMatchResponse = {
 
 const managerPrompts = [
   "Was ist knapp und muss bestellt werden?",
-  "Was fehlt fuer morgen?",
-  "Welche offenen Auftraege haben Materialrisiken?",
-  "Fasse meine heutige Betriebsuebersicht zusammen."
+  "Was fehlt für morgen?",
+  "Welche offenen Aufträge haben Materialrisiken?",
+  "Fasse meine heutige Betriebsübersicht zusammen."
 ];
 
 const employeePrompts = [
@@ -102,7 +102,7 @@ export function AiAssistantPanel({
             onChange={(event) => setInput(event.target.value)}
             placeholder={
               canManage
-                ? "z. B. Was muss ich fuer morgen bestellen?"
+                ? "z. B. Was muss ich für morgen bestellen?"
                 : "z. B. Was muss ich morgen zur Baustelle mitnehmen?"
             }
           />
@@ -131,7 +131,7 @@ export function AiAssistantPanel({
 
         <div className="mt-5 rounded-md border border-line bg-white p-3">
           <p className="text-sm font-black text-ink">Materialnamen normalisieren</p>
-          <p className="mt-1 text-sm text-slate-600">Diktierte Kurzbegriffe gegen typische Katalogartikel pruefen.</p>
+          <p className="mt-1 text-sm text-slate-600">Diktierte Kurzbegriffe gegen typische Katalogartikel prüfen.</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
             <input
               className="field-input"
@@ -141,7 +141,7 @@ export function AiAssistantPanel({
             />
             <button type="button" className="btn-secondary" onClick={matchMaterial} disabled={materialPending || !materialInput.trim()}>
               <Sparkles className="h-4 w-4" aria-hidden="true" />
-              Pruefen
+              Prüfen
             </button>
           </div>
           {materialResponse ? (
@@ -178,7 +178,7 @@ export function AiAssistantPanel({
             </div>
             <div>
               <p className="meta-label">Antwort</p>
-              <h2 className="section-title">Entwurf zur Pruefung</h2>
+              <h2 className="section-title">Entwurf zur Prüfung</h2>
             </div>
           </div>
           <div className="hidden items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900 sm:flex">
@@ -223,7 +223,7 @@ export function AiAssistantPanel({
             {response.result.needs_confirmation ? (
               <div className="rounded-md border border-line bg-fog p-3 text-sm text-slate-700">
                 <p className="font-black text-ink">Vorgeschlagene Aktion</p>
-                <p className="mt-1 whitespace-pre-wrap">{response.result.action_draft || "Aktion muss vor dem Speichern bestaetigt werden."}</p>
+                <p className="mt-1 whitespace-pre-wrap">{response.result.action_draft || "Aktion muss vor dem Speichern bestätigt werden."}</p>
               </div>
             ) : null}
 

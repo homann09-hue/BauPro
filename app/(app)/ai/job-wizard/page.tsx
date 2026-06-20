@@ -26,8 +26,10 @@ import {
 } from "@/lib/actions/ai-job-actions";
 import { formatMissingMaterial } from "@/lib/ai/job-drafts";
 import { requireManager } from "@/lib/auth";
+import { aiJobDraftSelect } from "@/lib/data/selects";
 import { formatQuantity } from "@/lib/inventory";
 import { orderPriorityLabels, orderTypeLabels } from "@/lib/order-labels";
+import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isMissingSchemaError, migrationMissingMessage } from "@/lib/supabase/errors";
 import { cn, formatDate, formatDateTime, formatMoney, searchParamMessage } from "@/lib/utils";
@@ -296,7 +298,12 @@ export default async function AiJobWizardPage({
 
   const [draftResult, recentResult] = await Promise.all([
     draftId
-      ? supabase.from("ai_job_drafts").select("*").eq("id", draftId).eq("company_id", context.companyId).maybeSingle()
+      ? supabase
+          .from("ai_job_drafts")
+          .select(aiJobDraftSelect)
+          .eq("id", draftId)
+          .eq("company_id", context.companyId)
+          .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     supabase
       .from("ai_job_drafts")
@@ -310,7 +317,10 @@ export default async function AiJobWizardPage({
   const preview = draft?.preview_json as AiJobDraftPreview | undefined;
   const recentDrafts = (recentResult.data ?? []) as RecentDraft[];
   const schemaMissing = isMissingSchemaError(draftResult.error) || isMissingSchemaError(recentResult.error);
-  const loadError = schemaMissing ? null : draftResult.error?.message ?? recentResult.error?.message ?? null;
+  const loadError = schemaMissing
+    ? null
+    : safeQueryErrorMessage(draftResult.error, "KI-Auftragsentwuerfe konnten nicht geladen werden.") ??
+      safeQueryErrorMessage(recentResult.error, "KI-Auftragsentwuerfe konnten nicht geladen werden.");
   const missingFields = preview ? preview.parsed.missing_fields : [];
   const missingMaterials = preview ? formatMissingMaterial(preview.items) : [];
   const disabledActions = !draft || draft.status === "rejected" || draft.status === "converted_to_job";

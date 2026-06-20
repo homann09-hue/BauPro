@@ -6,6 +6,7 @@ import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { adjustInventoryStockAction } from "@/lib/actions/inventory-actions";
 import { requireAppContext } from "@/lib/auth";
+import { inventoryLowStockSelect } from "@/lib/data/selects";
 import { ensureDefaultInventoryLocations, formatQuantity, isLowStock } from "@/lib/inventory";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { searchParamMessage } from "@/lib/utils";
@@ -40,11 +41,11 @@ export default async function LowStockPage({
 
   const { data } = await supabase
     .from("inventory_items")
-    .select("*, inventory_locations(id, name, location_type), material_categories(id, name, slug)")
+    .select(inventoryLowStockSelect)
     .eq("company_id", context.companyId)
     .order("name", { ascending: true });
 
-  const lowStockItems = ((data ?? []) as InventoryItem[]).filter(isLowStock);
+  const lowStockItems = ((data ?? []) as unknown as InventoryItem[]).filter(isLowStock);
 
   return (
     <>

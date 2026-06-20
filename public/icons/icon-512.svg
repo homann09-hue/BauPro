@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="BauPro">
+  <rect width="512" height="512" rx="96" fill="#2E7D32"/>
+  <path d="M122 354h268v38H122z" fill="#F8FAFC" opacity=".92"/>
+  <path d="M210 154l43-43 136 136-43 43z" fill="#F59E0B"/>
+  <path d="M166 190l59-59 48 48-59 59z" fill="#F8FAFC"/>
+  <path d="M154 203l155 155-35 35-155-155z" fill="#1F2937"/>
+  <path d="M317 253l43-43 37 37-43 43z" fill="#1F2937" opacity=".9"/>
+</svg>

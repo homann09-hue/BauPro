@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Cookie, ShieldCheck, X } from "lucide-react";
-import { buildConsentState, CONSENT_STORAGE_KEY, parseConsentState, type ConsentState } from "@/lib/compliance/consent";
+import {
+  buildConsentState,
+  CONSENT_CHANGED_EVENT,
+  CONSENT_STORAGE_KEY,
+  parseConsentState,
+  type ConsentState
+} from "@/lib/compliance/consent";
 
 export function ConsentBanner() {
   const [consent, setConsent] = useState<ConsentState | null>(null);
@@ -11,17 +17,24 @@ export function ConsentBanner() {
   const [marketing, setMarketing] = useState(false);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
+    function syncConsent() {
       const storedConsent = parseConsentState(window.localStorage.getItem(CONSENT_STORAGE_KEY));
       if (storedConsent) setConsent(storedConsent);
-    }, 0);
+    }
 
-    return () => window.clearTimeout(timer);
+    const timer = window.setTimeout(syncConsent, 0);
+    window.addEventListener(CONSENT_CHANGED_EVENT, syncConsent);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener(CONSENT_CHANGED_EVENT, syncConsent);
+    };
   }, []);
 
   function save(next: ConsentState) {
     window.localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(next));
     setConsent(next);
+    window.dispatchEvent(new Event(CONSENT_CHANGED_EVENT));
   }
 
   if (consent) return null;
@@ -35,7 +48,7 @@ export function ConsentBanner() {
         <div className="min-w-0 flex-1">
           <p className="font-black text-ink">Datenschutz-Einstellungen</p>
           <p className="mt-1 line-clamp-3 text-sm leading-6 text-slate-600 sm:line-clamp-none">
-            BauPro nutzt notwendige Cookies fuer Login und Sicherheit. Analyse oder Marketing bleiben optional und werden erst nach deiner
+            BauPro nutzt notwendige Cookies für Login und Sicherheit. Analyse oder Marketing bleiben optional und werden erst nach deiner
             Zustimmung vorbereitet.
           </p>
 

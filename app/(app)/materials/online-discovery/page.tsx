@@ -6,6 +6,7 @@ import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { runOnlinePriceDiscoveryAction } from "@/lib/actions/online-price-discovery-actions";
 import { requireManager } from "@/lib/auth";
+import { inventoryPriceOptionSelect, onlinePriceDiscoverySelect, onlinePriceOfferSelect } from "@/lib/data/selects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDateTime, formatMoney, searchParamMessage } from "@/lib/utils";
 import type { InventoryItem, OnlinePriceDiscovery, OnlinePriceOffer } from "@/types/app";
@@ -20,22 +21,28 @@ export default async function OnlineDiscoveryPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireManager();
+  const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const params = (await searchParams) ?? {};
   const { error, success } = searchParamMessage(params);
   const query = param(params, "q");
 
   const [materialsResult, discoveriesResult, offersResult] = await Promise.all([
-    supabase.from("inventory_items").select("id, name, unit, purchase_price, manufacturer").order("name"),
+    supabase
+      .from("inventory_items")
+      .select(inventoryPriceOptionSelect)
+      .eq("company_id", context.companyId)
+      .order("name"),
     supabase
       .from("online_price_discoveries")
-      .select("*")
+      .select(onlinePriceDiscoverySelect)
+      .eq("company_id", context.companyId)
       .order("created_at", { ascending: false })
       .limit(20),
     supabase
       .from("online_price_offers")
-      .select("*")
+      .select(onlinePriceOfferSelect)
+      .eq("company_id", context.companyId)
       .order("total_price_gross", { ascending: true })
       .limit(200)
   ]);
@@ -97,7 +104,7 @@ export default async function OnlineDiscoveryPage({
         <EmptyState
           icon={Search}
           title="Noch keine Online-Recherche"
-          description="Starte eine Recherche fuer Verbrauchsmaterialien wie Schrauben, Dichtstoffe, Trennscheiben oder Arbeitsschutz."
+          description="Starte eine Recherche für Verbrauchsmaterialien wie Schrauben, Dichtstoffe, Trennscheiben oder Arbeitsschutz."
         />
       ) : (
         <div className="grid gap-4">

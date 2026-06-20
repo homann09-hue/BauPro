@@ -1,26 +1,79 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowRightLeft, Boxes, Minus, PackagePlus, Plus, Search } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRightLeft,
+  Boxes,
+  CheckCircle2,
+  ClipboardList,
+  History,
+  Minus,
+  PackagePlus,
+  Plus,
+  Search,
+  XCircle
+} from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { MaterialSubnav } from "@/components/materials/material-subnav";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import {
   adjustInventoryStockAction,
+  confirmMaterialUsageReportAction,
   createCustomInventoryItemAction,
+  reportMaterialUsageAction,
+  reserveMaterialForJobsiteAction,
   transferInventoryAction,
   updateInventoryPricingAction
 } from "@/lib/actions/inventory-actions";
 import { requireAppContext } from "@/lib/auth";
+import { searchOrFilter } from "@/lib/data/shared";
+import { materialMovementSelect, materialUsageReportSelect } from "@/lib/data/selects";
 import { ensureDefaultInventoryLocations, formatQuantity, isLowStock } from "@/lib/inventory";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { cn, formatMoney, searchParamMessage } from "@/lib/utils";
-import type { InventoryItem, InventoryLocation, PublicInventoryItem, Supplier } from "@/types/app";
+import { cn, formatDateTime, formatMoney, searchParamMessage } from "@/lib/utils";
+import type {
+  InventoryItem,
+  InventoryLocation,
+  Jobsite,
+  MaterialMovement,
+  MaterialMovementType,
+  MaterialUsageBookingType,
+  MaterialUsageReport,
+  PublicInventoryItem,
+  Supplier
+} from "@/types/app";
 
 type InventoryListItem = InventoryItem | PublicInventoryItem;
+const pageSize = 24;
 
 function getSearchParam(params: Record<string, string | string[] | undefined>, key: string) {
   const value = params[key];
   return typeof value === "string" ? value.trim() : "";
+}
+
+function getPageParam(params: Record<string, string | string[] | undefined>) {
+  const parsed = Number(getSearchParam(params, "page"));
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 1;
+}
+
+function inventoryHref({
+  q,
+  location,
+  low,
+  page
+}: {
+  q?: string;
+  location?: string;
+  low?: boolean;
+  page?: number;
+}) {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (location) params.set("location", location);
+  if (low) params.set("low", "1");
+  if (page && page > 1) params.set("page", String(page));
+  const query = params.toString();
+  return query ? `/materials/inventory?${query}` : "/materials/inventory";
 }
 
 function isPublicInventoryItem(item: InventoryListItem): item is PublicInventoryItem {
@@ -31,31 +84,27 @@ function itemCategoryName(item: InventoryListItem) {
   return isPublicInventoryItem(item) ? item.category_name : item.material_categories?.name ?? null;
 }
 
-function itemSubcategoryName(item: InventoryListItem) {
-  return isPublicInventoryItem(item) ? item.subcategory_name : item.material_subcategories?.name ?? null;
-}
-
 function itemLocationName(item: InventoryListItem) {
   return isPublicInventoryItem(item) ? item.location_name : item.inventory_locations?.name ?? null;
 }
 
-function inventoryMatchesSearch(item: InventoryListItem, search: string) {
-  if (!search) return true;
-  const haystack = [
-    item.name,
-    item.manufacturer,
-    item.article_number,
-    item.package_unit,
-    itemLocationName(item),
-    itemCategoryName(item),
-    itemSubcategoryName(item)
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+const bookingLabels: Record<MaterialUsageBookingType, string> = {
+  consume: "Verbrauch",
+  return: "Rückgabe",
+  loss: "Verlust",
+  break: "Bruch"
+};
 
-  return haystack.includes(search.toLowerCase());
-}
+const movementLabels: Record<MaterialMovementType, string> = {
+  purchase: "Einkauf",
+  transfer: "Umlagerung",
+  reserve: "Reservierung",
+  consume: "Verbrauch",
+  return: "Rückgabe",
+  correction: "Korrektur",
+  loss: "Verlust",
+  break: "Bruch"
+};
 
 export default async function InventoryPage({
   searchParams
@@ -68,34 +117,87 @@ export default async function InventoryPage({
   const search = getSearchParam(params, "q");
   const activeLocation = getSearchParam(params, "location");
   const onlyLowStock = getSearchParam(params, "low") === "1";
+  const page = onlyLowStock ? 1 : getPageParam(params);
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
 
   const supabase = await createSupabaseServerClient();
   const locations = context.canManage ? await ensureDefaultInventoryLocations(supabase, context.companyId) : [];
+  const managerSelect =
+    "id, company_id, catalog_item_id, category_id, subcategory_id, location_id, supplier_id, name, unit, stock, minimum_stock, package_unit, manufacturer, article_number, ean, purchase_price, sales_price, markup_percent, sales_unit, price_per_unit, last_price_changed_at, notes, created_by, inventory_locations(id, name, location_type), material_categories(id, name, slug), material_subcategories(id, name, slug), suppliers(id, name)";
+  const publicSelect =
+    "id, company_id, catalog_item_id, category_id, subcategory_id, location_id, name, unit, stock, minimum_stock, package_unit, manufacturer, article_number, notes, location_name, location_type, category_name, subcategory_name";
+  let inventoryQuery = context.canManage
+    ? supabase.from("inventory_items").select(managerSelect, { count: "exact" }).eq("company_id", context.companyId)
+    : supabase.from("inventory_items_public").select(publicSelect, { count: "exact" }).eq("company_id", context.companyId);
 
-  const [{ data }, { data: supplierRows }] = await Promise.all([
+  if (activeLocation) inventoryQuery = inventoryQuery.eq("location_id", activeLocation);
+  if (search) {
+    inventoryQuery = inventoryQuery.or(searchOrFilter(["name", "manufacturer", "article_number", "package_unit"], search));
+  }
+
+  let jobsitesQuery = supabase
+    .from("jobsites")
+    .select("id, company_id, name, customer, address, start_date, status, assigned_employee_ids, created_at")
+    .eq("company_id", context.companyId)
+    .in("status", ["geplant", "aktiv"])
+    .order("start_date", { ascending: true, nullsFirst: false });
+
+  if (!context.canManage) {
+    jobsitesQuery = jobsitesQuery.contains("assigned_employee_ids", [context.userId]);
+  }
+
+  const [
+    { data, count },
+    { data: supplierRows },
+    { data: lowStockRows },
+    { data: jobsiteRows },
+    { data: usageReportRows },
+    { data: movementRows }
+  ] = await Promise.all([
+    inventoryQuery.order("name", { ascending: true }).range(onlyLowStock ? 0 : from, onlyLowStock ? 199 : to),
     context.canManage
-      ? supabase
-          .from("inventory_items")
-          .select(
-            "*, inventory_locations(id, name, location_type), material_categories(id, name, slug), material_subcategories(id, name, slug), suppliers(id, name)"
-          )
-          .eq("company_id", context.companyId)
-          .order("name", { ascending: true })
-      : supabase.from("inventory_items_public").select("*").eq("company_id", context.companyId).order("name", { ascending: true }),
-    context.canManage
-      ? supabase.from("suppliers").select("*").eq("company_id", context.companyId).eq("active", true).order("name")
-      : Promise.resolve({ data: [] })
+      ? supabase.from("suppliers").select("id, company_id, name, contact_name, phone, email, notes, active").eq("company_id", context.companyId).eq("active", true).order("name")
+      : Promise.resolve({ data: [] }),
+    (context.canManage ? supabase.from("inventory_items") : supabase.from("inventory_items_public"))
+      .select("id, name, unit, stock, minimum_stock, location_id")
+      .eq("company_id", context.companyId)
+      .limit(1000),
+    jobsitesQuery.limit(100),
+    supabase
+      .from("material_usage_reports")
+      .select(materialUsageReportSelect)
+      .eq("company_id", context.companyId)
+      .eq("status", "reported")
+      .order("created_at", { ascending: false })
+      .limit(12),
+    supabase
+      .from("material_movements")
+      .select(materialMovementSelect)
+      .eq("company_id", context.companyId)
+      .order("created_at", { ascending: false })
+      .limit(12)
   ]);
 
   const allItems = (data ?? []) as InventoryListItem[];
   const inventoryItems = allItems.filter((item) => {
-    if (activeLocation && item.location_id !== activeLocation) return false;
     if (onlyLowStock && !isLowStock(item)) return false;
-    return inventoryMatchesSearch(item, search);
+    return true;
   });
 
-  const lowStockCount = allItems.filter(isLowStock).length;
+  const totalCount = onlyLowStock ? inventoryItems.length : count ?? inventoryItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const stockItems = (lowStockRows ?? []) as Array<
+    Pick<InventoryListItem, "id" | "name" | "unit" | "stock" | "minimum_stock" | "location_id">
+  >;
+  const inventoryItemById = new Map<string, Pick<InventoryListItem, "id" | "name" | "unit" | "stock" | "minimum_stock" | "location_id">>(
+    [...stockItems, ...allItems].map((item) => [item.id, item])
+  );
+  const lowStockCount = stockItems.filter(isLowStock).length;
   const suppliers = (supplierRows ?? []) as Supplier[];
+  const jobsites = (jobsiteRows ?? []) as Jobsite[];
+  const usageReports = (usageReportRows ?? []) as unknown as MaterialUsageReport[];
+  const movements = (movementRows ?? []) as unknown as MaterialMovement[];
   const visibleLocations = context.canManage
     ? locations.map((location) => ({ id: location.id, name: location.name }))
     : [
@@ -105,9 +207,7 @@ export default async function InventoryPage({
             .map((item) => [item.location_id as string, { id: item.location_id as string, name: itemLocationName(item) as string }])
         ).values()
       ];
-  const returnTo = `/materials/inventory?${new URLSearchParams(
-    Object.entries({ q: search, location: activeLocation, low: onlyLowStock ? "1" : "" }).filter(([, value]) => value)
-  ).toString()}`;
+  const returnTo = inventoryHref({ q: search, location: activeLocation, low: onlyLowStock, page });
 
   return (
     <>
@@ -119,10 +219,10 @@ export default async function InventoryPage({
             : "Bestand, Mindestbestand und Lagerorte ohne Preis- und Einkaufsdaten."
         }
         actionHref={context.canManage ? "/materials/catalog" : undefined}
-        actionLabel={context.canManage ? "Katalog oeffnen" : undefined}
+        actionLabel={context.canManage ? "Katalog öffnen" : undefined}
         actionIcon={context.canManage ? Search : undefined}
       />
-      <MaterialSubnav active="/materials/inventory" canManage={context.canManage} />
+      <MaterialSubnav active="/materials/inventory" canManage={context.canManage} canOperate={context.canOperate} />
       <MessageBox error={error} success={success} />
 
       <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_auto]">
@@ -166,6 +266,228 @@ export default async function InventoryPage({
           {lowStockCount} knapp
         </Link>
       </div>
+
+      <section className="mb-5 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="surface p-4 sm:p-5">
+          <div className="mb-4 flex items-start gap-3">
+            <span className="rounded-md bg-mint p-2 text-moss">
+              <ClipboardList className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div>
+              <h2 className="section-title">Baustellenbuchung melden</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Mitarbeiter melden Verbrauch, Rückgabe, Verlust oder Bruch. Vorarbeiter/Chef bestätigen und buchen den Bestand.
+              </p>
+            </div>
+          </div>
+
+          {inventoryItems.length === 0 || jobsites.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-line bg-fog p-4 text-sm font-semibold text-slate-600">
+              Für eine Materialbuchung brauchst du sichtbares Material und eine zugewiesene aktive Baustelle.
+            </div>
+          ) : (
+            <form action={reportMaterialUsageAction} className="grid gap-3 lg:grid-cols-6">
+              <input type="hidden" name="return_to" value={returnTo} />
+              <label className="lg:col-span-2">
+                <span className="field-label">Material</span>
+                <select className="field-input" name="item_id" required>
+                  {inventoryItems.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} · {formatQuantity(item.stock)} {item.unit}
+                      {itemLocationName(item) ? ` · ${itemLocationName(item)}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="lg:col-span-2">
+                <span className="field-label">Baustelle</span>
+                <select className="field-input" name="jobsite_id" required>
+                  {jobsites.map((jobsite) => (
+                    <option key={jobsite.id} value={jobsite.id}>
+                      {jobsite.name} · {jobsite.customer}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="field-label">Buchung</span>
+                <select className="field-input" name="booking_type" defaultValue="consume">
+                  <option value="consume">Verbrauch</option>
+                  <option value="return">Rückgabe</option>
+                  <option value="loss">Verlust</option>
+                  <option value="break">Bruch</option>
+                </select>
+              </label>
+              <label>
+                <span className="field-label">Menge</span>
+                <input className="field-input" name="quantity" inputMode="decimal" placeholder="z. B. 3" required />
+              </label>
+              <label className="lg:col-span-6">
+                <span className="field-label">Notiz</span>
+                <input className="field-input" name="notes" placeholder="z. B. auf Nordseite verbraucht, 2 Platten gebrochen..." />
+              </label>
+              <button className="btn-primary min-h-12 lg:col-span-6" type="submit">
+                Materialbuchung melden
+              </button>
+            </form>
+          )}
+        </div>
+
+        {context.canManage ? (
+          <div className="surface p-4 sm:p-5">
+            <div className="mb-4 flex items-start gap-3">
+              <span className="rounded-md bg-amber-50 p-2 text-amber-700">
+                <PackagePlus className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h2 className="section-title">Material reservieren</h2>
+                <p className="mt-1 text-sm text-slate-500">Reserviert Bestand für kommende Baustellen, ohne ihn direkt abzubuchen.</p>
+              </div>
+            </div>
+            {inventoryItems.length === 0 || jobsites.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-line bg-fog p-4 text-sm font-semibold text-slate-600">
+                Sobald Material und aktive Baustellen vorhanden sind, kannst du hier reservieren.
+              </p>
+            ) : (
+              <form action={reserveMaterialForJobsiteAction} className="grid gap-3">
+                <input type="hidden" name="return_to" value={returnTo} />
+                <label>
+                  <span className="field-label">Material</span>
+                  <select className="field-input" name="item_id" required>
+                    {inventoryItems.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} · {formatQuantity(item.stock)} {item.unit}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span className="field-label">Baustelle</span>
+                  <select className="field-input" name="jobsite_id" required>
+                    {jobsites.map((jobsite) => (
+                      <option key={jobsite.id} value={jobsite.id}>
+                        {jobsite.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span className="field-label">Menge</span>
+                  <input className="field-input" name="quantity" inputMode="decimal" required />
+                </label>
+                <label>
+                  <span className="field-label">Notiz</span>
+                  <input className="field-input" name="notes" placeholder="z. B. für Montag bereitstellen" />
+                </label>
+                <button className="btn-secondary min-h-12" type="submit">
+                  Reservieren
+                </button>
+              </form>
+            )}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="mb-5 grid gap-4 xl:grid-cols-2">
+        <div className="surface p-4 sm:p-5">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="section-title">Offene Materialmeldungen</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {context.canOperate ? "Direkt bestätigen oder ablehnen." : "Deine Meldungen warten auf Bestätigung."}
+              </p>
+            </div>
+            <span className="rounded-md bg-fog px-2.5 py-1 text-xs font-black text-ink">{usageReports.length}</span>
+          </div>
+
+          {usageReports.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-line bg-fog p-4 text-sm font-semibold text-slate-600">
+              Keine offenen Materialmeldungen.
+            </p>
+          ) : (
+            <div className="grid gap-3">
+              {usageReports.map((report) => (
+                <article key={report.id} className="rounded-lg border border-line bg-white p-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="font-black text-ink">
+                        {report.inventory_items?.name ?? inventoryItemById.get(report.inventory_item_id)?.name ?? "Material"}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-slate-500">
+                        {bookingLabels[report.booking_type]} · {formatQuantity(report.quantity)} {report.unit} · {report.jobsites?.name ?? "Baustelle"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Gemeldet von {report.reported_profile?.full_name ?? "Mitarbeiter"} · {formatDateTime(report.created_at)}
+                      </p>
+                      {report.notes ? <p className="mt-2 text-sm text-slate-600">{report.notes}</p> : null}
+                    </div>
+                    <span className="inline-flex w-fit rounded-md bg-amber-50 px-2.5 py-1 text-xs font-black text-amber-700 ring-1 ring-amber-200">
+                      offen
+                    </span>
+                  </div>
+
+                  {context.canOperate ? (
+                    <form action={confirmMaterialUsageReportAction} className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                      <input type="hidden" name="return_to" value={returnTo} />
+                      <input type="hidden" name="usage_report_id" value={report.id} />
+                      <input className="field-input" name="confirmation_note" placeholder="Kommentar / Grund optional" />
+                      <button className="btn-primary" type="submit" name="decision" value="confirmed">
+                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                        Bestätigen
+                      </button>
+                      <button className="btn-secondary" type="submit" name="decision" value="rejected">
+                        <XCircle className="h-4 w-4" aria-hidden="true" />
+                        Ablehnen
+                      </button>
+                    </form>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="surface p-4 sm:p-5">
+          <div className="mb-4 flex items-start gap-3">
+            <span className="rounded-md bg-fog p-2 text-ink">
+              <History className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div>
+              <h2 className="section-title">Letzte Bewegungen</h2>
+              <p className="mt-1 text-sm text-slate-500">Verbrauch, Rückgabe, Reservierung, Umlagerung und Korrekturen ohne Preisfelder.</p>
+            </div>
+          </div>
+
+          {movements.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-line bg-fog p-4 text-sm font-semibold text-slate-600">
+              Noch keine Materialbewegungen gebucht.
+            </p>
+          ) : (
+            <div className="grid gap-2">
+              {movements.map((movement) => (
+                <div key={movement.id} className="rounded-lg border border-line bg-white p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-black text-ink">
+                        {movement.inventory_items?.name ?? inventoryItemById.get(movement.inventory_item_id)?.name ?? "Material"}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-slate-500">
+                        {movementLabels[movement.movement_type]} · {formatQuantity(movement.quantity)} {movement.unit}
+                        {movement.jobsites?.name ? ` · ${movement.jobsites.name}` : ""}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">{formatDateTime(movement.created_at)}</p>
+                    </div>
+                    <span className="rounded-md bg-fog px-2.5 py-1 text-xs font-black text-ink">
+                      {movementLabels[movement.movement_type]}
+                    </span>
+                  </div>
+                  {movement.notes ? <p className="mt-2 text-sm text-slate-600">{movement.notes}</p> : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
       {context.canManage ? (
         <details className="surface mb-5 p-4">
@@ -212,14 +534,15 @@ export default async function InventoryPage({
           title="Noch kein Lagerbestand"
           description={
             context.canManage
-              ? "Oeffne den Katalog und uebernimm typische Dachdeckerartikel in dein Lager."
+              ? "Oeffne den Katalog und übernimm typische Dachdeckerartikel in dein Lager."
               : "Es sind noch keine preisbereinigten Lagerartikel sichtbar. Melde fehlendes Material direkt an Chef/Admin."
           }
           actionHref={context.canManage ? "/materials/catalog" : "/material-melden"}
-          actionLabel={context.canManage ? "Katalog oeffnen" : "Material melden"}
+          actionLabel={context.canManage ? "Katalog öffnen" : "Material melden"}
         />
       ) : (
-        <div className="grid gap-3 xl:grid-cols-2">
+        <>
+          <div className="grid gap-3 xl:grid-cols-2">
           {inventoryItems.map((item) => {
             const lowStock = isLowStock(item);
             return (
@@ -394,13 +717,33 @@ export default async function InventoryPage({
                   </div>
                 ) : (
                   <div className="mt-4 rounded-md border border-line bg-fog p-3 text-sm font-semibold text-slate-600">
-                    Preise und Buchungsaktionen sind nur fuer Chef/Admin sichtbar. Fehlmaterial bitte ueber Material melden erfassen.
+                    Preise und Buchungsaktionen sind nur für Chef/Admin sichtbar. Fehlmaterial bitte über Material melden erfassen.
                   </div>
                 )}
               </article>
             );
           })}
-        </div>
+          </div>
+          {totalPages > 1 ? (
+            <nav className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <Link
+                href={inventoryHref({ q: search, location: activeLocation, low: onlyLowStock, page: Math.max(1, page - 1) })}
+                className={cn("btn-secondary", page <= 1 && "pointer-events-none opacity-50")}
+              >
+                Zurück
+              </Link>
+              <span className="text-center text-sm font-bold text-slate-500">
+                {from + 1}-{Math.min(to + 1, totalCount)} von {totalCount}
+              </span>
+              <Link
+                href={inventoryHref({ q: search, location: activeLocation, low: onlyLowStock, page: Math.min(totalPages, page + 1) })}
+                className={cn("btn-secondary", page >= totalPages && "pointer-events-none opacity-50")}
+              >
+                Weiter
+              </Link>
+            </nav>
+          ) : null}
+        </>
       )}
     </>
   );

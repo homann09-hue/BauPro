@@ -1,4 +1,5 @@
 import { getOptionalAppContext } from "@/lib/auth";
+import { downloadHeaders } from "@/lib/security/downloads";
 import { buildTimeReportCsv, loadTimeReportExportData, timeReportFilename } from "@/lib/time-report-export";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -11,10 +12,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const data = await loadTimeReportExportData(id, context.companyId);
     const csv = buildTimeReportCsv(data);
     return new Response(csv, {
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${timeReportFilename(data, "csv")}"`
-      }
+      headers: downloadHeaders("text/csv; charset=utf-8", timeReportFilename(data, "csv"))
     });
   } catch (error) {
     console.error("time-report-csv-export-failed", error);

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BriefcaseBusiness, Mail, MapPin, Pencil, Phone, Plus } from "lucide-react";
+import { AlertTriangle, BriefcaseBusiness, Mail, MapPin, Pencil, Phone, Plus } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
@@ -9,8 +9,8 @@ import { updateCustomerStatusAction } from "@/lib/actions/customer-actions";
 import { requireManager } from "@/lib/auth";
 import { customerDisplayName, customerStatusLabels, customerTypeLabels, orderStatusLabels, orderTypeLabels } from "@/lib/order-labels";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { formatDate, searchParamMessage } from "@/lib/utils";
-import type { Customer, Order } from "@/types/app";
+import { formatDate, formatDateTime, searchParamMessage } from "@/lib/utils";
+import type { Customer, CustomerPortalMessage, Order } from "@/types/app";
 
 function Info({ label, value }: { label: string; value?: string | null }) {
   return (
@@ -28,22 +28,40 @@ export default async function CustomerDetailPage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireManager();
+  const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const { id } = await params;
   const { error, success } = searchParamMessage(await searchParams);
+  const customerSelect =
+    "id, company_id, customer_type, company, first_name, last_name, contact_person, phone, email, billing_address, jobsite_address, notes, tax_id, payment_terms, status, created_by, created_at, updated_at";
+  const orderSelect =
+    "id, company_id, customer_id, jobsite_id, order_number, title, order_type, status, priority, jobsite_address, start_date, end_date, description, internal_notes, assigned_employee_ids, has_dimensions, created_by, created_at, updated_at";
 
-  const [{ data: customerData }, { data: orderData }] = await Promise.all([
-    supabase.from("customers").select("*").eq("id", id).single(),
-    supabase.from("orders").select("*").eq("customer_id", id).order("created_at", { ascending: false })
+  const [{ data: customerData }, { data: orderData }, { data: messageData }] = await Promise.all([
+    supabase.from("customers").select(customerSelect).eq("id", id).eq("company_id", context.companyId).single(),
+    supabase
+      .from("orders")
+      .select(orderSelect)
+      .eq("customer_id", id)
+      .eq("company_id", context.companyId)
+      .order("created_at", { ascending: false })
+      .limit(30),
+    supabase
+      .from("customer_portal_messages")
+      .select("id, company_id, customer_id, jobsite_id, portal_token_id, sender_name, sender_email, message, status, answered_at, answered_by, created_at")
+      .eq("customer_id", id)
+      .eq("company_id", context.companyId)
+      .order("created_at", { ascending: false })
+      .limit(12)
   ]);
 
   if (!customerData) {
     notFound();
   }
 
-  const customer = customerData as Customer;
-  const orders = (orderData ?? []) as Order[];
+  const customer = customerData as unknown as Customer;
+  const orders = (orderData ?? []) as unknown as Order[];
+  const messages = (messageData ?? []) as unknown as CustomerPortalMessage[];
 
   return (
     <>
@@ -144,9 +162,45 @@ export default async function CustomerDetailPage({
                       {orderTypeLabels[order.order_type]} · Start: {formatDate(order.start_date)}
                     </p>
                   </div>
-                  <StatusBadge value={orderStatusLabels[order.status]} />
+                  <StatusBadge value={order.status} label={orderStatusLabels[order.status]} />
                 </div>
               </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="mt-6">
+        <div className="mb-4 flex items-end justify-between gap-3">
+          <div>
+            <h2 className="section-title">Kundennachrichten</h2>
+            <p className="mt-1 text-sm text-slate-500">Fragen aus dem Kundenportal. Daraus kann direkt ein Mangel entstehen.</p>
+          </div>
+        </div>
+
+        {messages.length === 0 ? (
+          <div className="surface p-4 text-sm font-semibold text-slate-600">Noch keine Kundenfragen gespeichert.</div>
+        ) : (
+          <div className="grid gap-3">
+            {messages.map((message) => (
+              <article key={message.id} className="surface-strong p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="font-black text-ink">{message.sender_name}</p>
+                    <p className="mt-1 whitespace-pre-line text-sm text-slate-600">{message.message}</p>
+                    <p className="mt-2 text-xs font-semibold text-slate-500">{formatDateTime(message.created_at)}</p>
+                  </div>
+                  {message.jobsite_id ? (
+                    <Link
+                      href={`/maengel/neu?jobsite_id=${message.jobsite_id}&source_type=customer_message&source_customer_message_id=${message.id}`}
+                      className="btn-secondary shrink-0"
+                    >
+                      <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                      Mangel daraus
+                    </Link>
+                  ) : null}
+                </div>
+              </article>
             ))}
           </div>
         )}

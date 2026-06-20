@@ -256,7 +256,7 @@ export function FloatingActionButton({ href, icon: Icon, label }: { href: string
   return (
     <Link
       href={href}
-      className="fixed bottom-24 right-4 z-40 inline-flex min-h-14 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-black text-white shadow-lift transition hover:-translate-y-0.5 hover:bg-primary-dark lg:hidden"
+      className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-40 inline-flex min-h-14 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-black text-white shadow-lift transition hover:-translate-y-0.5 hover:bg-primary-dark lg:hidden"
       aria-label={label}
       title={label}
     >

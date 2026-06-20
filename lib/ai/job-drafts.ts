@@ -1,5 +1,6 @@
 import { AI_JOB_DRAFT_SCHEMA, jobDraftPrompt, roleAwareSystemPrompt } from "@/lib/ai/prompts";
 import { createStructuredAiResponse, getOpenAiModel } from "@/lib/ai/openai";
+import { calculationSettingsSelect } from "@/lib/data/selects";
 import { logAiUsage } from "@/lib/ai/usage-log";
 import { calculateArea } from "@/lib/material-calculations";
 import { buildOrderMaterialRequirementRows, type OrderDimensionValues } from "@/lib/order-materials";
@@ -58,7 +59,11 @@ async function safeList<T>(query: PromiseLike<{ data: unknown; error: unknown }>
 }
 
 export async function loadCalculationSettings(supabase: SupabaseServerClient, companyId: string): Promise<CalculationSettings> {
-  const { data, error } = await supabase.from("calculation_settings").select("*").eq("company_id", companyId).maybeSingle();
+  const { data, error } = await supabase
+    .from("calculation_settings")
+    .select(calculationSettingsSelect)
+    .eq("company_id", companyId)
+    .maybeSingle();
   if (error && !isMissingSchemaError(error)) {
     console.error("calculation-settings-load-failed", error.message);
   }

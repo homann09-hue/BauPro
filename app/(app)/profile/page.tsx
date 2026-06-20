@@ -9,7 +9,8 @@ const roleLabels = {
   admin: "Admin",
   chef: "Chef",
   vorarbeiter: "Vorarbeiter",
-  mitarbeiter: "Mitarbeiter"
+  mitarbeiter: "Mitarbeiter",
+  kunde: "Kunde"
 };
 
 export default async function ProfilePage({

@@ -8,11 +8,14 @@ import { createSupplierAdapter } from "@/lib/suppliers/adapter";
 import { CsvSupplierAdapter } from "@/lib/suppliers/csv-adapter";
 import { getProviderConfig } from "@/lib/suppliers/provider-config";
 import { calculateSupplierMatchScore } from "@/lib/suppliers/matcher";
+import { searchOrFilter } from "@/lib/data/shared";
+import { inventoryItemMatchSelect, supplierIntegrationSecretSelect, supplierOfferSelect } from "@/lib/data/selects";
 import type { SupplierOfferInput } from "@/lib/suppliers/types";
 import { SupplierIntegrationError } from "@/lib/suppliers/types";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { optionalFormUuid, requiredFormUuid } from "@/lib/security/form-data";
 import { assertRateLimit } from "@/lib/security/rate-limit";
+import { safeReturnPath } from "@/lib/security/redirects";
 import { assertInventoryItemInCompany, assertSupplierIntegrationInCompany } from "@/lib/security/tenant-guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalNumber, optionalString, requiredString } from "@/lib/utils";
@@ -25,8 +28,15 @@ import type {
 } from "@/types/app";
 
 function redirectTarget(formData: FormData, fallback = "/materials/live-offers") {
-  const value = String(formData.get("return_to") ?? "");
-  return value.startsWith("/") ? value : fallback;
+  return safeReturnPath(formData.get("return_to"), fallback);
+}
+
+async function readUtf8CsvFile(file: File) {
+  const text = Buffer.from(await file.arrayBuffer()).toString("utf8").replace(/^\uFEFF/, "");
+  if (text.includes("\uFFFD")) {
+    throw new SafeActionError("CSV-Datei ist nicht UTF-8 kodiert. Bitte die Datei als UTF-8 speichern und erneut hochladen.");
+  }
+  return text;
 }
 
 function boolField(formData: FormData, key: string) {
@@ -154,9 +164,7 @@ async function createAutoMatches({
 
   const materialQuery = supabase
     .from("inventory_items")
-    .select(
-      "*, material_categories(id, name, slug), material_subcategories(id, name, slug), material_catalog(id, search_terms)"
-    )
+    .select(inventoryItemMatchSelect)
     .eq("company_id", companyId);
 
   const { data: materialRows } = materialId ? await materialQuery.eq("id", materialId) : await materialQuery.limit(200);
@@ -306,7 +314,7 @@ export async function createManualSupplierOfferAction(formData: FormData) {
     const { data, error } = await supabase
       .from("supplier_offers")
       .insert(offerPayload({ ...offer, supplier_integration_id: integrationId, source_type: "manual" }, context.companyId, context.userId))
-      .select("*")
+      .select(supplierOfferSelect)
       .single();
 
     if (error || !data) throw new SafeActionError("Angebot konnte nicht gespeichert werden.");
@@ -339,9 +347,9 @@ export async function importSupplierOffersCsvAction(formData: FormData) {
     await assertSupplierIntegrationInCompany({ supabase, companyId: context.companyId, integrationId });
     const file = formData.get("csv_file");
     const pastedCsv = optionalString(formData, "csv_text");
-    const csvText = file instanceof File && file.size > 0 ? await file.text() : pastedCsv;
+    const csvText = file instanceof File && file.size > 0 ? await readUtf8CsvFile(file) : pastedCsv;
 
-    if (!csvText) throw new SafeActionError("Bitte CSV-Datei hochladen oder CSV-Inhalt einfuegen.");
+    if (!csvText) throw new SafeActionError("Bitte CSV-Datei hochladen oder CSV-Inhalt einfügen.");
 
     const adapter = new CsvSupplierAdapter({
       providerKey,
@@ -358,7 +366,7 @@ export async function importSupplierOffersCsvAction(formData: FormData) {
     const { data, error } = await supabase
       .from("supplier_offers")
       .insert(offers.map((offer) => offerPayload(offer, context.companyId, context.userId)))
-      .select("*");
+      .select(supplierOfferSelect);
 
     if (error) throw new SafeActionError("CSV-Import fehlgeschlagen.");
 
@@ -389,7 +397,7 @@ export async function fetchSupplierOffersAction(formData: FormData) {
     assertRateLimit(`supplier-fetch:${context.companyId}:${context.userId}`, 15, 60_000);
     const { data: integration, error } = await supabase
       .from("supplier_integrations")
-      .select("*")
+      .select(supplierIntegrationSecretSelect)
       .eq("id", integrationId)
       .eq("company_id", context.companyId)
       .single();
@@ -433,11 +441,11 @@ export async function matchSupplierOfferAction(formData: FormData) {
     const [{ data: material }, { data: offer }] = await Promise.all([
       supabase
         .from("inventory_items")
-        .select("*, material_categories(id, name, slug), material_subcategories(id, name, slug), material_catalog(id, search_terms)")
+        .select(inventoryItemMatchSelect)
         .eq("id", materialId)
         .eq("company_id", context.companyId)
         .single(),
-      supabase.from("supplier_offers").select("*").eq("id", offerId).eq("company_id", context.companyId).single()
+      supabase.from("supplier_offers").select(supplierOfferSelect).eq("id", offerId).eq("company_id", context.companyId).single()
     ]);
 
     if (!material || !offer) throw new SafeActionError("Material oder Angebot wurde nicht gefunden.");
@@ -480,7 +488,7 @@ export async function acceptSupplierOfferAsPurchasePriceAction(formData: FormDat
     await assertInventoryItemInCompany({ supabase, companyId: context.companyId, itemId: materialId });
     const { data: offer } = await supabase
       .from("supplier_offers")
-      .select("*")
+      .select(supplierOfferSelect)
       .eq("id", offerId)
       .eq("company_id", context.companyId)
       .single();
@@ -493,7 +501,8 @@ export async function acceptSupplierOfferAsPurchasePriceAction(formData: FormDat
       .from("suppliers")
       .select("id")
       .eq("company_id", context.companyId)
-      .ilike("name", typedOffer.supplier_name)
+      .or(searchOrFilter(["name"], typedOffer.supplier_name))
+      .limit(1)
       .maybeSingle();
 
     const supplierId =

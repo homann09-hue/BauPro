@@ -1,7 +1,64 @@
+import {
+  aiActionSelect,
+  bringListItemSelect,
+  bringListOperationalSelect,
+  customerFormSelect,
+  inventoryItemManagerDetailSelect,
+  inventoryLocationSelect,
+  jobsiteFormSelect,
+  materialAlertSelect,
+  purchaseSuggestionSelect,
+  reportFormSelect,
+  reportPhotoSelect,
+  timeEntryFormSelect
+} from "@/lib/data/selects";
+import { downloadHeaders } from "@/lib/security/downloads";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+
+const profileExportSelect = "id, company_id, email, full_name, role, active, created_at, updated_at";
+const voiceNoteExportSelect =
+  "id, company_id, user_id, raw_text, detected_intent, detected_entities, linked_customer_id, linked_job_id, linked_time_entry_id, linked_bring_list_id, linked_material_alert_id, status, created_at";
+const aiUsageLogExportSelect =
+  "id, company_id, user_id, feature, model, input_tokens, output_tokens, status, error_message, created_at";
+const taskExportSelect =
+  "id, company_id, jobsite_id, title, description, assigned_to, due_date, status, created_by, created_at, updated_at";
+const companyExportSelect =
+  "id, name, created_by, created_at, updated_at, contact_email, phone, address, website, tax_id, payment_terms, onboarding_completed_at";
+const orderExportSelect =
+  "id, company_id, customer_id, jobsite_id, order_number, title, order_type, status, priority, jobsite_address, start_date, end_date, description, internal_notes, assigned_employee_ids, has_dimensions, created_by, created_at, updated_at, archived_at";
+const materialExportSelect =
+  "id, company_id, name, category, unit, stock, minimum_stock, location, purchase_price, sales_price, created_by, created_at, updated_at";
+const vehicleExportSelect =
+  "id, company_id, name, license_plate, tuv_date, notes, created_by, created_at, updated_at, archived_at";
+const timeReportExportSelect =
+  "id, company_id, employee_id, month, year, date_from, date_to, status, generated_by, generated_at";
+const privacyRequestExportSelect =
+  "id, company_id, requester_id, request_type, status, description, response_notes, due_at, completed_at, created_at, updated_at";
+const timeReportEntryExportSelect = "id, time_report_id, time_entry_id";
+
+const companyTableSelects: Record<string, string> = {
+  companies: companyExportSelect,
+  profiles: profileExportSelect,
+  customers: `${customerFormSelect}, archived_at`,
+  jobsites: `${jobsiteFormSelect}, updated_at, archived_at`,
+  orders: orderExportSelect,
+  reports: reportFormSelect,
+  report_photos: reportPhotoSelect,
+  time_entries: timeEntryFormSelect,
+  time_reports: timeReportExportSelect,
+  materials: materialExportSelect,
+  inventory_locations: inventoryLocationSelect,
+  inventory_items: `${inventoryItemManagerDetailSelect}, created_at, updated_at, archived_at`,
+  vehicles: vehicleExportSelect,
+  tasks: taskExportSelect,
+  bring_lists: bringListOperationalSelect,
+  material_alerts: materialAlertSelect,
+  purchase_suggestions: purchaseSuggestionSelect,
+  privacy_requests: privacyRequestExportSelect
+};
 
 async function safeRows<T>(
   label: string,
@@ -59,15 +116,15 @@ export async function buildOwnDataExport({
 }) {
   const issues: string[] = [];
   const [profile, timeEntries, reports, reportPhotos, voiceNotes, aiActions, aiUsageLogs, tasks, bringLists] = await Promise.all([
-    safeRows("Profil", supabase.from("profiles").select("id, company_id, email, full_name, role, active, created_at, updated_at").eq("id", userId), issues),
-    safeRows("Zeiten", supabase.from("time_entries").select("*").eq("company_id", companyId).eq("employee_id", userId), issues),
-    safeRows("Tagesberichte", supabase.from("reports").select("*").eq("company_id", companyId).contains("employee_ids", [userId]), issues),
+    safeRows("Profil", supabase.from("profiles").select(profileExportSelect).eq("id", userId), issues),
+    safeRows("Zeiten", supabase.from("time_entries").select(timeEntryFormSelect).eq("company_id", companyId).eq("employee_id", userId), issues),
+    safeRows("Tagesberichte", supabase.from("reports").select(reportFormSelect).eq("company_id", companyId).contains("employee_ids", [userId]), issues),
     safeRows("Berichtsfotos", supabase.from("report_photos").select("id, report_id, file_name, content_type, created_at").eq("company_id", companyId).eq("created_by", userId), issues),
-    safeRows("Spracheingaben", supabase.from("voice_notes").select("*").eq("company_id", companyId).eq("user_id", userId), issues),
-    safeRows("KI-Aktionen", supabase.from("ai_actions").select("*").eq("company_id", companyId).eq("user_id", userId), issues),
-    safeRows("KI-Nutzung", supabase.from("ai_usage_logs").select("*").eq("company_id", companyId).eq("user_id", userId), issues),
-    safeRows("Aufgaben", supabase.from("tasks").select("*").eq("company_id", companyId).eq("assigned_to", userId), issues),
-    safeRows("Mitbringlisten", supabase.from("bring_lists").select("*").eq("company_id", companyId).eq("assigned_to", userId), issues)
+    safeRows("Spracheingaben", supabase.from("voice_notes").select(voiceNoteExportSelect).eq("company_id", companyId).eq("user_id", userId), issues),
+    safeRows("KI-Aktionen", supabase.from("ai_actions").select(aiActionSelect).eq("company_id", companyId).eq("user_id", userId), issues),
+    safeRows("KI-Nutzung", supabase.from("ai_usage_logs").select(aiUsageLogExportSelect).eq("company_id", companyId).eq("user_id", userId), issues),
+    safeRows("Aufgaben", supabase.from("tasks").select(taskExportSelect).eq("company_id", companyId).eq("assigned_to", userId), issues),
+    safeRows("Mitbringlisten", supabase.from("bring_lists").select(bringListOperationalSelect).eq("company_id", companyId).eq("assigned_to", userId), issues)
   ]);
 
   await auditExport({
@@ -132,10 +189,11 @@ export async function buildCompanyDataExport({
 
   const data: Record<string, unknown[]> = {};
   for (const table of tableNames) {
+    const selectFields = companyTableSelects[table];
     const query =
       table === "companies"
-        ? supabase.from(table).select("*").eq("id", companyId)
-        : supabase.from(table).select("*").eq("company_id", companyId);
+        ? supabase.from(table).select(selectFields).eq("id", companyId)
+        : supabase.from(table).select(selectFields).eq("company_id", companyId);
     data[table] = await safeRows(table, query, issues);
   }
 
@@ -143,14 +201,18 @@ export async function buildCompanyDataExport({
     .map((row) => (row as { id?: unknown }).id)
     .filter((id): id is string => typeof id === "string");
   data.bring_list_items = bringListIds.length
-    ? await safeRows("bring_list_items", supabase.from("bring_list_items").select("*").in("bring_list_id", bringListIds), issues)
+    ? await safeRows("bring_list_items", supabase.from("bring_list_items").select(bringListItemSelect).in("bring_list_id", bringListIds), issues)
     : [];
 
   const timeReportIds = (data.time_reports ?? [])
     .map((row) => (row as { id?: unknown }).id)
     .filter((id): id is string => typeof id === "string");
   data.time_report_entries = timeReportIds.length
-    ? await safeRows("time_report_entries", supabase.from("time_report_entries").select("*").in("time_report_id", timeReportIds), issues)
+    ? await safeRows(
+        "time_report_entries",
+        supabase.from("time_report_entries").select(timeReportEntryExportSelect).in("time_report_id", timeReportIds),
+        issues
+      )
     : [];
 
   await auditExport({
@@ -172,9 +234,6 @@ export async function buildCompanyDataExport({
 
 export function jsonDownloadResponse(payload: unknown, filename: string) {
   return new Response(JSON.stringify(payload, null, 2), {
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${filename}"`
-    }
+    headers: downloadHeaders("application/json; charset=utf-8", filename)
   });
 }

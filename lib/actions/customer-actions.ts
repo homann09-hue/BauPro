@@ -3,13 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireManager } from "@/lib/auth";
+import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
+import { requiredFormUuid } from "@/lib/security/form-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { optionalString, requiredString } from "@/lib/utils";
+import { optionalString } from "@/lib/utils";
 import type { CustomerStatus, CustomerType } from "@/types/app";
-
-function toQuery(value: string) {
-  return encodeURIComponent(value);
-}
 
 function customerTypeValue(value: FormDataEntryValue | null): CustomerType {
   const type = String(value ?? "privatkunde");
@@ -30,7 +28,7 @@ function customerPayload(formData: FormData) {
   const lastName = optionalString(formData, "last_name");
 
   if (!company && !firstName && !lastName) {
-    throw new Error("Bitte Firmenname oder Name des Kunden eintragen.");
+    throw new SafeActionError("Bitte Firmenname oder Name des Kunden eintragen.");
   }
 
   return {
@@ -58,7 +56,7 @@ export async function createCustomerAction(formData: FormData) {
   try {
     payload = customerPayload(formData);
   } catch (error) {
-    redirect(`/customers/new?error=${toQuery(error instanceof Error ? error.message : "Kunde konnte nicht gespeichert werden.")}`);
+    redirect(`/customers/new?error=${toQuery(safeErrorMessage(error, "Kunde konnte nicht gespeichert werden."))}`);
   }
 
   const { data, error } = await supabase
@@ -72,7 +70,7 @@ export async function createCustomerAction(formData: FormData) {
     .single();
 
   if (error || !data) {
-    redirect(`/customers/new?error=${toQuery(error?.message ?? "Kunde konnte nicht gespeichert werden.")}`);
+    redirect(`/customers/new?error=${toQuery("Kunde konnte nicht gespeichert werden.")}`);
   }
 
   revalidatePath("/customers");
@@ -82,25 +80,25 @@ export async function createCustomerAction(formData: FormData) {
 export async function updateCustomerAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
-  const id = requiredString(formData, "id");
+  const id = requiredFormUuid(formData, "id", "Kunde");
 
   let payload: ReturnType<typeof customerPayload>;
   try {
     payload = customerPayload(formData);
   } catch (error) {
-    redirect(
-      `/customers/${id}/edit?error=${toQuery(error instanceof Error ? error.message : "Kunde konnte nicht gespeichert werden.")}`
-    );
+    redirect(`/customers/${id}/edit?error=${toQuery(safeErrorMessage(error, "Kunde konnte nicht gespeichert werden."))}`);
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("customers")
     .update(payload)
     .eq("id", id)
-    .eq("company_id", context.companyId);
+    .eq("company_id", context.companyId)
+    .select("id")
+    .maybeSingle();
 
-  if (error) {
-    redirect(`/customers/${id}/edit?error=${toQuery(error.message)}`);
+  if (error || !data) {
+    redirect(`/customers/${id}/edit?error=${toQuery("Kunde konnte nicht gespeichert werden.")}`);
   }
 
   revalidatePath("/customers");
@@ -111,17 +109,19 @@ export async function updateCustomerAction(formData: FormData) {
 export async function updateCustomerStatusAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
-  const id = requiredString(formData, "id");
+  const id = requiredFormUuid(formData, "id", "Kunde");
   const status = customerStatusValue(formData.get("status"));
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("customers")
     .update({ status })
     .eq("id", id)
-    .eq("company_id", context.companyId);
+    .eq("company_id", context.companyId)
+    .select("id")
+    .maybeSingle();
 
-  if (error) {
-    redirect(`/customers/${id}?error=${toQuery(error.message)}`);
+  if (error || !data) {
+    redirect(`/customers/${id}?error=${toQuery("Kundenstatus konnte nicht gespeichert werden.")}`);
   }
 
   revalidatePath("/customers");

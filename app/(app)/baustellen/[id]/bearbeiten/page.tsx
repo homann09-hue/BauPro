@@ -6,6 +6,7 @@ import { JobsiteForm } from "@/components/forms/jobsite-form";
 import { SubmitButton } from "@/components/submit-button";
 import { deleteJobsiteAction, updateJobsiteAction } from "@/lib/actions/jobsite-actions";
 import { requireManager } from "@/lib/auth";
+import { jobsiteFormSelect, profileOptionSelect } from "@/lib/data/selects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { searchParamMessage } from "@/lib/utils";
 import type { Jobsite, Profile } from "@/types/app";
@@ -17,16 +18,17 @@ export default async function EditJobsitePage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireManager();
+  const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const { id } = await params;
   const { error, success } = searchParamMessage(await searchParams);
 
   const [jobsiteResult, employeesResult] = await Promise.all([
-    supabase.from("jobsites").select("*").eq("id", id).single(),
+    supabase.from("jobsites").select(jobsiteFormSelect).eq("company_id", context.companyId).eq("id", id).single(),
     supabase
       .from("profiles")
-      .select("*")
+      .select(profileOptionSelect)
+      .eq("company_id", context.companyId)
       .eq("active", true)
       .in("role", ["mitarbeiter", "vorarbeiter"])
       .order("full_name")
@@ -47,13 +49,13 @@ export default async function EditJobsitePage({
         action={updateJobsiteAction}
         jobsite={jobsite}
         employees={employees}
-        submitLabel="Aenderungen speichern"
+        submitLabel="Änderungen speichern"
       />
       <form action={deleteJobsiteAction} className="mt-4 flex justify-end">
         <input type="hidden" name="id" value={jobsite.id} />
         <SubmitButton variant="danger">
           <Trash2 className="h-4 w-4" aria-hidden="true" />
-          Baustelle löschen
+          Baustelle archivieren
         </SubmitButton>
       </form>
     </>

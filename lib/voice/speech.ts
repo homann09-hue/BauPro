@@ -34,3 +34,12 @@ export function createGermanSpeechRecognition() {
   recognition.continuous = false;
   return recognition;
 }
+
+export type VoiceInputState = "idle" | "listening" | "review" | "unsupported" | "error";
+
+export function appendTranscript(currentValue: string, transcript: string) {
+  const current = currentValue.trim();
+  const addition = transcript.trim();
+  if (!addition) return currentValue;
+  return current ? `${current} ${addition}` : addition;
+}

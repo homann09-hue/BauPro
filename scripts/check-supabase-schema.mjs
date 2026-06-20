@@ -4,6 +4,10 @@ import path from "node:path";
 const root = process.cwd();
 const schema = fs.readFileSync(path.join(root, "supabase/schema.sql"), "utf8");
 const hardening = fs.readFileSync(path.join(root, "supabase/migrations/20260615_zz_redteam_hardening.sql"), "utf8");
+const reportArchiveHardening = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260617_report_archive_hardening.sql"),
+  "utf8"
+);
 
 const failures = [];
 
@@ -55,6 +59,19 @@ check(schema.includes("r.id::text = (storage.foldername(name))[3]"), "storage up
 check(schema.includes("audit_inventory_price_change"), "price changes must be audited.");
 check(schema.includes("audit_supplier_key_change"), "supplier key changes must be audited.");
 check(schema.includes("audit_profile_role_change"), "role changes must be audited.");
+
+check(schema.includes("archived_at timestamptz"), "reports must support archived_at for soft deletion.");
+check(reportArchiveHardening.includes("alter table public.reports add column if not exists archived_at timestamptz"), "report archive migration must add archived_at.");
+check(schema.includes("reports_archived_idx"), "reports archived index must exist in schema.sql.");
+check(reportArchiveHardening.includes("reports_archived_idx"), "reports archived index must exist in migration.");
+check(
+  block(schema, 'create policy "read relevant reports"', 'drop policy if exists "create own reports"').includes("archived_at is null"),
+  "report read policy must hide archived reports."
+);
+check(
+  block(schema, 'create policy "read relevant report photos"', 'drop policy if exists "create report photos"').includes("r.archived_at is null"),
+  "report photo read policy must hide photos behind archived reports."
+);
 
 if (failures.length > 0) {
   console.error("Supabase schema hardening check failed:");

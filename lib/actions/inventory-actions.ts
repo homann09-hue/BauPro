@@ -2,18 +2,21 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireManager } from "@/lib/auth";
+import { requireAppContext, requireManager, type AppContext } from "@/lib/auth";
+import { revalidateDashboardCache } from "@/lib/data/dashboard";
+import { searchOrFilter } from "@/lib/data/shared";
+import { materialCatalogItemSelect } from "@/lib/data/selects";
 import { ensureDefaultInventoryLocations, toInventoryLocationType } from "@/lib/inventory";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
-import { requiredFormUuid } from "@/lib/security/form-data";
-import { assertSupplierInCompany } from "@/lib/security/tenant-guards";
+import { optionalFormUuid, positiveFormNumber, requiredFormUuid } from "@/lib/security/form-data";
+import { safeReturnPath } from "@/lib/security/redirects";
+import { assertBringListAccess, assertJobsiteInCompany, assertSupplierInCompany } from "@/lib/security/tenant-guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { numberOrZero, optionalNumber, optionalString, requiredString } from "@/lib/utils";
-import type { InventoryItem, MaterialCatalogItem } from "@/types/app";
+import type { MaterialCatalogItem, MaterialUsageBookingType } from "@/types/app";
 
 function redirectTarget(formData: FormData, fallback = "/materials/inventory") {
-  const value = String(formData.get("return_to") ?? "");
-  return value.startsWith("/") ? value : fallback;
+  return safeReturnPath(formData.get("return_to"), fallback);
 }
 
 function positiveNumber(formData: FormData, key: string) {
@@ -30,7 +33,45 @@ function inventoryModeValue(value: FormDataEntryValue | null) {
   return mode === "increase" || mode === "decrease" || mode === "set" ? mode : "increase";
 }
 
-function revalidateMaterialRoutes() {
+function materialUsageBookingType(value: FormDataEntryValue | null): MaterialUsageBookingType {
+  const bookingType = String(value ?? "consume");
+  if (bookingType === "return" || bookingType === "loss" || bookingType === "break") return bookingType;
+  return "consume";
+}
+
+function usageDecisionValue(value: FormDataEntryValue | null) {
+  return String(value ?? "confirmed") === "rejected" ? "rejected" : "confirmed";
+}
+
+async function loadInventoryItemForBooking(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  context: AppContext,
+  itemId: string
+) {
+  const source = context.canManage ? "inventory_items" : "inventory_items_public";
+  const { data, error } = await supabase
+    .from(source)
+    .select("id, company_id, name, unit, stock, minimum_stock, location_id")
+    .eq("company_id", context.companyId)
+    .eq("id", itemId)
+    .maybeSingle();
+
+  if (error || !data) {
+    throw new SafeActionError("Material wurde nicht gefunden.");
+  }
+
+  return data as {
+    id: string;
+    company_id: string;
+    name: string;
+    unit: string;
+    stock: number;
+    minimum_stock: number;
+    location_id: string | null;
+  };
+}
+
+function revalidateMaterialRoutes(companyId: string) {
   revalidatePath("/materials");
   revalidatePath("/materials/catalog");
   revalidatePath("/materials/inventory");
@@ -38,6 +79,16 @@ function revalidateMaterialRoutes() {
   revalidatePath("/materials/low-stock");
   revalidatePath("/materials/import");
   revalidatePath("/dashboard");
+  revalidateDashboardCache(companyId);
+}
+
+function revalidateJobMaterialRoutes(companyId: string, jobsiteId?: string | null) {
+  revalidateMaterialRoutes(companyId);
+  revalidatePath("/material-melden");
+  revalidatePath("/bring-lists");
+  if (jobsiteId) {
+    revalidatePath(`/baustellen/${jobsiteId}`);
+  }
 }
 
 async function assertCompanyLocation(
@@ -67,7 +118,8 @@ async function findOrCreateSupplier(
     .from("suppliers")
     .select("id")
     .eq("company_id", companyId)
-    .ilike("name", supplierName)
+    .or(searchOrFilter(["name"], supplierName))
+    .limit(1)
     .maybeSingle();
 
   if (existing?.id) return existing.id as string;
@@ -102,7 +154,7 @@ export async function addCatalogItemToInventoryAction(formData: FormData) {
 
     const { data: catalogItem, error: catalogError } = await supabase
       .from("material_catalog")
-      .select("*")
+      .select(materialCatalogItemSelect)
       .eq("id", catalogItemId)
       .eq("active", true)
       .single();
@@ -111,7 +163,7 @@ export async function addCatalogItemToInventoryAction(formData: FormData) {
       throw new SafeActionError("Katalogartikel wurde nicht gefunden.");
     }
 
-    const item = catalogItem as MaterialCatalogItem;
+    const item = catalogItem as unknown as MaterialCatalogItem;
     const supplierId = await findOrCreateSupplier(
       supabase,
       context.companyId,
@@ -120,7 +172,7 @@ export async function addCatalogItemToInventoryAction(formData: FormData) {
 
     const { data: existing } = await supabase
       .from("inventory_items")
-      .select("*")
+      .select("id")
       .eq("company_id", context.companyId)
       .eq("catalog_item_id", item.id)
       .eq("location_id", locationId)
@@ -135,7 +187,6 @@ export async function addCatalogItemToInventoryAction(formData: FormData) {
       supplier_id: supplierId,
       name: item.name,
       unit: item.unit,
-      stock: existing ? Number((existing as InventoryItem).stock) + stock : stock,
       minimum_stock: minimumStock,
       package_unit: item.package_unit,
       manufacturer: item.manufacturer,
@@ -143,26 +194,50 @@ export async function addCatalogItemToInventoryAction(formData: FormData) {
       ean: item.ean,
       purchase_price: optionalNumber(formData, "purchase_price") ?? item.purchase_price,
       sales_price: item.sales_price,
-      notes: optionalString(formData, "notes"),
-      created_by: context.userId
+      notes: optionalString(formData, "notes")
     };
 
-    const result = existing
-      ? await supabase
-          .from("inventory_items")
-          .update(payload)
-          .eq("id", (existing as InventoryItem).id)
-          .eq("company_id", context.companyId)
-      : await supabase.from("inventory_items").insert(payload);
+    const existingItem = existing as { id: string } | null;
+    if (existingItem) {
+      const { error: updateError } = await supabase
+        .from("inventory_items")
+        .update(payload)
+        .eq("id", existingItem.id)
+        .eq("company_id", context.companyId);
 
-    if (result.error) {
-      throw new SafeActionError("Material konnte nicht uebernommen werden.");
+      if (updateError) {
+        throw new SafeActionError("Material konnte nicht aktualisiert werden.");
+      }
+
+      if (stock > 0) {
+        const { error: stockError } = await supabase.rpc("adjust_inventory_stock", {
+          p_company_id: context.companyId,
+          p_item_id: existingItem.id,
+          p_mode: "increase",
+          p_amount: stock,
+          p_actor_id: context.userId
+        });
+
+        if (stockError) {
+          throw new SafeActionError("Bestand konnte nicht atomar gebucht werden.");
+        }
+      }
+    } else {
+      const { error: insertError } = await supabase.from("inventory_items").insert({
+        ...payload,
+        stock,
+        created_by: context.userId
+      });
+
+      if (insertError) {
+        throw new SafeActionError("Material konnte nicht uebernommen werden.");
+      }
     }
   } catch (error) {
     redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Material konnte nicht uebernommen werden."))}`);
   }
 
-  revalidateMaterialRoutes();
+  revalidateMaterialRoutes(context.companyId);
   redirect(`${returnTo}?success=${toQuery("Material ist jetzt im Lager.")}`);
 }
 
@@ -202,7 +277,7 @@ export async function createCustomInventoryItemAction(formData: FormData) {
     redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Material konnte nicht angelegt werden."))}`);
   }
 
-  revalidateMaterialRoutes();
+  revalidateMaterialRoutes(context.companyId);
   redirect(`${returnTo}?success=${toQuery("Eigenes Material wurde angelegt.")}`);
 }
 
@@ -228,7 +303,7 @@ export async function adjustInventoryStockAction(formData: FormData) {
     redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Bestand konnte nicht gebucht werden."))}`);
   }
 
-  revalidateMaterialRoutes();
+  revalidateMaterialRoutes(context.companyId);
   redirect(`${returnTo}?success=${toQuery("Bestand wurde aktualisiert.")}`);
 }
 
@@ -259,8 +334,130 @@ export async function transferInventoryAction(formData: FormData) {
     redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Umlagerung konnte nicht gebucht werden."))}`);
   }
 
-  revalidateMaterialRoutes();
+  revalidateMaterialRoutes(context.companyId);
   redirect(`${returnTo}?success=${toQuery("Material wurde umgelagert.")}`);
+}
+
+export async function reportMaterialUsageAction(formData: FormData) {
+  const context = await requireAppContext();
+  const supabase = await createSupabaseServerClient();
+  const returnTo = redirectTarget(formData);
+  let jobsiteId: string | null = null;
+
+  try {
+    const itemId = requiredFormUuid(formData, "item_id", "Material");
+    jobsiteId = requiredFormUuid(formData, "jobsite_id", "Baustelle");
+    const bringListId = optionalFormUuid(formData, "bring_list_id", "Mitbringliste");
+    const quantity = positiveFormNumber(formData, "quantity", "Menge");
+    const bookingType = materialUsageBookingType(formData.get("booking_type"));
+    const notes = optionalString(formData, "notes");
+    const item = await loadInventoryItemForBooking(supabase, context, itemId);
+
+    await assertJobsiteInCompany({ supabase, context, jobsiteId });
+    if (bringListId) {
+      await assertBringListAccess({ supabase, context, bringListId });
+    }
+
+    const { data, error } = await supabase
+      .from("material_usage_reports")
+      .insert({
+        company_id: context.companyId,
+        inventory_item_id: item.id,
+        jobsite_id: jobsiteId,
+        bring_list_id: bringListId,
+        quantity,
+        unit: item.unit,
+        booking_type: bookingType,
+        status: "reported",
+        reported_by: context.userId,
+        notes
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (error || !data) {
+      throw new SafeActionError("Materialbuchung konnte nicht gemeldet werden.");
+    }
+  } catch (error) {
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Materialbuchung konnte nicht gemeldet werden."))}`);
+  }
+
+  revalidateJobMaterialRoutes(context.companyId, jobsiteId);
+  redirect(`${returnTo}?success=${toQuery("Materialbuchung wurde gemeldet und wartet auf Bestaetigung.")}`);
+}
+
+export async function confirmMaterialUsageReportAction(formData: FormData) {
+  const context = await requireAppContext();
+  const supabase = await createSupabaseServerClient();
+  const returnTo = redirectTarget(formData);
+
+  try {
+    if (!context.canOperate) {
+      throw new SafeActionError("Keine Berechtigung fuer Materialbestaetigungen.");
+    }
+
+    const reportId = requiredFormUuid(formData, "usage_report_id", "Materialmeldung");
+    const decision = usageDecisionValue(formData.get("decision"));
+    const note = optionalString(formData, "confirmation_note");
+
+    const { error } = await supabase.rpc("confirm_material_usage_report", {
+      p_company_id: context.companyId,
+      p_report_id: reportId,
+      p_actor_id: context.userId,
+      p_decision: decision,
+      p_note: note
+    });
+
+    if (error) {
+      throw new SafeActionError(
+        decision === "rejected"
+          ? "Materialmeldung konnte nicht abgelehnt werden."
+          : "Materialmeldung konnte nicht bestaetigt werden. Pruefe Bestand und Berechtigung."
+      );
+    }
+  } catch (error) {
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Materialmeldung konnte nicht verarbeitet werden."))}`);
+  }
+
+  revalidateJobMaterialRoutes(context.companyId);
+  redirect(`${returnTo}?success=${toQuery("Materialmeldung wurde verarbeitet.")}`);
+}
+
+export async function reserveMaterialForJobsiteAction(formData: FormData) {
+  const context = await requireManager();
+  const supabase = await createSupabaseServerClient();
+  const returnTo = redirectTarget(formData);
+  let jobsiteId: string | null = null;
+
+  try {
+    const itemId = requiredFormUuid(formData, "item_id", "Material");
+    jobsiteId = requiredFormUuid(formData, "jobsite_id", "Baustelle");
+    const quantity = positiveFormNumber(formData, "quantity", "Menge");
+    const notes = optionalString(formData, "notes");
+    const item = await loadInventoryItemForBooking(supabase, context, itemId);
+
+    await assertJobsiteInCompany({ supabase, context, jobsiteId });
+
+    const { error } = await supabase.rpc("reserve_inventory_for_jobsite", {
+      p_company_id: context.companyId,
+      p_jobsite_id: jobsiteId,
+      p_inventory_item_id: item.id,
+      p_quantity_required: quantity,
+      p_quantity_requested: quantity,
+      p_unit: item.unit,
+      p_reserved_by: context.userId,
+      p_notes: notes
+    });
+
+    if (error) {
+      throw new SafeActionError("Material konnte nicht reserviert werden.");
+    }
+  } catch (error) {
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Material konnte nicht reserviert werden."))}`);
+  }
+
+  revalidateJobMaterialRoutes(context.companyId, jobsiteId);
+  redirect(`${returnTo}?success=${toQuery("Material wurde fuer die Baustelle reserviert.")}`);
 }
 
 export async function createInventoryLocationAction(formData: FormData) {
@@ -279,7 +476,7 @@ export async function createInventoryLocationAction(formData: FormData) {
     redirect(`${returnTo}?error=${toQuery("Lagerort konnte nicht angelegt werden.")}`);
   }
 
-  revalidateMaterialRoutes();
+  revalidateMaterialRoutes(context.companyId);
   redirect(`${returnTo}?success=${toQuery("Lagerort wurde angelegt.")}`);
 }
 
@@ -304,7 +501,7 @@ export async function updateInventoryLocationAction(formData: FormData) {
     redirect(`${returnTo}?error=${toQuery("Lagerort konnte nicht aktualisiert werden.")}`);
   }
 
-  revalidateMaterialRoutes();
+  revalidateMaterialRoutes(context.companyId);
   redirect(`${returnTo}?success=${toQuery("Lagerort wurde aktualisiert.")}`);
 }
 
@@ -324,7 +521,7 @@ export async function deactivateInventoryLocationAction(formData: FormData) {
     redirect(`${returnTo}?error=${toQuery("Lagerort konnte nicht deaktiviert werden.")}`);
   }
 
-  revalidateMaterialRoutes();
+  revalidateMaterialRoutes(context.companyId);
   redirect(`${returnTo}?success=${toQuery("Lagerort wurde deaktiviert.")}`);
 }
 
@@ -363,6 +560,6 @@ export async function updateInventoryPricingAction(formData: FormData) {
     redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Preise konnten nicht aktualisiert werden."))}`);
   }
 
-  revalidateMaterialRoutes();
+  revalidateMaterialRoutes(context.companyId);
   redirect(`${returnTo}?success=${toQuery("Preise wurden aktualisiert.")}`);
 }

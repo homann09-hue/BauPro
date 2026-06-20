@@ -8,21 +8,29 @@ type SubmitButtonProps = {
   children: React.ReactNode;
   className?: string;
   variant?: "primary" | "secondary" | "danger";
+  name?: string;
+  value?: string;
+  disabled?: boolean;
+  pendingLabel?: string;
 };
 
 export function SubmitButton({
   children,
   className,
-  variant = "primary"
+  variant = "primary",
+  name,
+  value,
+  disabled = false,
+  pendingLabel = "Speichern..."
 }: SubmitButtonProps) {
   const { pending } = useFormStatus();
   const variantClass =
     variant === "secondary" ? "btn-secondary" : variant === "danger" ? "btn-danger" : "btn-primary";
 
   return (
-    <button type="submit" disabled={pending} className={cn(variantClass, className)}>
+    <button type="submit" disabled={pending || disabled} className={cn(variantClass, className)} name={name} value={value}>
       {pending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-      {pending ? "Speichern..." : children}
+      {pending ? pendingLabel : children}
     </button>
   );
 }

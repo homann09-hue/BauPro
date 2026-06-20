@@ -8,6 +8,7 @@ import {
   updateSupplierIntegrationAction
 } from "@/lib/actions/supplier-actions";
 import { requireManager } from "@/lib/auth";
+import { supplierIntegrationListSelect } from "@/lib/data/selects";
 import { supplierProviders } from "@/lib/suppliers/provider-config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { searchParamMessage } from "@/lib/utils";
@@ -25,21 +26,22 @@ export default async function SuppliersPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireManager();
+  const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
   const { data } = await supabase
     .from("supplier_integrations")
-    .select("*")
+    .select(supplierIntegrationListSelect)
+    .eq("company_id", context.companyId)
     .order("created_at", { ascending: false });
 
-  const integrations = (data ?? []) as SupplierIntegration[];
+  const integrations = (data ?? []) as unknown as Array<Omit<SupplierIntegration, "api_key_encrypted">>;
 
   return (
     <>
       <PageHeader
         title="Lieferanten"
-        description="Offizielle APIs, CSV-Feeds und manuelle Angebote fuer den Preisvergleich vorbereiten."
+        description="Offizielle APIs, CSV-Feeds und manuelle Angebote für den Preisvergleich vorbereiten."
       />
       <MessageBox error={error} success={success} />
 
@@ -135,7 +137,6 @@ export default async function SuppliersPage({
                     <h2 className="mt-1 text-lg font-black text-ink">{integration.name}</h2>
                     <p className="mt-1 text-sm text-slate-500">
                       {integration.type} · {integration.active ? "aktiv" : "inaktiv"}
-                      {integration.api_key_encrypted ? " · API-Key gespeichert" : ""}
                     </p>
                   </div>
                   {provider?.documentationUrl ? (

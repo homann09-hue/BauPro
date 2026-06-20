@@ -9,3 +9,7 @@ dist
 coverage
 playwright-report
 test-results
+tsconfig.tsbuildinfo
+public/sw.js
+public/workbox-*.js
+public/fallback-*.js

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, BadgeEuro, Boxes, MapPin, Search, Upload } from "lucide-react";
+import { AlertTriangle, BadgeEuro, Boxes, ClipboardCheck, MapPin, Search, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const materialLinks = [
@@ -23,6 +23,14 @@ const materialLinks = [
     description: "Nachbestellen",
     icon: AlertTriangle,
     managerOnly: true
+  },
+  {
+    href: "/materials/delivery-notes",
+    label: "Lieferscheine",
+    description: "Foto erkennen",
+    icon: ClipboardCheck,
+    managerOnly: false,
+    operatorOnly: true
   },
   {
     href: "/materials/live-offers",
@@ -54,10 +62,10 @@ const materialLinks = [
   }
 ];
 
-export function MaterialSubnav({ active, canManage = true }: { active: string; canManage?: boolean }) {
+export function MaterialSubnav({ active, canManage = true, canOperate = canManage }: { active: string; canManage?: boolean; canOperate?: boolean }) {
   return (
     <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-7">
-      {materialLinks.filter((item) => canManage || !item.managerOnly).map((item) => {
+      {materialLinks.filter((item) => (canManage || !item.managerOnly) && (!item.operatorOnly || canOperate)).map((item) => {
         const Icon = item.icon;
         const isActive = active === item.href;
 

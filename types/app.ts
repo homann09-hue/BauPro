@@ -1,7 +1,13 @@
-export type Role = "admin" | "chef" | "vorarbeiter" | "mitarbeiter";
+export type Role = "admin" | "chef" | "vorarbeiter" | "mitarbeiter" | "kunde";
 export type JobsiteStatus = "geplant" | "aktiv" | "abgeschlossen";
 export type MaterialLocation = "Lager" | "Fahrzeug" | "Baustelle";
-export type InventoryLocationType = "Hauptlager" | "Fahrzeuglager" | "Baustelle" | "Container" | "Werkstatt";
+export type InventoryLocationType =
+  | "Hauptlager"
+  | "Fahrzeuglager"
+  | "Baustelle"
+  | "Container"
+  | "Werkstatt"
+  | "Lieferant/offen bestellt";
 export type RoofType = "steildach" | "flachdach" | "reparatur" | "entwaesserung" | "blech";
 export type CustomerType = "privatkunde" | "gewerbekunde" | "hausverwaltung" | "architekt" | "versicherung";
 export type CustomerStatus = "aktiv" | "inaktiv";
@@ -42,20 +48,108 @@ export type OnlinePriceSourceKey =
 export type OnlinePriceDiscoveryStatus = "completed" | "no_results" | "partial_error";
 export type TimeEntryStatus = "draft" | "submitted" | "approved" | "rejected";
 export type TimeReportStatus = "generated" | "approved" | "archived";
+export type ReportStatus = "draft" | "submitted" | "reviewed" | "approved";
 export type VoiceIntent = "bring_list" | "time_tracking" | "material_alert" | "job_note" | "unknown";
 export type VoiceNoteStatus = "draft" | "confirmed" | "discarded";
 export type BringListStatus = "draft" | "ready" | "packed" | "delivered";
 export type BringListItemType = "material" | "tool" | "document" | "safety" | "other";
 export type MaterialReservationStatus = "open" | "reserved" | "partially_reserved" | "missing" | "consumed" | "cancelled";
+export type MaterialUsageBookingType = "consume" | "return" | "loss" | "break";
+export type MaterialUsageReportStatus = "reported" | "confirmed" | "rejected" | "corrected";
 export type MaterialAlertType = "low_stock" | "out_of_stock" | "missing_for_job" | "below_minimum_after_reservation";
 export type MaterialAlertSeverity = "info" | "warning" | "critical";
 export type MaterialAlertStatus = "open" | "acknowledged" | "resolved";
 export type PurchaseSuggestionStatus = "open" | "ordered" | "ignored" | "received";
+export type DeliveryNoteStatus = "uploaded" | "recognized" | "confirmed" | "rejected";
 export type TaskStatus = "offen" | "in_arbeit" | "erledigt";
+export type ChecklistCategory =
+  | "arbeitssicherheit"
+  | "baustart"
+  | "tagesabschluss"
+  | "abnahme"
+  | "material"
+  | "geruest"
+  | "dacharbeiten";
+export type ChecklistItemStatus = "offen" | "erledigt" | "nicht_zutreffend" | "problem";
+export type JobsiteChecklistStatus = "draft" | "in_progress" | "completed" | "archived";
+export type DefectPriority = "niedrig" | "mittel" | "hoch" | "kritisch";
+export type DefectStatus = "offen" | "in_arbeit" | "wartet_auf_kunde" | "erledigt" | "abgenommen";
+export type DefectSourceType = "manual" | "photo" | "report" | "checklist" | "customer_message";
+export type DefectNotificationType = "due_soon" | "overdue" | "status_changed";
+export type PlanningView = "week" | "month";
+export type PlanningResourceType = "employee" | "vehicle" | "equipment";
+export type PlanningResourceKind = "fahrzeug" | "anhaenger" | "maschine" | "werkzeug" | "geruest_leiter" | "geraet" | "sonstiges";
+export type PlanningResourceStatus =
+  | "verfuegbar"
+  | "auf_baustelle"
+  | "im_fahrzeug"
+  | "defekt"
+  | "werkstatt"
+  | "reserviert"
+  | "archiviert";
+export type PlanningWeatherRiskLevel = "green" | "yellow" | "red";
+export type PlanningWeatherAcknowledgementAction = "confirmed" | "ignored";
+export type PlanningAssignmentStatus =
+  | "geplant"
+  | "aktiv"
+  | "erledigt"
+  | "verschoben"
+  | "krank"
+  | "urlaub"
+  | "werkstatt"
+  | "defekt"
+  | "weiterbildung";
+export type CustomerPortalEventType = "update" | "status" | "photo" | "document" | "appointment" | "work_order";
+export type WorkOrderStatus = "draft" | "sent" | "viewed" | "signed" | "rejected";
+export type CommercialDocumentType = "quote" | "invoice";
+export type CommercialDocumentStatus = "draft" | "sent" | "accepted" | "rejected" | "paid" | "cancelled";
+export type DigitalDocumentType = "work_order" | "report" | "commercial_document" | "jobsite_document" | "acceptance";
+export type DigitalSignatureStatus = "draft" | "signed" | "rejected";
+export type JobsiteDocumentCategory =
+  | "angebot"
+  | "rechnung"
+  | "lieferschein"
+  | "aufmass"
+  | "abnahmeprotokoll"
+  | "regiebericht"
+  | "sicherheitsunterweisung"
+  | "sonstiges";
+export type JobsiteActivityEventType =
+  | "note"
+  | "document"
+  | "photo"
+  | "task"
+  | "time"
+  | "material"
+  | "report"
+  | "order"
+  | "weather"
+  | "signature";
+export type JobsiteActivityVisibility = "internal" | "customer";
+export type OrderMeasurementItemType =
+  | "roof_area"
+  | "deduction_area"
+  | "eaves_length"
+  | "ridge_length"
+  | "verge_length"
+  | "valley_length"
+  | "wall_connection_length"
+  | "downpipe_length"
+  | "roof_window"
+  | "penetration"
+  | "roof_drain"
+  | "emergency_overflow";
+export type PlanId = "starter" | "professional" | "business";
 
 export type Company = {
   id: string;
   name: string;
+  plan_id?: PlanId | string | null;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+  subscription_status?: string | null;
+  trial_ends_at?: string | null;
+  current_period_end?: string | null;
   contact_email?: string | null;
   phone?: string | null;
   address?: string | null;
@@ -85,6 +179,24 @@ export type Jobsite = {
   status: JobsiteStatus;
   notes: string | null;
   assigned_employee_ids: string[];
+  latitude?: number | null;
+  longitude?: number | null;
+  weather_last_checked_at?: string | null;
+  created_at: string;
+};
+
+export type WeatherSnapshot = {
+  id: string;
+  company_id: string;
+  jobsite_id: string;
+  temperature_c: number | null;
+  precipitation_mm: number | null;
+  wind_kmh: number | null;
+  weather_code: number | null;
+  risk_level: "green" | "yellow" | "red";
+  summary: string | null;
+  source: string | null;
+  fetched_at: string;
   created_at: string;
 };
 
@@ -159,6 +271,27 @@ export type JobDimension = {
   waste_percent: number;
   notes: string | null;
   created_by: string | null;
+  archived_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OrderMeasurementItem = {
+  id: string;
+  company_id: string;
+  order_id: string;
+  item_type: OrderMeasurementItemType;
+  label: string;
+  length_m: number | null;
+  width_m: number | null;
+  quantity: number;
+  pitch_deg: number | null;
+  calculated_area_m2: number;
+  calculated_length_m: number;
+  count_value: number;
+  notes: string | null;
+  created_by: string | null;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -169,26 +302,279 @@ export type Report = {
   jobsite_id: string | null;
   report_date: string;
   weather: string | null;
+  weather_summary?: string | null;
+  weather_temperature_c?: number | null;
+  weather_precipitation_mm?: number | null;
+  weather_wind_kmh?: number | null;
+  weather_source?: string | null;
+  weather_fetched_at?: string | null;
+  weather_lat?: number | null;
+  weather_lng?: number | null;
   work_start: string | null;
   work_end: string | null;
   employee_ids: string[];
   activities: string;
   material_usage: string | null;
+  machine_usage?: string | null;
+  vehicle_ids?: string[];
+  linked_time_entry_ids?: string[];
   issues: string | null;
+  report_status?: ReportStatus;
+  submitted_at?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  visible_to_customer?: boolean;
+  customer_summary?: string | null;
+  customer_released_at?: string | null;
+  customer_released_by?: string | null;
   signature_name: string | null;
+  signature_status?: DigitalSignatureStatus;
+  signature_data_url?: string | null;
+  signature_signed_at?: string | null;
+  signature_role?: Role | null;
+  signature_content_hash?: string | null;
+  source_report_id?: string | null;
+  document_version?: number;
   created_by: string | null;
   created_at: string;
+  archived_at?: string | null;
   jobsites?: Pick<Jobsite, "id" | "name" | "address" | "customer"> | null;
 };
 
 export type ReportPhoto = {
   id: string;
+  company_id: string;
   report_id: string;
+  jobsite_id: string | null;
   storage_path: string;
   file_name: string;
   content_type: string | null;
+  visible_to_customer: boolean;
+  customer_caption: string | null;
+  thumbnail_path: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  archived_at?: string | null;
   created_at: string;
   signedUrl?: string;
+};
+
+export type CustomerPortalToken = {
+  id: string;
+  company_id: string;
+  customer_id: string;
+  jobsite_id: string | null;
+  token_hash: string;
+  label: string | null;
+  expires_at: string;
+  revoked_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  last_used_at: string | null;
+};
+
+export type CustomerPortalEvent = {
+  id: string;
+  company_id: string;
+  customer_id: string;
+  jobsite_id: string | null;
+  event_type: CustomerPortalEventType;
+  title: string;
+  body: string | null;
+  visible_to_customer: boolean;
+  event_date: string;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type CustomerPortalMessage = {
+  id: string;
+  company_id: string;
+  customer_id: string;
+  jobsite_id: string | null;
+  portal_token_id: string | null;
+  sender_name: string;
+  sender_email: string | null;
+  message: string;
+  status: "open" | "answered" | "archived";
+  answered_at: string | null;
+  answered_by: string | null;
+  created_at: string;
+};
+
+export type CustomerDocument = {
+  id: string;
+  company_id: string;
+  customer_id: string;
+  jobsite_id: string | null;
+  title: string;
+  storage_path: string;
+  file_name: string;
+  content_type: string | null;
+  visible_to_customer: boolean;
+  uploaded_by: string | null;
+  created_at: string;
+};
+
+export type JobsiteDocument = {
+  id: string;
+  company_id: string;
+  jobsite_id: string;
+  category: JobsiteDocumentCategory;
+  title: string;
+  storage_path: string;
+  file_name: string;
+  content_type: string | null;
+  size_bytes: number | null;
+  visible_to_customer: boolean;
+  uploaded_by: string | null;
+  signed_by: string | null;
+  signed_at: string | null;
+  signature_name: string | null;
+  signature_data_url?: string | null;
+  signature_role?: Role | null;
+  signature_content_hash?: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type JobsiteActivityEvent = {
+  id: string;
+  company_id: string;
+  jobsite_id: string;
+  event_type: JobsiteActivityEventType;
+  title: string;
+  body: string | null;
+  visibility: JobsiteActivityVisibility;
+  actor_id: string | null;
+  source_table: string | null;
+  source_id: string | null;
+  archived_at: string | null;
+  created_at: string;
+};
+
+export type WorkOrder = {
+  id: string;
+  company_id: string;
+  customer_id: string;
+  jobsite_id: string | null;
+  order_id: string | null;
+  title: string;
+  description: string | null;
+  scope_of_work: string;
+  price_note: string | null;
+  status: WorkOrderStatus;
+  version: number;
+  content_hash: string | null;
+  sent_at: string | null;
+  viewed_at: string | null;
+  signed_at: string | null;
+  rejected_at: string | null;
+  signer_name: string | null;
+  signer_ip: string | null;
+  signer_user_agent: string | null;
+  signature_data_url: string | null;
+  signature_role?: Role | null;
+  rejection_reason: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DigitalSignature = {
+  id: string;
+  company_id: string;
+  document_type: DigitalDocumentType;
+  document_id: string;
+  document_version: number;
+  jobsite_id: string | null;
+  status: DigitalSignatureStatus;
+  signer_name: string;
+  signer_role: Role;
+  signer_user_id: string | null;
+  signer_ip: string | null;
+  signer_user_agent: string | null;
+  signature_data_url: string | null;
+  signed_at: string | null;
+  rejected_at: string | null;
+  rejection_reason: string | null;
+  content_hash: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type DigitalDocumentVersion = {
+  id: string;
+  company_id: string;
+  document_type: DigitalDocumentType;
+  document_id: string;
+  version: number;
+  snapshot: Record<string, unknown>;
+  content_hash: string;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type WorkOrderVersion = {
+  id: string;
+  company_id: string;
+  work_order_id: string;
+  version: number;
+  snapshot: Record<string, unknown>;
+  content_hash: string;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type CommercialDocument = {
+  id: string;
+  company_id: string;
+  order_id: string | null;
+  customer_id: string;
+  jobsite_id: string | null;
+  document_type: CommercialDocumentType;
+  document_number: string;
+  status: CommercialDocumentStatus;
+  subject: string;
+  customer_snapshot: Record<string, unknown>;
+  issue_date: string;
+  due_date: string | null;
+  valid_until: string | null;
+  subtotal_net: number;
+  tax_rate: number;
+  tax_total: number;
+  total_gross: number;
+  notes: string | null;
+  payment_terms: string | null;
+  created_by: string | null;
+  sent_at: string | null;
+  accepted_at: string | null;
+  paid_at: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+  orders?: Pick<Order, "id" | "order_number" | "title" | "status"> | null;
+  customers?: Pick<Customer, "id" | "company" | "first_name" | "last_name" | "contact_person" | "email" | "phone"> | null;
+};
+
+export type CommercialDocumentItem = {
+  id: string;
+  company_id: string;
+  document_id: string;
+  source_requirement_id: string | null;
+  position: number;
+  title: string;
+  description: string | null;
+  quantity: number;
+  unit: string;
+  unit_price_net: number;
+  discount_percent: number;
+  line_total_net: number;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Material = {
@@ -202,6 +588,7 @@ export type Material = {
   location: MaterialLocation;
   purchase_price: number | null;
   sales_price: number | null;
+  archived_at?: string | null;
 };
 
 export type MaterialCategory = {
@@ -252,6 +639,8 @@ export type InventoryLocation = {
   company_id: string;
   name: string;
   location_type: InventoryLocationType;
+  address: string | null;
+  vehicle_id: string | null;
   notes: string | null;
   active: boolean;
 };
@@ -291,7 +680,7 @@ export type InventoryItem = {
   last_price_changed_at: string | null;
   notes: string | null;
   created_by: string | null;
-  inventory_locations?: Pick<InventoryLocation, "id" | "name" | "location_type"> | null;
+  inventory_locations?: Pick<InventoryLocation, "id" | "name" | "location_type" | "vehicle_id"> | null;
   material_categories?: Pick<MaterialCategory, "id" | "name" | "slug"> | null;
   material_subcategories?: Pick<MaterialSubcategory, "id" | "name" | "slug"> | null;
   suppliers?: Pick<Supplier, "id" | "name"> | null;
@@ -344,6 +733,8 @@ export type MaterialCalculationRule = {
     | "wall_connection_length"
     | "penetrations_count"
     | "roof_windows_count"
+    | "dormers_count"
+    | "chimneys_count"
     | "gutter_hangers";
   factor: number;
   spacing_m: number | null;
@@ -357,6 +748,8 @@ export type JobMaterialCalculation = {
   company_id: string;
   jobsite_id: string;
   roof_type: RoofType;
+  roof_form: string | null;
+  material_type: string | null;
   length_m: number | null;
   width_m: number | null;
   area_m2: number;
@@ -368,7 +761,14 @@ export type JobMaterialCalculation = {
   wall_connection_length_m: number | null;
   penetrations_count: number;
   roof_windows_count: number;
+  dormers_count: number;
+  chimneys_count: number;
   waste_percent: number;
+  ai_enabled: boolean;
+  ai_model: string | null;
+  ai_confidence: number | null;
+  ai_notes: string | null;
+  review_notice: string;
   notes: string | null;
   created_by: string | null;
   created_at: string;
@@ -396,6 +796,10 @@ export type JobMaterialCalculationItem = {
   location_name: string | null;
   stock: number | null;
   minimum_stock: number | null;
+  missing_quantity: number;
+  source: "rule" | "ai" | "manual";
+  ai_reason: string | null;
+  archived_at?: string | null;
   created_at: string;
 };
 
@@ -566,12 +970,21 @@ export type TimeEntry = {
   net_minutes: number;
   activity: string;
   weather: string | null;
+  weather_summary?: string | null;
+  weather_temperature_c?: number | null;
+  weather_precipitation_mm?: number | null;
+  weather_wind_kmh?: number | null;
+  weather_source?: string | null;
+  weather_fetched_at?: string | null;
+  weather_lat?: number | null;
+  weather_lng?: number | null;
   kilometers: number | null;
   notes: string | null;
   status: TimeEntryStatus;
   approved_by: string | null;
   approved_at: string | null;
   created_by: string | null;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
   profiles?: Pick<Profile, "id" | "full_name" | "email"> | null;
@@ -648,6 +1061,10 @@ export type BringList = {
   created_by: string | null;
   assigned_to: string | null;
   vehicle_id: string | null;
+  auto_generated: boolean;
+  generation_source: string;
+  last_auto_synced_at: string | null;
+  source_hash: string | null;
   created_at: string;
   updated_at: string;
   jobsites?: Pick<Jobsite, "id" | "name" | "customer" | "address"> | null;
@@ -671,10 +1088,156 @@ export type BringListItem = {
   packed_at: string | null;
   missing_reported: boolean;
   notes: string | null;
+  auto_generated: boolean;
+  source_type: string | null;
+  source_ref: string | null;
+  required_vehicle_id: string | null;
   created_at: string;
+  updated_at: string;
   inventory_items?: Pick<InventoryItem, "id" | "name" | "unit" | "stock" | "minimum_stock" | "location_id"> & {
-    inventory_locations?: Pick<InventoryLocation, "id" | "name" | "location_type"> | null;
+    inventory_locations?: Pick<InventoryLocation, "id" | "name" | "location_type" | "vehicle_id"> | null;
   };
+};
+
+export type BringListAuditLog = {
+  id: string;
+  company_id: string;
+  bring_list_id: string;
+  actor_id: string | null;
+  action: string;
+  old_values: Record<string, unknown> | null;
+  new_values: Record<string, unknown> | null;
+  created_at: string;
+  profiles?: Pick<Profile, "id" | "full_name" | "email"> | null;
+};
+
+export type MaterialAvailabilityRisk = "green" | "yellow" | "red" | "blue";
+
+export type UserHelpState = {
+  id: string;
+  user_id: string;
+  company_id: string;
+  feature_key: string;
+  first_seen_at: string;
+  dismissed_at: string | null;
+  first_used_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BringListAvailabilitySnapshot = {
+  id: string;
+  company_id: string;
+  bring_list_id: string;
+  bring_list_item_id: string | null;
+  inventory_item_id: string | null;
+  required_quantity: number;
+  available_quantity: number;
+  reserved_quantity: number;
+  missing_quantity: number;
+  risk_level: MaterialAvailabilityRisk;
+  status_label: string;
+  source: string;
+  created_at: string;
+};
+
+export type MaterialMovementType = "purchase" | "transfer" | "reserve" | "consume" | "return" | "correction" | "loss" | "break";
+
+export type MaterialMovement = {
+  id: string;
+  company_id: string;
+  inventory_item_id: string;
+  from_location_id: string | null;
+  to_location_id: string | null;
+  jobsite_id: string | null;
+  bring_list_id: string | null;
+  quantity: number;
+  unit: string;
+  movement_type: MaterialMovementType;
+  created_by: string | null;
+  created_at: string;
+  notes: string | null;
+  inventory_items?: Pick<InventoryItem, "id" | "name" | "unit" | "stock" | "minimum_stock" | "location_id"> | null;
+  jobsites?: Pick<Jobsite, "id" | "name" | "address" | "customer"> | null;
+  profiles?: Pick<Profile, "id" | "full_name" | "email"> | null;
+};
+
+export type DeliveryNote = {
+  id: string;
+  company_id: string;
+  supplier_id: string | null;
+  supplier_name: string | null;
+  document_date: string | null;
+  status: DeliveryNoteStatus;
+  storage_path: string;
+  file_name: string;
+  content_type: string;
+  recognition_model: string | null;
+  recognition_confidence: number | null;
+  recognized_json: Record<string, unknown>;
+  notes: string | null;
+  created_by: string | null;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  suppliers?: Pick<Supplier, "id" | "name"> | null;
+  profiles?: Pick<Profile, "id" | "full_name" | "email"> | null;
+};
+
+export type DeliveryNoteItem = {
+  id: string;
+  company_id: string;
+  delivery_note_id: string;
+  inventory_item_id: string | null;
+  supplier_article_number: string | null;
+  article_name: string;
+  quantity: number;
+  unit: string;
+  target_location_id: string | null;
+  recognition_confidence: number | null;
+  created_at: string;
+  updated_at: string;
+  inventory_items?: Pick<InventoryItem, "id" | "name" | "unit" | "stock" | "minimum_stock" | "location_id"> | null;
+  inventory_locations?: Pick<InventoryLocation, "id" | "name" | "location_type"> | null;
+};
+
+export type DeliveryNoteItemPrice = {
+  id: string;
+  company_id: string;
+  delivery_note_item_id: string;
+  unit_price: number | null;
+  total_price: number | null;
+  currency: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MaterialUsageReport = {
+  id: string;
+  company_id: string;
+  inventory_item_id: string;
+  jobsite_id: string;
+  bring_list_id: string | null;
+  quantity: number;
+  unit: string;
+  booking_type: MaterialUsageBookingType;
+  status: MaterialUsageReportStatus;
+  movement_id: string | null;
+  reported_by: string | null;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  notes: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+  inventory_items?: Pick<InventoryItem, "id" | "name" | "unit" | "stock" | "minimum_stock" | "location_id"> & {
+    inventory_locations?: Pick<InventoryLocation, "id" | "name" | "location_type" | "vehicle_id"> | null;
+  };
+  jobsites?: Pick<Jobsite, "id" | "name" | "address" | "customer"> | null;
+  reported_profile?: Pick<Profile, "id" | "full_name" | "email" | "role"> | null;
+  confirmed_profile?: Pick<Profile, "id" | "full_name" | "email" | "role"> | null;
+  material_movements?: Pick<MaterialMovement, "id" | "movement_type" | "created_at"> | null;
 };
 
 export type MaterialReservation = {
@@ -743,7 +1306,18 @@ export type Vehicle = {
   name: string;
   license_plate: string;
   tuv_date: string | null;
+  status?: PlanningResourceStatus | null;
+  inspection_due_date?: string | null;
+  maintenance_interval_days?: number | null;
+  last_maintenance_at?: string | null;
+  next_maintenance_at?: string | null;
+  location_text?: string | null;
+  responsible_employee_id?: string | null;
+  qr_code?: string | null;
+  nfc_tag_id?: string | null;
   notes: string | null;
+  archived_at?: string | null;
+  responsible_profile?: Pick<Profile, "id" | "full_name" | "email"> | null;
 };
 
 export type VehicleMaterial = {
@@ -752,7 +1326,106 @@ export type VehicleMaterial = {
   material_id: string;
   quantity: number;
   notes: string | null;
+  archived_at?: string | null;
   materials?: Pick<Material, "id" | "name" | "unit"> | null;
+};
+
+export type PlanningResource = {
+  id: string;
+  company_id: string;
+  name: string;
+  resource_kind: PlanningResourceKind;
+  status: PlanningResourceStatus;
+  inspection_due_date: string | null;
+  maintenance_interval_days: number | null;
+  last_maintenance_at: string | null;
+  next_maintenance_at: string | null;
+  location_text: string | null;
+  responsible_employee_id: string | null;
+  vehicle_id: string | null;
+  qr_code: string | null;
+  nfc_tag_id: string | null;
+  notes: string | null;
+  active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+  responsible_profile?: Pick<Profile, "id" | "full_name" | "email"> | null;
+  vehicles?: Pick<Vehicle, "id" | "name" | "license_plate"> | null;
+};
+
+export type ResourceDocumentType = "foto" | "dokument" | "pruefung" | "wartung" | "sonstiges";
+
+export type ResourceDocument = {
+  id: string;
+  company_id: string;
+  planning_resource_id: string | null;
+  vehicle_id: string | null;
+  document_type: ResourceDocumentType;
+  title: string;
+  storage_path: string;
+  file_name: string;
+  content_type: string | null;
+  size_bytes: number | null;
+  uploaded_by: string | null;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+};
+
+export type PlanningAssignment = {
+  id: string;
+  company_id: string;
+  jobsite_id: string | null;
+  title: string;
+  resource_type: PlanningResourceType;
+  employee_id: string | null;
+  vehicle_id: string | null;
+  planning_resource_id: string | null;
+  start_date: string;
+  end_date: string;
+  status: PlanningAssignmentStatus;
+  color: string;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+  jobsites?: Pick<
+    Jobsite,
+    "id" | "name" | "customer" | "address" | "assigned_employee_ids" | "status" | "latitude" | "longitude" | "weather_last_checked_at"
+  > | null;
+  profiles?: Pick<Profile, "id" | "full_name" | "email" | "role"> | null;
+  vehicles?: Pick<Vehicle, "id" | "name" | "license_plate"> | null;
+  planning_resources?: Pick<PlanningResource, "id" | "name" | "resource_kind" | "status"> | null;
+};
+
+export type PlanningWeatherCheck = {
+  id: string;
+  company_id: string;
+  planning_assignment_id: string;
+  jobsite_id: string;
+  period_start: string;
+  period_end: string;
+  risk_level: PlanningWeatherRiskLevel;
+  summary: string;
+  rule_codes: string[];
+  temperature_min_c: number | null;
+  temperature_max_c: number | null;
+  precipitation_mm: number | null;
+  precipitation_probability: number | null;
+  wind_kmh: number | null;
+  wind_gust_kmh: number | null;
+  weather_code: number | null;
+  source: string;
+  fetched_at: string;
+  acknowledged_action: PlanningWeatherAcknowledgementAction | null;
+  acknowledged_by: string | null;
+  acknowledged_at: string | null;
+  acknowledgment_note: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Task = {
@@ -764,6 +1437,164 @@ export type Task = {
   assigned_to: string | null;
   due_date: string | null;
   status: TaskStatus;
+  archived_at?: string | null;
   jobsites?: Pick<Jobsite, "id" | "name"> | null;
   profiles?: Pick<Profile, "id" | "full_name" | "email"> | null;
+};
+
+export type ChecklistTemplate = {
+  id: string;
+  company_id: string | null;
+  name: string;
+  category: ChecklistCategory;
+  description: string | null;
+  active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+};
+
+export type ChecklistTemplateItem = {
+  id: string;
+  template_id: string;
+  company_id: string | null;
+  label: string;
+  help_text: string | null;
+  required: boolean;
+  photo_required: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+};
+
+export type JobsiteChecklist = {
+  id: string;
+  company_id: string;
+  jobsite_id: string;
+  template_id: string | null;
+  title: string;
+  category: ChecklistCategory;
+  status: JobsiteChecklistStatus;
+  due_date: string | null;
+  completed_at: string | null;
+  completed_by: string | null;
+  signature_name: string | null;
+  signature_data_url: string | null;
+  signature_role: Role | null;
+  signature_signed_at: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+  jobsites?: Pick<Jobsite, "id" | "name" | "customer" | "address" | "assigned_employee_ids"> | null;
+  profiles?: Pick<Profile, "id" | "full_name" | "email"> | null;
+};
+
+export type JobsiteChecklistItem = {
+  id: string;
+  company_id: string;
+  checklist_id: string;
+  template_item_id: string | null;
+  jobsite_id: string;
+  label: string;
+  help_text: string | null;
+  required: boolean;
+  photo_required: boolean;
+  status: ChecklistItemStatus;
+  notes: string | null;
+  problem_description: string | null;
+  resolved_task_id: string | null;
+  checked_by: string | null;
+  checked_at: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+  checklist_item_photos?: ChecklistItemPhoto[];
+  tasks?: Pick<Task, "id" | "title" | "status"> | null;
+};
+
+export type ChecklistItemPhoto = {
+  id: string;
+  company_id: string;
+  checklist_id: string;
+  checklist_item_id: string;
+  jobsite_id: string;
+  storage_path: string;
+  file_name: string;
+  content_type: string | null;
+  size_bytes: number | null;
+  uploaded_by: string | null;
+  created_at: string;
+  archived_at: string | null;
+};
+
+export type Defect = {
+  id: string;
+  company_id: string;
+  jobsite_id: string;
+  title: string;
+  description: string | null;
+  priority: DefectPriority;
+  status: DefectStatus;
+  assigned_to: string | null;
+  due_date: string | null;
+  visible_to_customer: boolean;
+  customer_released_at: string | null;
+  customer_released_by: string | null;
+  source_type: DefectSourceType;
+  source_report_id: string | null;
+  source_report_photo_id: string | null;
+  source_checklist_id: string | null;
+  source_checklist_item_id: string | null;
+  source_customer_message_id: string | null;
+  source_task_id: string | null;
+  closed_at: string | null;
+  accepted_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+  jobsites?: Pick<Jobsite, "id" | "name" | "customer" | "address" | "assigned_employee_ids"> | null;
+  profiles?: Pick<Profile, "id" | "full_name" | "email" | "role"> | null;
+  reports?: Pick<Report, "id" | "report_date" | "activities" | "issues"> | null;
+  report_photos?: Pick<ReportPhoto, "id" | "file_name" | "storage_path"> | null;
+  jobsite_checklists?: Pick<JobsiteChecklist, "id" | "title" | "category"> | null;
+  jobsite_checklist_items?: Pick<JobsiteChecklistItem, "id" | "label" | "status" | "problem_description"> | null;
+  customer_portal_messages?: Pick<CustomerPortalMessage, "id" | "sender_name" | "message" | "created_at"> | null;
+  tasks?: Pick<Task, "id" | "title" | "status"> | null;
+};
+
+export type DefectPhoto = {
+  id: string;
+  company_id: string;
+  defect_id: string;
+  jobsite_id: string;
+  storage_path: string;
+  file_name: string;
+  content_type: string | null;
+  size_bytes: number | null;
+  visible_to_customer: boolean;
+  uploaded_by: string | null;
+  created_at: string;
+  archived_at: string | null;
+};
+
+export type DefectNotification = {
+  id: string;
+  company_id: string;
+  defect_id: string;
+  user_id: string | null;
+  notification_type: DefectNotificationType;
+  title: string;
+  body: string | null;
+  due_at: string | null;
+  delivered_at: string | null;
+  read_at: string | null;
+  created_at: string;
+  archived_at: string | null;
+  defects?: Pick<Defect, "id" | "title" | "priority" | "status" | "due_date" | "jobsite_id"> | null;
 };

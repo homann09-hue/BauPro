@@ -21,9 +21,9 @@ type PrivacyRequestRow = {
 const requestTypeLabels: Record<string, string> = {
   access: "Auskunft",
   rectification: "Berichtigung",
-  erasure: "Loeschung/Anonymisierung",
+  erasure: "Löschung/Anonymisierung",
   restriction: "Einschraenkung",
-  portability: "Datenuebertragbarkeit",
+  portability: "Datenübertragbarkeit",
   objection: "Widerspruch",
   contract_end_export: "Firmenexport Vertragsende"
 };
@@ -49,13 +49,13 @@ export default async function PrivacyPage({
     <>
       <PageHeader
         title="Datenschutz-Center"
-        description="Auskunft, Exporte, Datenschutzanfragen und transparente Datenlandkarte. Entwuerfe muessen rechtlich final geprueft werden."
+        description="Auskunft, Exporte, Datenschutzanfragen und transparente Datenlandkarte. Entwürfe müssen rechtlich final geprüft werden."
       />
       <MessageBox error={error} success={success} />
 
       {privacyMigrationMissing ? (
         <div className="mb-5 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
-          Datenschutzanfragen sind im Code vorbereitet, aber die Supabase-Migration fuer `privacy_requests` fehlt noch. Datenexporte funktionieren
+          Datenschutzanfragen sind im Code vorbereitet, aber die Supabase-Migration für `privacy_requests` fehlt noch. Datenexporte funktionieren
           trotzdem.
         </div>
       ) : null}
@@ -108,7 +108,7 @@ export default async function PrivacyPage({
               Anfrage speichern
             </button>
             <p className="field-help">
-              Loeschung und Anonymisierung muessen gegen Aufbewahrungs- und Nachweispflichten geprueft werden. Die App bereitet den Prozess vor,
+              Löschung und Anonymisierung müssen gegen Aufbewahrungs- und Nachweispflichten geprüft werden. Die App bereitet den Prozess vor,
               ersetzt aber keine rechtliche Entscheidung.
             </p>
           </form>
@@ -119,10 +119,10 @@ export default async function PrivacyPage({
           <p className="meta-label">Transparenz</p>
           <h2 className="section-title">Wichtige Hinweise</h2>
           <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-            <li>Keine heimliche Ueberwachung: Zeiten und Baustellenbezug werden sichtbar dokumentiert.</li>
+            <li>Keine heimliche Überwachung: Zeiten und Baustellenbezug werden sichtbar dokumentiert.</li>
             <li>KI ist optional, serverseitig und mit reduzierten Mitarbeiterdaten vorbereitet.</li>
             <li>Fotos nur zweckbezogen hochladen; private Inhalte vermeiden.</li>
-            <li>Preis- und Margendaten bleiben fuer Mitarbeiter verborgen.</li>
+            <li>Preis- und Margendaten bleiben für Mitarbeiter verborgen.</li>
           </ul>
         </aside>
       </div>

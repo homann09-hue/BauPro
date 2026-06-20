@@ -1,4 +1,5 @@
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
+import { inventoryLocationSelect } from "@/lib/data/selects";
 import type { InventoryItem, InventoryLocation, InventoryLocationType } from "@/types/app";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
@@ -8,7 +9,8 @@ export const inventoryLocationTypes: InventoryLocationType[] = [
   "Fahrzeuglager",
   "Baustelle",
   "Container",
-  "Werkstatt"
+  "Werkstatt",
+  "Lieferant/offen bestellt"
 ];
 
 const defaultLocations: Array<Pick<InventoryLocation, "name" | "location_type" | "notes">> = [
@@ -36,6 +38,11 @@ const defaultLocations: Array<Pick<InventoryLocation, "name" | "location_type" |
     name: "Werkstatt",
     location_type: "Werkstatt",
     notes: "Kleinmaterial, Werkstatt- und Reparaturbedarf."
+  },
+  {
+    name: "Lieferant / offen bestellt",
+    location_type: "Lieferant/offen bestellt",
+    notes: "Noch nicht angeliefertes Material fuer laufende Bestellungen."
   }
 ];
 
@@ -45,7 +52,7 @@ export async function ensureDefaultInventoryLocations(
 ) {
   const { data, error } = await supabase
     .from("inventory_locations")
-    .select("*")
+    .select(inventoryLocationSelect)
     .eq("company_id", companyId)
     .eq("active", true)
     .order("created_at", { ascending: true });
@@ -63,7 +70,7 @@ export async function ensureDefaultInventoryLocations(
       })),
       { onConflict: "company_id,name" }
     )
-    .select("*")
+    .select(inventoryLocationSelect)
     .order("created_at", { ascending: true });
 
   return (inserted ?? []) as InventoryLocation[];

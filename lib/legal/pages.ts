@@ -8,15 +8,15 @@ export type LegalPage = {
 };
 
 const draftNotice =
-  "Pruefpflichtiger Entwurf: Dieser Text ist keine Rechtsberatung und muss vor produktiver Nutzung durch Anwalt oder Datenschutzbeauftragten final geprueft werden.";
+  "Prüfpflichtiger Entwurf: Dieser Text ist keine Rechtsberatung und muss vor produktiver Nutzung durch Anwalt oder Datenschutzbeauftragten final geprüft werden.";
 
 export const legalPages: LegalPage[] = [
   {
     slug: "impressum",
     title: "Impressum",
-    summary: "Platzhalter fuer Anbieterkennzeichnung und Kontaktangaben.",
+    summary: "Platzhalter für Anbieterkennzeichnung und Kontaktangaben.",
     sections: [
-      { heading: "Pruefhinweis", body: [draftNotice] },
+      { heading: "Prüfhinweis", body: [draftNotice] },
       {
         heading: "Anbieter",
         body: [
@@ -35,7 +35,7 @@ export const legalPages: LegalPage[] = [
     title: "Datenschutzerklaerung",
     summary: "Transparenzentwurf zu Datenarten, Zwecken, Rollen und Drittanbietern.",
     sections: [
-      { heading: "Pruefhinweis", body: [draftNotice] },
+      { heading: "Prüfhinweis", body: [draftNotice] },
       {
         heading: "Verarbeitete Daten",
         body: dataMap.map((entry) => `${entry.area}: ${entry.data.join(", ")}. Zweck: ${entry.purpose}`)
@@ -51,9 +51,9 @@ export const legalPages: LegalPage[] = [
       {
         heading: "KI, Spracheingabe und Fotos",
         body: [
-          "KI-Funktionen sind optional und laufen serverseitig. Eingaben werden vor Verwendung im UI bestaetigt.",
-          "Spracheingabe wird im Browser erkannt und erst nach Bestaetigung gespeichert.",
-          "Fotos sollen nur soweit erforderlich hochgeladen werden; Personen, Kennzeichen und private Innenraeume nach Moeglichkeit vermeiden."
+          "KI-Funktionen sind optional und laufen serverseitig. Eingaben werden vor Verwendung im UI bestätigt.",
+          "Spracheingabe wird im Browser erkannt und erst nach Bestätigung gespeichert.",
+          "Fotos sollen nur soweit erforderlich hochgeladen werden; Personen, Kennzeichen und private Innenraeume nach Möglichkeit vermeiden."
         ]
       }
     ]
@@ -61,21 +61,21 @@ export const legalPages: LegalPage[] = [
   {
     slug: "agb",
     title: "AGB",
-    summary: "B2B-SaaS Vertragsentwurf fuer spaetere anwaltliche Finalisierung.",
+    summary: "B2B-SaaS Vertragsentwurf für spätere anwaltliche Finalisierung.",
     sections: [
-      { heading: "Pruefhinweis", body: [draftNotice] },
+      { heading: "Prüfhinweis", body: [draftNotice] },
       {
         heading: "Leistungsbeschreibung",
         body: [
-          "BauPro stellt eine Web-App fuer Handwerksbetriebe bereit: Baustellen, Kunden, Material, Zeiten, Berichte, optionale KI und Exporte.",
+          "BauPro stellt eine Web-App für Handwerksbetriebe bereit: Baustellen, Kunden, Material, Zeiten, Berichte, optionale KI und Exporte.",
           "Noch vorbereitete Module wie Angebote/Rechnungen werden im Produkt als vorbereitet markiert."
         ]
       },
       {
         heading: "Pflichten der Kundenfirma",
         body: [
-          "Die Kundenfirma vergibt Rollen sorgfaeltig, prueft Mitarbeiterrechte und stellt sicher, dass hochgeladene Inhalte erforderlich sind.",
-          "Rechtliche Pflichten wie Arbeitsrecht, Steuerrecht und Datenschutz muessen kunden- und landesspezifisch geprueft werden."
+          "Die Kundenfirma vergibt Rollen sorgfältig, prüft Mitarbeiterrechte und stellt sicher, dass hochgeladene Inhalte erforderlich sind.",
+          "Rechtliche Pflichten wie Arbeitsrecht, Steuerrecht und Datenschutz müssen kunden- und landesspezifisch geprüft werden."
         ]
       }
     ]
@@ -83,9 +83,9 @@ export const legalPages: LegalPage[] = [
   {
     slug: "avv",
     title: "AVV-Hinweis",
-    summary: "Platzhalter fuer Auftragsverarbeitung zwischen SaaS-Anbieter und Kundenfirma.",
+    summary: "Platzhalter für Auftragsverarbeitung zwischen SaaS-Anbieter und Kundenfirma.",
     sections: [
-      { heading: "Pruefhinweis", body: [draftNotice] },
+      { heading: "Prüfhinweis", body: [draftNotice] },
       {
         heading: "Auftragsverarbeitung",
         body: [
@@ -95,20 +95,20 @@ export const legalPages: LegalPage[] = [
       },
       {
         heading: "Download-Platzhalter",
-        body: ["Im Produkt kann spaeter ein final gepruefter AVV als PDF bereitgestellt werden. Bis dahin ist dieser Bereich ein pruefpflichtiger Platzhalter."]
+        body: ["Im Produkt kann später ein final geprüfter AVV als PDF bereitgestellt werden. Bis dahin ist dieser Bereich ein prüfpflichtiger Platzhalter."]
       }
     ]
   },
   {
     slug: "cookies",
     title: "Cookie-Richtlinie",
-    summary: "Notwendige Login-Cookies und optionales Opt-in fuer spaetere Analyse/Marketing-Tools.",
+    summary: "Notwendige Login-Cookies und optionales Opt-in für spätere Analyse/Marketing-Tools.",
     sections: [
-      { heading: "Pruefhinweis", body: [draftNotice] },
+      { heading: "Prüfhinweis", body: [draftNotice] },
       {
         heading: "Aktueller Stand",
         body: [
-          "Notwendige Cookies werden fuer Login, Session und Sicherheit genutzt.",
+          "Notwendige Cookies werden für Login, Session und Sicherheit genutzt.",
           "Analyse- und Marketing-Verarbeitung ist optional vorbereitet und darf erst nach aktiver Zustimmung aktiviert werden."
         ]
       }
@@ -117,16 +117,16 @@ export const legalPages: LegalPage[] = [
   {
     slug: "loeschkonzept",
     title: "Loesch- und Aufbewahrungskonzept",
-    summary: "Technischer Entwurf fuer Retention, Archivierung und Vertragsende.",
+    summary: "Technischer Entwurf für Retention, Archivierung und Vertragsende.",
     sections: [
-      { heading: "Pruefhinweis", body: [draftNotice] },
+      { heading: "Prüfhinweis", body: [draftNotice] },
       { heading: "Grundsaetze", body: retentionConcept },
       {
         heading: "Technische Vorbereitung",
         body: [
-          "Mitarbeiter koennen deaktiviert statt hart geloescht werden.",
+          "Mitarbeiter können deaktiviert statt hart gelöscht werden.",
           "Datenschutzanfragen und Exporte sind im Datenschutz-Center vorbereitet.",
-          "Soft-Delete/Archivfelder sind fuer zentrale Tabellen vorbereitet."
+          "Soft-Delete/Archivfelder sind für zentrale Tabellen vorbereitet."
         ]
       }
     ]
@@ -134,9 +134,9 @@ export const legalPages: LegalPage[] = [
   {
     slug: "subprozessoren",
     title: "Subprozessoren und Drittanbieter",
-    summary: "Entwurf fuer Drittanbietertransparenz.",
+    summary: "Entwurf für Drittanbietertransparenz.",
     sections: [
-      { heading: "Pruefhinweis", body: [draftNotice] },
+      { heading: "Prüfhinweis", body: [draftNotice] },
       {
         heading: "Drittanbieter",
         body: subprocessors.map((processor) => `${processor.name}: ${processor.role}. Daten: ${processor.data}. Status: ${processor.status}.`)

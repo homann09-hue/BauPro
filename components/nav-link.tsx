@@ -12,6 +12,7 @@ import {
   FileText,
   HardHat,
   Handshake,
+  HelpCircle,
   Home,
   Layers3,
   ListChecks,
@@ -31,12 +32,15 @@ const icons = {
   kunden: UserRound,
   auftraege: BriefcaseBusiness,
   kalender: CalendarDays,
+  plantafel: CalendarDays,
   baustellen: HardHat,
   berichte: ClipboardList,
   zeiten: Clock3,
   stundenzettel: FileText,
   mitbringen: ListChecks,
   material: Layers3,
+  checklisten: ListChecks,
+  maengel: BellPlus,
   lager: Warehouse,
   materialMelden: BellPlus,
   lieferanten: Handshake,
@@ -47,7 +51,9 @@ const icons = {
   profil: UserRound,
   datenschutz: ShieldCheck,
   einstellungen: Cog,
-  katalog: PackageSearch
+  katalog: PackageSearch,
+  warum: HelpCircle,
+  onboarding: Sparkles
 };
 
 type NavLinkProps = {

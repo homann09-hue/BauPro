@@ -7,6 +7,8 @@ import { StatusBadge } from "@/components/status-badge";
 import { SubmitButton } from "@/components/submit-button";
 import { createTimeReportAction } from "@/lib/actions/time-tracking-actions";
 import { requireManager } from "@/lib/auth";
+import { profileOptionSelect, timeReportListSelect } from "@/lib/data/selects";
+import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { monthName, timeReportStatusLabels } from "@/lib/time-tracking";
 import { formatDateTime, searchParamMessage } from "@/lib/utils";
@@ -19,29 +21,39 @@ export default async function TimeReportsPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireManager();
+  const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
 
   const [employeesResult, reportsResult] = await Promise.all([
-    supabase.from("profiles").select("*").eq("active", true).order("full_name"),
+    supabase
+      .from("profiles")
+      .select(profileOptionSelect)
+      .eq("company_id", context.companyId)
+      .eq("active", true)
+      .in("role", ["mitarbeiter", "vorarbeiter"])
+      .order("full_name"),
     supabase
       .from("time_reports")
-      .select("*, profiles!time_reports_employee_id_fkey(id, full_name, email)")
+      .select(timeReportListSelect)
+      .eq("company_id", context.companyId)
       .order("generated_at", { ascending: false })
       .limit(40)
   ]);
 
   const employees = (employeesResult.data ?? []) as Profile[];
-  const reports = (reportsResult.data ?? []) as TimeReport[];
+  const reports = (reportsResult.data ?? []) as unknown as TimeReport[];
 
   return (
     <>
       <PageHeader
         title="Stundenzettel"
-        description="Monatsuebersicht aus eingereichten oder freigegebenen Zeiten erstellen und exportieren."
+        description="Monatsübersicht aus eingereichten oder freigegebenen Zeiten erstellen und exportieren."
       />
-      <MessageBox error={error || employeesResult.error?.message || reportsResult.error?.message} success={success} />
+      <MessageBox
+        error={error || safeQueryErrorMessage(employeesResult.error) || safeQueryErrorMessage(reportsResult.error)}
+        success={success}
+      />
 
       <div className="mb-4">
         <Link href="/time-tracking" className="btn-secondary">
@@ -61,7 +73,7 @@ export default async function TimeReportsPage({
               Mitarbeiter
             </label>
             <select className="field-input" id="employee_id" name="employee_id" required>
-              <option value="">Mitarbeiter auswaehlen</option>
+              <option value="">Mitarbeiter auswählen</option>
               {employees.map((employee) => (
                 <option key={employee.id} value={employee.id}>
                   {employee.full_name || employee.email || "Mitarbeiter"}

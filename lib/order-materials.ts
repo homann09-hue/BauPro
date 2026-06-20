@@ -1,4 +1,10 @@
 import { calculateRuleResult, type CalculationInput } from "@/lib/material-calculations";
+import {
+  companyPricingSettingsSelect,
+  inventoryItemCalculationSelect,
+  materialCalculationRuleSelect,
+  materialCatalogItemSelect
+} from "@/lib/data/selects";
 import { orderTypeToRoofType } from "@/lib/order-labels";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type {
@@ -47,11 +53,11 @@ async function ensurePricingSettings(
 ) {
   const { data } = await supabase
     .from("company_pricing_settings")
-    .select("*")
+    .select(companyPricingSettingsSelect)
     .eq("company_id", companyId)
     .maybeSingle();
 
-  if (data) return data as CompanyPricingSettings;
+  if (data) return data as unknown as CompanyPricingSettings;
 
   const { data: inserted } = await supabase
     .from("company_pricing_settings")
@@ -62,7 +68,7 @@ async function ensurePricingSettings(
       auto_calculate_sales_price: true,
       created_by: userId
     })
-    .select("*")
+    .select(companyPricingSettingsSelect)
     .single();
 
   return (inserted ?? {
@@ -256,6 +262,8 @@ export function calculationInputFromDimensions(orderType: OrderType, dimensions:
       : dimensions.wall_connection_length_m;
 
   return {
+    roof_form: null,
+    material_type: null,
     length_m: dimensions.length_m,
     width_m: dimensions.width_m,
     area_m2: dimensions.area_m2,
@@ -268,6 +276,8 @@ export function calculationInputFromDimensions(orderType: OrderType, dimensions:
     penetrations_count:
       dimensions.penetrations_count + dimensions.roof_drains_count + dimensions.emergency_overflows_count,
     roof_windows_count: dimensions.roof_windows_count,
+    dormers_count: 0,
+    chimneys_count: 0,
     waste_percent: dimensions.waste_percent
   };
 }
@@ -298,20 +308,21 @@ export async function buildOrderMaterialRequirementRows({
   const [{ data: rulesData }, { data: inventoryData }, { data: catalogData }] = await Promise.all([
     supabase
       .from("material_calculation_rules")
-      .select("*")
+      .select(materialCalculationRuleSelect)
       .eq("roof_type", roofType)
       .eq("active", true)
+      .or(`company_id.is.null,company_id.eq.${companyId}`)
       .order("sort_order", { ascending: true }),
     supabase
       .from("inventory_items")
-      .select("*, inventory_locations(id, name, location_type)")
+      .select(inventoryItemCalculationSelect)
       .eq("company_id", companyId),
-    supabase.from("material_catalog").select("*").eq("active", true)
+    supabase.from("material_catalog").select(materialCatalogItemSelect).eq("active", true)
   ]);
 
-  const rules = pickRulesForCompany((rulesData ?? []) as MaterialCalculationRule[], companyId, roofType);
-  const inventoryItems = (inventoryData ?? []) as InventoryItem[];
-  const catalogItems = (catalogData ?? []) as MaterialCatalogItem[];
+  const rules = pickRulesForCompany((rulesData ?? []) as unknown as MaterialCalculationRule[], companyId, roofType);
+  const inventoryItems = (inventoryData ?? []) as unknown as InventoryItem[];
+  const catalogItems = (catalogData ?? []) as unknown as MaterialCatalogItem[];
   const catalogById = new Map(catalogItems.map((item) => [item.id, item]));
   const catalogByName = new Map(catalogItems.map((item) => [item.name.toLowerCase(), item]));
 

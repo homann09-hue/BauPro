@@ -4,6 +4,25 @@
 
 :root {
   color-scheme: light;
+  --bp-primary: #2e7d32;
+  --bp-primary-dark: #1b5e20;
+  --bp-anthracite: #1f2937;
+  --bp-background: #f8fafc;
+  --bp-surface: #ffffff;
+  --bp-line: #e2e8f0;
+  --bp-warning: #f59e0b;
+  --bp-danger: #dc2626;
+  --bp-info: #2563eb;
+  --bp-radius: 8px;
+  --bp-touch: 48px;
+  --bp-shadow-soft: 0 12px 28px rgba(31, 41, 55, 0.08);
+  --bp-shadow-lift: 0 18px 46px rgba(31, 41, 55, 0.14);
+}
+
+html {
+  min-height: 100%;
+  background: var(--bp-background);
+  -webkit-text-size-adjust: 100%;
 }
 
 * {
@@ -12,10 +31,25 @@
 
 body {
   min-height: 100vh;
+  min-height: 100dvh;
   background:
     repeating-linear-gradient(135deg, rgba(31, 41, 55, 0.035) 0 1px, transparent 1px 18px),
     linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
   color: #1f2937;
+  font-feature-settings:
+    "kern" 1,
+    "liga" 1,
+    "tnum" 1;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (display-mode: standalone) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-top: env(safe-area-inset-top);
+  }
 }
 
 a {
@@ -29,13 +63,26 @@ textarea {
   font: inherit;
 }
 
+select {
+  color-scheme: light;
+}
+
 @layer components {
   .field-label {
     @apply mb-1.5 block text-sm font-bold text-ink;
   }
 
   .field-input {
+    min-height: var(--bp-touch);
     @apply w-full rounded-md border border-line bg-white px-3 py-3 text-sm text-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/15 disabled:bg-slate-100;
+  }
+
+  select.field-input {
+    @apply cursor-pointer pr-9;
+  }
+
+  option {
+    @apply text-sm text-ink;
   }
 
   .field-help {
@@ -55,11 +102,13 @@ textarea {
   }
 
   .surface {
-    @apply rounded-lg border border-line bg-surface shadow-soft;
+    border-radius: var(--bp-radius);
+    @apply border border-line bg-surface shadow-soft;
   }
 
   .surface-strong {
-    @apply rounded-lg border border-line bg-surface shadow-lift;
+    border-radius: var(--bp-radius);
+    @apply border border-line bg-surface shadow-lift;
   }
 
   .interactive-surface {
@@ -88,6 +137,48 @@ textarea {
 
   .dashboard-band {
     @apply rounded-lg border border-line bg-white p-4 shadow-soft sm:p-5;
+  }
+
+  .dashboard-grid {
+    @apply grid gap-5 xl:grid-cols-[1.25fr_0.75fr];
+  }
+
+  .page-stack {
+    @apply space-y-5;
+  }
+
+  .premium-panel {
+    @apply rounded-lg border border-slate-200 bg-white shadow-soft;
+  }
+
+  .premium-panel-header {
+    @apply border-b border-line bg-slate-50/80 px-4 py-3 sm:px-5;
+  }
+
+  .status-pill {
+    @apply inline-flex min-h-8 items-center gap-2 rounded-md px-2.5 py-1 text-xs font-black ring-1;
+  }
+
+  .touch-target {
+    min-height: var(--bp-touch);
+    min-width: var(--bp-touch);
+  }
+
+  .skeleton-line {
+    @apply animate-pulse rounded-md bg-slate-200;
+  }
+
+  .focus-ring {
+    @apply focus:outline-none focus:ring-4 focus:ring-primary/20;
+  }
+
+  .safe-bottom-space {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+
+  details > summary {
+    min-height: var(--bp-touch);
+    @apply flex items-center rounded-md outline-none focus:ring-4 focus:ring-primary/15;
   }
 
   .construction-rail {

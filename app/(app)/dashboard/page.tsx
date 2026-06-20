@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import {
   ArrowRight,
   BellPlus,
@@ -9,28 +10,45 @@ import {
   Hammer,
   Layers3,
   ListChecks,
+  Camera,
   ShoppingCart,
+  Sparkles,
   TriangleAlert,
+  UserMinus,
   Users
 } from "lucide-react";
 import { AlertCard, FormSection, QuickActionButton, ResponsiveTableCard, StatCard } from "@/components/construction-ui";
 import { MessageBox } from "@/components/message-box";
 import { StatusBadge } from "@/components/status-badge";
 import { SubmitButton } from "@/components/submit-button";
+import { VoiceQuickAction } from "@/components/voice/VoiceQuickAction";
+import { LiveWeatherCard } from "@/components/weather/LiveWeatherCard";
 import { updatePurchaseSuggestionStatusAction } from "@/lib/actions/bring-list-actions";
 import { createTaskAction, deleteTaskAction, updateTaskStatusAction } from "@/lib/actions/task-actions";
-import { requireAppContext } from "@/lib/auth";
-import { formatQuantity, isLowStock } from "@/lib/inventory";
+import { requireAppContext, type AppContext } from "@/lib/auth";
+import { loadDashboardDetails, loadDashboardSummary, type DashboardSummary } from "@/lib/data/dashboard";
+import { formatQuantity } from "@/lib/inventory";
+import { materialStatusText } from "@/lib/inventory/material-intelligence";
+import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatMinutesAsHours } from "@/lib/time-tracking";
 import { formatDate, searchParamMessage } from "@/lib/utils";
-import type { InventoryItem, Jobsite, MaterialAlert, Profile, PurchaseSuggestion, Report, Task } from "@/types/app";
+import { whyBauProSalesHighlights } from "@/lib/why-baupro";
 
-function schemaSetupMessage(message?: string) {
-  if (!message) return null;
-  if (message.includes("Could not find the table") && message.includes("schema cache")) {
-    return "Datenbank-Update fehlt: Bitte die Supabase-Migration fuer Materialwarnungen/Einkaufsvorschlaege ausfuehren.";
+type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+
+function schemaSetupMessage(
+  error?: { code?: string | null; message?: string | null; details?: string | null; hint?: string | null } | null
+) {
+  if (!error) return null;
+  const message = [error.code, error.message, error.details, error.hint].filter(Boolean).join(" ");
+  if (message.includes("get_dashboard_summary")) {
+    return "Datenbank-Update fehlt: Bitte `supabase/migrations/20260619_dashboard_rpc.sql` im Supabase SQL Editor ausfuehren.";
   }
-  return message;
+  if (message.includes("Could not find the table") && message.includes("schema cache")) {
+    return "Datenbank-Update fehlt: Bitte die Supabase-Migration für Materialwarnungen/Einkaufsvorschlaege ausfuehren.";
+  }
+  return safeQueryErrorMessage(error);
 }
 
 export default async function DashboardPage({
@@ -41,81 +59,19 @@ export default async function DashboardPage({
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
-  const todayIso = new Date().toISOString().slice(0, 10);
-  const lowStockPromise = context.canManage
-    ? supabase
-        .from("inventory_items")
-        .select("*")
-        .eq("company_id", context.companyId)
-        .order("name", { ascending: true })
-        .limit(80)
-    : Promise.resolve({ data: [], error: null });
-  const materialAlertsPromise = context.canManage
-    ? supabase
-        .from("material_alerts")
-        .select("*, inventory_items(id, name, unit, stock, minimum_stock), jobsites(id, name, address, customer), bring_lists(id, title, date)")
-        .eq("company_id", context.companyId)
-        .eq("status", "open")
-        .order("created_at", { ascending: false })
-        .limit(6)
-    : Promise.resolve({ data: [], error: null });
-  const purchaseSuggestionsPromise = context.canManage
-    ? supabase
-        .from("purchase_suggestions")
-        .select("*, inventory_items(id, name, unit, stock, minimum_stock), jobsites(id, name, address, customer), bring_lists(id, title, date)")
-        .eq("company_id", context.companyId)
-        .eq("status", "open")
-        .order("created_at", { ascending: false })
-        .limit(6)
-    : Promise.resolve({ data: [], error: null });
-  const bringListsPromise = !context.canManage
-    ? supabase.from("bring_lists").select("id").gte("date", todayIso).limit(20)
-    : Promise.resolve({ data: [], error: null });
-
-  const [
-    jobsitesResult,
-    reportsResult,
-    tasksResult,
-    employeesResult,
-    lowStockResult,
-    materialAlertsResult,
-    purchaseSuggestionsResult,
-    bringListsResult
-  ] = await Promise.all([
-    supabase
-      .from("jobsites")
-      .select("*")
-      .in("status", ["geplant", "aktiv"])
-      .order("start_date", { ascending: true, nullsFirst: false })
-      .limit(5),
-    supabase
-      .from("reports")
-      .select("*, jobsites(id, name, customer, address)")
-      .order("report_date", { ascending: false })
-      .limit(5),
-    supabase
-      .from("tasks")
-      .select("*, jobsites(id, name), profiles!tasks_assigned_to_fkey(id, full_name, email)")
-      .neq("status", "erledigt")
-      .order("due_date", { ascending: true, nullsFirst: false })
-      .limit(8),
-    supabase.from("profiles").select("*").eq("active", true).order("full_name", { ascending: true }),
-    lowStockPromise,
-    materialAlertsPromise,
-    purchaseSuggestionsPromise,
-    bringListsPromise
-  ]);
-
-  const jobsites = (jobsitesResult.data ?? []) as Jobsite[];
-  const reports = (reportsResult.data ?? []) as Report[];
-  const tasks = (tasksResult.data ?? []) as Task[];
-  const employees = (employeesResult.data ?? []) as Profile[];
-  const lowStock = ((lowStockResult.data ?? []) as InventoryItem[]).filter(isLowStock).slice(0, 5);
-  const materialAlerts = (materialAlertsResult.data ?? []) as MaterialAlert[];
-  const purchaseSuggestions = (purchaseSuggestionsResult.data ?? []) as PurchaseSuggestion[];
-  const bringListCount = (bringListsResult.data ?? []).length;
-  const dashboardError =
-    error || schemaSetupMessage(materialAlertsResult.error?.message) || schemaSetupMessage(purchaseSuggestionsResult.error?.message);
+  const summary = await loadDashboardSummary(supabase, context);
+  const jobsites = summary.jobsitesActive.list;
+  const reports = summary.reportsLatest.list;
+  const tasks = summary.tasksOpen.list;
+  const employees = summary.employeesActive.list;
+  const bringListCount = summary.bringListsUpcomingCount;
+  const todayTimeEntries = summary.todayTimeEntries.list;
+  const todayTimeMinutes = summary.todayTimeEntries.netMinutes;
+  const lowStockDisplayCount = Math.min(summary.lowStockCount, 5);
+  const todayTimeEmployeeIds = new Set(todayTimeEntries.map((entry) => entry.employee_id));
+  const employeesWithoutTimeToday = context.canManage ? employees.filter((employee) => !todayTimeEmployeeIds.has(employee.id)) : [];
+  const unapprovedTimeEntries = todayTimeEntries.filter((entry) => entry.status === "draft" || entry.status === "submitted");
+  const dashboardError = error || schemaSetupMessage(summary.error);
   const todayLabel = new Intl.DateTimeFormat("de-DE", {
     weekday: "long",
     day: "2-digit",
@@ -145,22 +101,25 @@ export default async function DashboardPage({
               <span className="h-2 w-2 rounded-full bg-warning" aria-hidden="true" />
               <h2 className="text-sm font-black uppercase tracking-normal text-white">Schnellaktionen</h2>
             </div>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              {context.canManage ? (
+            {context.canManage ? (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 <QuickActionButton href="/orders/new" icon={BriefcaseBusiness} title="Auftrag" description="Mit Maßen" primary />
-              ) : (
-                <QuickActionButton href="/time-tracking/new" icon={Clock3} title="Zeit" description="Heute eintragen" primary />
-              )}
-              {context.canManage ? <QuickActionButton href="/time-tracking" icon={Clock3} title="Zeiten" description="Freigaben" /> : null}
-              {context.canManage ? <QuickActionButton href="/calendar" icon={CalendarDays} title="Kalender" description="Planung" /> : null}
-              <QuickActionButton href="/berichte/neu" icon={ClipboardList} title="Bericht" description="Direkt erfassen" />
-              {context.canManage ? (
+                <QuickActionButton href="/time-tracking/daily" icon={Clock3} title="Tagesstunden" description="Prüfen" />
+                <QuickActionButton href="/plantafel" icon={CalendarDays} title="Plantafel" description="Team planen" />
+                <QuickActionButton href="/berichte/neu" icon={ClipboardList} title="Bericht" description="Direkt erfassen" />
                 <QuickActionButton href="/materials/inventory" icon={Layers3} title="Lager" description="Bestand buchen" />
-              ) : (
-                <QuickActionButton href="/material-melden" icon={BellPlus} title="Material" description="Fehlt melden" />
-              )}
-              <QuickActionButton href="/bring-lists" icon={ListChecks} title="Mitbringen" description="Packlisten" />
-            </div>
+                <VoiceQuickAction title="Sprache" description="Direkt sortieren" />
+              </div>
+            ) : (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                <QuickActionButton href="/time/new" icon={Clock3} title="Stunden" description="Heute eintragen" primary />
+                <VoiceQuickAction title="Sprache" description="Aufnehmen" kind="time_tracking" />
+                <QuickActionButton href="/berichte/neu" icon={ClipboardList} title="Bericht" description="Schreiben" />
+                <QuickActionButton href="/bring-lists/new" icon={ListChecks} title="Material morgen" description="Mitbringen" />
+                <QuickActionButton href="/material-melden" icon={BellPlus} title="Material fehlt" description="Melden" />
+                <QuickActionButton href="/berichte/neu" icon={Camera} title="Foto" description="Hochladen" />
+              </div>
+            )}
           </div>
           <div className="border-t border-white/10 bg-slate-900 p-5 text-white sm:p-7 lg:border-l lg:border-t-0">
             <p className="text-sm font-semibold text-white/70">{context.companyName}</p>
@@ -169,14 +128,14 @@ export default async function DashboardPage({
               <HeroMetric label="Aufgaben" value={tasks.length} />
               <HeroMetric
                 label={context.canManage ? "Material" : "Berichte"}
-                value={context.canManage ? lowStock.length : reports.length}
-                alert={context.canManage && lowStock.length > 0}
+                value={context.canManage ? lowStockDisplayCount : reports.length}
+                alert={context.canManage && lowStockDisplayCount > 0}
               />
             </div>
             <p className="mt-5 rounded-md bg-white/10 p-3 text-sm leading-6 text-white/75">
               {context.canManage
-                ? lowStock.length > 0
-                  ? `${lowStock.length} Materialpositionen sind am Mindestbestand.`
+                ? lowStockDisplayCount > 0
+                  ? `${lowStockDisplayCount} Materialpositionen sind am Mindestbestand.`
                   : "Materialbestand sieht aktuell ruhig aus."
                 : "Preise und Einkauf bleiben ausgeblendet. Deine Arbeitsbereiche sind direkt erreichbar."}
             </p>
@@ -191,91 +150,64 @@ export default async function DashboardPage({
       <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={Hammer} label={context.canManage ? "Offene Baustellen" : "Meine Baustellen"} value={jobsites.length} href="/baustellen" tone="green" />
         <StatCard icon={ClipboardList} label="Offene Tagesberichte" value={reports.length} href="/berichte" tone="info" />
-        <StatCard icon={Clock3} label={context.canManage ? "Offene Zeiten/Aufgaben" : "Meine Aufgaben"} value={tasks.length} href="#aufgaben" tone={tasks.length > 0 ? "warning" : "neutral"} />
+        <StatCard
+          icon={Clock3}
+          label={context.canManage ? "Heute erfasste Stunden" : "Meine Aufgaben"}
+          value={context.canManage ? formatMinutesAsHours(todayTimeMinutes) : tasks.length}
+          detail={context.canManage ? `${unapprovedTimeEntries.length} noch nicht genehmigt` : undefined}
+          href={context.canManage ? "/time-tracking/daily?range=today" : "#aufgaben"}
+          tone={context.canManage ? (unapprovedTimeEntries.length > 0 ? "warning" : "green") : tasks.length > 0 ? "warning" : "neutral"}
+        />
         {context.canManage ? (
-          <StatCard icon={Layers3} label="Materialwarnungen" value={lowStock.length} href="/materials/low-stock" tone={lowStock.length > 0 ? "warning" : "green"} />
+          <StatCard icon={Layers3} label="Materialwarnungen" value={lowStockDisplayCount} href="/materials/low-stock" tone={lowStockDisplayCount > 0 ? "warning" : "green"} />
         ) : (
           <StatCard icon={ListChecks} label="Mitbringlisten" value={bringListCount} href="/bring-lists" tone="green" />
         )}
+        {context.canManage ? (
+          <StatCard
+            icon={UserMinus}
+            label="Ohne Zeiteintrag heute"
+            value={employeesWithoutTimeToday.length}
+            href="/time-tracking/daily?range=today"
+            tone={employeesWithoutTimeToday.length > 0 ? "warning" : "neutral"}
+          />
+        ) : null}
         {context.canManage ? <StatCard icon={Users} label="Team aktiv" value={employees.length} href="/team" tone="dark" /> : null}
       </div>
 
-      {context.canManage && (materialAlerts.length > 0 || purchaseSuggestions.length > 0) ? (
-        <section className="dashboard-band mt-6">
-          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="section-title">Material-Warnungen</h2>
-              <p className="mt-1 text-sm text-slate-500">Fehlmaterial aus Mitbringlisten, Diktaten und Reservierungen.</p>
+      {context.canManage ? (
+        <section className="mt-6 surface-strong p-4 sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-2xl">
+              <div className="mb-2 inline-flex items-center gap-2 rounded-md bg-mint px-3 py-1 text-xs font-black text-moss">
+                <Sparkles className="h-4 w-4" aria-hidden="true" />
+                Warum BauPro?
+              </div>
+              <h2 className="section-title">Wechselgruende für Handwerksbetriebe</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                Nutze diese Punkte in der Demo: BauPro spart Zeit, senkt Fehlkosten, verhindert Preis-Leaks und automatisiert
+                Baustellenablaeufe.
+              </p>
             </div>
-            <Link href="/bring-lists" className="inline-flex items-center gap-1 text-sm font-bold text-moss">
-              Mitbringlisten öffnen
+            <Link href="/warum-baupro" className="btn-primary w-full lg:w-auto">
+              Nutzen ansehen
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <TriangleAlert className="h-4 w-4 text-signal" aria-hidden="true" />
-                <h3 className="text-sm font-black uppercase tracking-wide text-ink">Offene Meldungen</h3>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {whyBauProSalesHighlights.map((highlight) => (
+              <div key={highlight.label} className="rounded-md border border-line bg-white p-3">
+                <p className="text-sm font-black text-ink">{highlight.label}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">{highlight.value}</p>
               </div>
-              {materialAlerts.map((alert) => (
-                <AlertCard
-                  key={alert.id}
-                  icon={TriangleAlert}
-                  title={alert.inventory_items?.name ?? "Materialmeldung"}
-                  description={alert.message}
-                  meta={`${alert.jobsites?.name ?? alert.bring_lists?.title ?? "Ohne Zuordnung"}${
-                    alert.missing_quantity ? ` · fehlt ${formatQuantity(alert.missing_quantity)} ${alert.unit ?? ""}` : ""
-                  }`}
-                  tone={alert.severity === "critical" ? "danger" : "warning"}
-                  action={
-                    <StatusBadge value={alert.severity === "critical" ? "rejected" : "offen"} label={alert.severity === "critical" ? "Kritisch" : "Offen"} />
-                  }
-                />
-              ))}
-              {materialAlerts.length === 0 ? (
-                <p className="rounded-md border border-dashed border-line p-4 text-sm text-slate-600">Keine offenen Materialmeldungen.</p>
-              ) : null}
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4 text-moss" aria-hidden="true" />
-                <h3 className="text-sm font-black uppercase tracking-wide text-ink">Einkaufsvorschläge</h3>
-              </div>
-              {purchaseSuggestions.map((suggestion) => (
-                <AlertCard
-                  key={suggestion.id}
-                  icon={ShoppingCart}
-                  title={suggestion.inventory_items?.name ?? "Freier Einkaufsvorschlag"}
-                  description={suggestion.reason}
-                  meta={`Vorschlag: ${formatQuantity(suggestion.quantity_needed)} ${suggestion.unit}${
-                    suggestion.jobsites?.name ? ` · ${suggestion.jobsites.name}` : ""
-                  }`}
-                  tone="green"
-                  action={
-                    <form action={updatePurchaseSuggestionStatusAction} className="flex flex-wrap gap-2">
-                      <input type="hidden" name="id" value={suggestion.id} />
-                      <button className="btn-secondary h-10 px-3 text-xs" type="submit" name="status" value="ordered">
-                        Bestellt
-                      </button>
-                      <button className="btn-secondary h-10 px-3 text-xs" type="submit" name="status" value="received">
-                        Erhalten
-                      </button>
-                      <button className="btn-secondary h-10 px-3 text-xs" type="submit" name="status" value="ignored">
-                        Ignorieren
-                      </button>
-                    </form>
-                  }
-                />
-              ))}
-              {purchaseSuggestions.length === 0 ? (
-                <p className="rounded-md border border-dashed border-line p-4 text-sm text-slate-600">Keine offenen Einkaufsvorschläge.</p>
-              ) : null}
-            </div>
+            ))}
           </div>
         </section>
       ) : null}
+
+      <Suspense fallback={null}>
+        {context.canManage ? <DashboardManagedDetails supabase={supabase} context={context} summary={summary} /> : null}
+      </Suspense>
 
       <div className="mt-6 grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
         <section className="dashboard-band">
@@ -384,7 +316,7 @@ export default async function DashboardPage({
                   {context.canManage ? (
                     <form action={deleteTaskAction}>
                       <input type="hidden" name="id" value={task.id} />
-                      <SubmitButton variant="danger">Löschen</SubmitButton>
+                      <SubmitButton variant="danger">Archivieren</SubmitButton>
                     </form>
                   ) : null}
                 </div>
@@ -464,6 +396,210 @@ export default async function DashboardPage({
           </section>
         )}
       </div>
+    </>
+  );
+}
+
+async function DashboardManagedDetails({
+  supabase,
+  context,
+  summary
+}: {
+  supabase: SupabaseServerClient;
+  context: AppContext;
+  summary: DashboardSummary;
+}) {
+  const details = await loadDashboardDetails(supabase, context, summary);
+  const todayTimeEntries = summary.todayTimeEntries.list;
+  const todayTimeMinutes = summary.todayTimeEntries.netMinutes;
+  const employees = summary.employeesActive.list;
+  const todayTimeEmployeeIds = new Set(todayTimeEntries.map((entry) => entry.employee_id));
+  const employeesWithoutTimeToday = employees.filter((employee) => !todayTimeEmployeeIds.has(employee.id));
+  const unapprovedTimeEntries = todayTimeEntries.filter((entry) => entry.status === "draft" || entry.status === "submitted");
+  const tomorrowMaterialStatuses = details.tomorrowMaterialStatuses;
+  const tomorrowCriticalCount = tomorrowMaterialStatuses.reduce((sum, status) => sum + status.summary.criticalCount, 0);
+  const tomorrowWarningCount = tomorrowMaterialStatuses.reduce((sum, status) => sum + status.summary.warningCount, 0);
+  const materialAlerts = summary.materialAlertsOpen.list;
+  const purchaseSuggestions = summary.purchaseSuggestionsOpen.list;
+
+  return (
+    <>
+      <div className="mt-6">
+        <LiveWeatherCard
+          decision={details.liveWeatherDecision}
+          weather={details.liveWeather}
+          radarFrames={details.radarFrames}
+          error={details.liveWeatherError}
+        />
+      </div>
+
+      <section className="dashboard-band mt-6">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="section-title">Materialplanung morgen</h2>
+            <p className="mt-1 text-sm text-slate-500">Mitbringlisten und Lagerstatus als schneller Chef-Check.</p>
+          </div>
+          <Link href="/bring-lists" className="inline-flex items-center gap-1 text-sm font-bold text-moss">
+            Mitbringlisten öffnen
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <StatCard icon={ListChecks} label="Listen morgen" value={tomorrowMaterialStatuses.length} href="/bring-lists" tone="green" />
+          <StatCard
+            icon={TriangleAlert}
+            label="Kritische Positionen"
+            value={tomorrowCriticalCount}
+            href="/materials/low-stock"
+            tone={tomorrowCriticalCount > 0 ? "warning" : "green"}
+          />
+          <StatCard
+            icon={Layers3}
+            label="Knapp im Lager"
+            value={tomorrowWarningCount}
+            href="/materials/inventory"
+            tone={tomorrowWarningCount > 0 ? "warning" : "neutral"}
+          />
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {tomorrowMaterialStatuses.map((status) => (
+            <AlertCard
+              key={status.bringList.id}
+              icon={ListChecks}
+              title={status.bringList.title}
+              description={materialStatusText(status)}
+              meta={`${formatDate(status.bringList.date)} · ${status.positions.length} Positionen`}
+              tone={status.summary.criticalCount > 0 ? "danger" : status.summary.warningCount > 0 ? "warning" : "green"}
+              action={<Link href={`/bring-lists/${status.bringList.id}`} className="btn-secondary h-10 px-3 text-xs">Öffnen</Link>}
+            />
+          ))}
+          {tomorrowMaterialStatuses.length === 0 ? (
+            <p className="rounded-md border border-dashed border-line p-4 text-sm text-slate-600">
+              Für morgen sind noch keine Mitbringlisten angelegt.
+            </p>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="dashboard-band mt-6">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="section-title">Tageskontrolle Zeiten</h2>
+            <p className="mt-1 text-sm text-slate-500">Heute erfasste Stunden, offene Freigaben und fehlende Einträge.</p>
+          </div>
+          <Link href="/time-tracking/daily?range=today" className="inline-flex items-center gap-1 text-sm font-bold text-moss">
+            Tagesstunden prüfen
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-4">
+          <StatCard icon={Clock3} label="Einträge heute" value={todayTimeEntries.length} href="/time-tracking/daily?range=today" tone="green" />
+          <StatCard icon={Clock3} label="Netto heute" value={formatMinutesAsHours(todayTimeMinutes)} href="/time-tracking/daily?range=today" tone="dark" />
+          <StatCard
+            icon={ClipboardList}
+            label="Nicht genehmigt"
+            value={unapprovedTimeEntries.length}
+            href="/time-tracking/daily?status=submitted"
+            tone={unapprovedTimeEntries.length > 0 ? "warning" : "green"}
+          />
+          <StatCard
+            icon={UserMinus}
+            label="Ohne Eintrag"
+            value={employeesWithoutTimeToday.length}
+            href="/time-tracking/daily?range=today"
+            tone={employeesWithoutTimeToday.length > 0 ? "warning" : "neutral"}
+          />
+        </div>
+        {employeesWithoutTimeToday.length > 0 ? (
+          <div className="mt-4 rounded-md border border-warning/30 bg-warning/10 p-4 text-sm text-ink">
+            <p className="font-bold">Noch ohne Zeiteintrag heute</p>
+            <p className="mt-1 text-slate-600">
+              {employeesWithoutTimeToday
+                .slice(0, 6)
+                .map((employee) => employee.full_name || employee.email)
+                .join(", ")}
+              {employeesWithoutTimeToday.length > 6 ? ` und ${employeesWithoutTimeToday.length - 6} weitere` : ""}
+            </p>
+          </div>
+        ) : null}
+      </section>
+
+      {materialAlerts.length > 0 || purchaseSuggestions.length > 0 ? (
+        <section className="dashboard-band mt-6">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="section-title">Material-Warnungen</h2>
+              <p className="mt-1 text-sm text-slate-500">Fehlmaterial aus Mitbringlisten, Diktaten und Reservierungen.</p>
+            </div>
+            <Link href="/bring-lists" className="inline-flex items-center gap-1 text-sm font-bold text-moss">
+              Mitbringlisten öffnen
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <TriangleAlert className="h-4 w-4 text-signal" aria-hidden="true" />
+                <h3 className="text-sm font-black uppercase tracking-wide text-ink">Offene Meldungen</h3>
+              </div>
+              {materialAlerts.map((alert) => (
+                <AlertCard
+                  key={alert.id}
+                  icon={TriangleAlert}
+                  title={alert.inventory_items?.name ?? "Materialmeldung"}
+                  description={alert.message}
+                  meta={`${alert.jobsites?.name ?? alert.bring_lists?.title ?? "Ohne Zuordnung"}${
+                    alert.missing_quantity ? ` · fehlt ${formatQuantity(alert.missing_quantity)} ${alert.unit ?? ""}` : ""
+                  }`}
+                  tone={alert.severity === "critical" ? "danger" : "warning"}
+                  action={
+                    <StatusBadge value={alert.severity === "critical" ? "rejected" : "offen"} label={alert.severity === "critical" ? "Kritisch" : "Offen"} />
+                  }
+                />
+              ))}
+              {materialAlerts.length === 0 ? (
+                <p className="rounded-md border border-dashed border-line p-4 text-sm text-slate-600">Keine offenen Materialmeldungen.</p>
+              ) : null}
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <ShoppingCart className="h-4 w-4 text-moss" aria-hidden="true" />
+                <h3 className="text-sm font-black uppercase tracking-wide text-ink">Einkaufsvorschläge</h3>
+              </div>
+              {purchaseSuggestions.map((suggestion) => (
+                <AlertCard
+                  key={suggestion.id}
+                  icon={ShoppingCart}
+                  title={suggestion.inventory_items?.name ?? "Freier Einkaufsvorschlag"}
+                  description={suggestion.reason}
+                  meta={`Vorschlag: ${formatQuantity(suggestion.quantity_needed)} ${suggestion.unit}${
+                    suggestion.jobsites?.name ? ` · ${suggestion.jobsites.name}` : ""
+                  }`}
+                  tone="green"
+                  action={
+                    <form action={updatePurchaseSuggestionStatusAction} className="flex flex-wrap gap-2">
+                      <input type="hidden" name="id" value={suggestion.id} />
+                      <button className="btn-secondary h-10 px-3 text-xs" type="submit" name="status" value="ordered">
+                        Bestellt
+                      </button>
+                      <button className="btn-secondary h-10 px-3 text-xs" type="submit" name="status" value="received">
+                        Erhalten
+                      </button>
+                      <button className="btn-secondary h-10 px-3 text-xs" type="submit" name="status" value="ignored">
+                        Ignorieren
+                      </button>
+                    </form>
+                  }
+                />
+              ))}
+              {purchaseSuggestions.length === 0 ? (
+                <p className="rounded-md border border-dashed border-line p-4 text-sm text-slate-600">Keine offenen Einkaufsvorschläge.</p>
+              ) : null}
+            </div>
+          </div>
+        </section>
+      ) : null}
     </>
   );
 }

@@ -8,7 +8,28 @@ export const roofTypeLabels: Record<RoofType, string> = {
   blech: "Blech"
 };
 
+export const roofFormLabels: Record<string, string> = {
+  satteldach: "Satteldach",
+  walmdach: "Walmdach",
+  pultdach: "Pultdach",
+  flachdach: "Flachdach",
+  mansarddach: "Mansarddach",
+  sonstiges: "Sonstiges"
+};
+
+export const materialTypeLabels: Record<string, string> = {
+  tonziegel: "Tonziegel",
+  betondachstein: "Betondachstein",
+  schiefer: "Schiefer",
+  bitumen: "Bitumen/Schweissbahn",
+  metall: "Metall/Blech",
+  gruen: "Gruendach-Aufbau",
+  sonstiges: "Sonstiges"
+};
+
 export type CalculationInput = {
+  roof_form: string | null;
+  material_type: string | null;
   length_m: number | null;
   width_m: number | null;
   area_m2: number;
@@ -20,6 +41,8 @@ export type CalculationInput = {
   wall_connection_length_m: number | null;
   penetrations_count: number;
   roof_windows_count: number;
+  dormers_count: number;
+  chimneys_count: number;
   waste_percent: number;
 };
 
@@ -62,6 +85,10 @@ export function calculateBaseQuantity(rule: MaterialCalculationRule, input: Calc
       return input.penetrations_count * factor;
     case "roof_windows_count":
       return input.roof_windows_count * factor;
+    case "dormers_count":
+      return input.dormers_count * factor;
+    case "chimneys_count":
+      return input.chimneys_count * factor;
     case "gutter_hangers":
       return spacing > 0 ? (input.eaves_length_m ?? 0) / spacing * factor : 0;
     default:

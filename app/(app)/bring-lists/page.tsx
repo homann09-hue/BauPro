@@ -1,10 +1,15 @@
 import Link from "next/link";
-import { CalendarDays, ListChecks, MapPin, Plus } from "lucide-react";
+import { CalendarDays, ListChecks, MapPin, Plus, RefreshCw } from "lucide-react";
+import { ContextualHelpTip } from "@/components/help/ContextualHelpTip";
 import { EmptyState } from "@/components/empty-state";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { syncAutomaticBringListsAction } from "@/lib/actions/bring-list-actions";
 import { requireAppContext } from "@/lib/auth";
+import { ensureAutomaticBringListsForDate } from "@/lib/bring-lists/auto-generate";
+import { bringListDetailSelect } from "@/lib/data/selects";
+import { safeErrorMessage, safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, searchParamMessage } from "@/lib/utils";
 import type { BringList } from "@/types/app";
@@ -22,12 +27,18 @@ function inSevenDaysIsoDate() {
   return date.toISOString().slice(0, 10);
 }
 
+function tomorrowIsoDate() {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
 export default async function BringListsPage({
   searchParams
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireAppContext();
+  const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
   const resolvedSearchParams = await searchParams;
   const { error, success } = searchParamMessage(resolvedSearchParams);
@@ -35,32 +46,82 @@ export default async function BringListsPage({
   const today = new Date().toISOString().slice(0, 10);
   const dateFrom = selectedDate || today;
   const dateTo = selectedDate || inSevenDaysIsoDate();
+  const autoSyncDate = selectedDate || tomorrowIsoDate();
+  let autoSyncError: string | null = null;
 
-  const { data, error: queryError } = await supabase
+  if (context.canOperate) {
+    try {
+      await ensureAutomaticBringListsForDate({ supabase, context, date: autoSyncDate });
+    } catch (syncError) {
+      autoSyncError = safeErrorMessage(syncError, "Automatische Mitbringlisten konnten nicht aktualisiert werden.");
+    }
+  }
+
+  let listsQuery = supabase
     .from("bring_lists")
-    .select("*, jobsites(id, name, customer, address), profiles!bring_lists_assigned_to_fkey(id, full_name, email), vehicles(id, name, license_plate)")
+    .select(bringListDetailSelect)
+    .eq("company_id", context.companyId)
     .gte("date", dateFrom)
     .lte("date", dateTo)
     .order("date", { ascending: true });
 
-  const lists = (data ?? []) as BringList[];
+  if (!context.canManage) listsQuery = listsQuery.or(`assigned_to.eq.${context.userId},created_by.eq.${context.userId}`);
+
+  const { data, error: queryError } = await listsQuery;
+  let assignedJobsiteLists: BringList[] = [];
+
+  if (!context.canManage) {
+    const { data: assignedJobsites } = await supabase
+      .from("jobsites")
+      .select("id")
+      .eq("company_id", context.companyId)
+      .contains("assigned_employee_ids", [context.userId]);
+    const assignedJobsiteIds = (assignedJobsites ?? []).map((jobsite) => jobsite.id as string);
+
+    if (assignedJobsiteIds.length > 0) {
+      const { data: extraLists } = await supabase
+        .from("bring_lists")
+        .select(bringListDetailSelect)
+        .eq("company_id", context.companyId)
+        .gte("date", dateFrom)
+        .lte("date", dateTo)
+        .in("job_id", assignedJobsiteIds)
+        .order("date", { ascending: true });
+      assignedJobsiteLists = (extraLists ?? []) as unknown as BringList[];
+    }
+  }
+
+  const listsById = new Map<string, BringList>();
+  for (const list of [...((data ?? []) as unknown as BringList[]), ...assignedJobsiteLists]) listsById.set(list.id, list);
+  const lists = [...listsById.values()].sort((a, b) => a.date.localeCompare(b.date));
 
   return (
     <>
       <PageHeader
         title="Mitbringlisten"
-        description="Material, Werkzeug, PSA und Dokumente fuer die naechsten Baustellen."
+        description="Automatisch aus Auftrag, Plantafel, Materialplanung und Lager für die nächsten Baustellen."
         actionHref="/bring-lists/new"
         actionLabel="Neue Mitbringliste"
         actionIcon={Plus}
       />
-      <MessageBox error={error || queryError?.message} success={success} />
+      <MessageBox error={error || autoSyncError || safeQueryErrorMessage(queryError)} success={success} />
+      <ContextualHelpTip featureKey="bring_list_use" returnTo="/bring-lists" />
 
       <div className="mb-5 flex flex-wrap gap-2">
         <Link href="/bring-lists/new" className="btn-primary">
           <Plus className="h-4 w-4" aria-hidden="true" />
           Neue Mitbringliste
         </Link>
+        {context.canOperate ? (
+          <form action={syncAutomaticBringListsAction}>
+            <input type="hidden" name="date" value={autoSyncDate} />
+            <input type="hidden" name="return_to" value={selectedDate ? `/bring-lists?date=${selectedDate}` : "/bring-lists"} />
+            <button type="submit" className="btn-primary">
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              Automatisch aktualisieren
+            </button>
+          </form>
+        ) : null}
         {selectedDate ? (
           <Link href="/bring-lists" className="btn-secondary">
             <CalendarDays className="h-4 w-4" aria-hidden="true" />
@@ -92,6 +153,11 @@ export default async function BringListsPage({
                     <p className="meta-label">{formatDate(list.date)}</p>
                     <h2 className="mt-1 text-lg font-black text-ink">{list.title}</h2>
                     <p className="mt-1 text-sm font-semibold text-slate-600">{list.jobsites?.name ?? "Baustelle"}</p>
+                    {list.auto_generated ? (
+                      <p className="mt-2 inline-flex rounded-md bg-mint px-2 py-1 text-xs font-black text-moss">
+                        Automatisch vorbereitet
+                      </p>
+                    ) : null}
                   </div>
                   <StatusBadge value={list.status} label={statusLabels[list.status]} />
                 </div>

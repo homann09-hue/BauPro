@@ -40,7 +40,12 @@ async function getAssignableEmployeeIds(
     return { ids: [] as string[], error: "Mitarbeiter konnten nicht geprueft werden." };
   }
 
-  return { ids: (data ?? []).map((profile) => profile.id as string), error: null as string | null };
+  const ids = (data ?? []).map((profile) => profile.id as string);
+  if (ids.length !== requestedIds.length) {
+    return { ids: [] as string[], error: "Nur aktive Mitarbeiter oder Vorarbeiter dieser Firma duerfen zugeordnet werden." };
+  }
+
+  return { ids, error: null as string | null };
 }
 
 export async function createJobsiteAction(formData: FormData) {
@@ -52,19 +57,23 @@ export async function createJobsiteAction(formData: FormData) {
     redirect(`/baustellen/neu?error=${toQuery(assignedEmployees.error)}`);
   }
 
-  const { error } = await supabase.from("jobsites").insert({
-    company_id: context.companyId,
-    name: requiredString(formData, "name"),
-    customer: requiredString(formData, "customer"),
-    address: requiredString(formData, "address"),
-    start_date: optionalDate(formData, "start_date"),
-    status: statusValue(formData.get("status")),
-    notes: optionalString(formData, "notes"),
-    assigned_employee_ids: assignedEmployees.ids,
-    created_by: context.userId
-  });
+  const { data, error } = await supabase
+    .from("jobsites")
+    .insert({
+      company_id: context.companyId,
+      name: requiredString(formData, "name"),
+      customer: requiredString(formData, "customer"),
+      address: requiredString(formData, "address"),
+      start_date: optionalDate(formData, "start_date"),
+      status: statusValue(formData.get("status")),
+      notes: optionalString(formData, "notes"),
+      assigned_employee_ids: assignedEmployees.ids,
+      created_by: context.userId
+    })
+    .select("id")
+    .maybeSingle();
 
-  if (error) {
+  if (error || !data) {
     redirect(`/baustellen/neu?error=${toQuery("Baustelle konnte nicht angelegt werden.")}`);
   }
 
@@ -82,7 +91,7 @@ export async function updateJobsiteAction(formData: FormData) {
     redirect(`/baustellen/${id}/bearbeiten?error=${toQuery(assignedEmployees.error)}`);
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("jobsites")
     .update({
       name: requiredString(formData, "name"),
@@ -94,9 +103,11 @@ export async function updateJobsiteAction(formData: FormData) {
       assigned_employee_ids: assignedEmployees.ids
     })
     .eq("id", id)
-    .eq("company_id", context.companyId);
+    .eq("company_id", context.companyId)
+    .select("id")
+    .maybeSingle();
 
-  if (error) {
+  if (error || !data) {
     redirect(`/baustellen/${id}/bearbeiten?error=${toQuery("Baustelle konnte nicht aktualisiert werden.")}`);
   }
 
@@ -109,13 +120,15 @@ export async function deleteJobsiteAction(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const id = requiredFormUuid(formData, "id", "Baustelle");
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("jobsites")
     .update({ archived_at: new Date().toISOString(), status: "abgeschlossen" })
     .eq("id", id)
-    .eq("company_id", context.companyId);
+    .eq("company_id", context.companyId)
+    .select("id")
+    .maybeSingle();
 
-  if (error) {
+  if (error || !data) {
     redirect(`/baustellen?error=${toQuery("Baustelle konnte nicht archiviert werden.")}`);
   }
 

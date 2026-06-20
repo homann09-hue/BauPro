@@ -6,8 +6,10 @@ import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { addCatalogItemToInventoryAction } from "@/lib/actions/inventory-actions";
 import { requireAppContext } from "@/lib/auth";
+import { materialCatalogItemSelect } from "@/lib/data/selects";
 import { ensureDefaultInventoryLocations, formatQuantity } from "@/lib/inventory";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { includesGermanSearch } from "@/lib/text/german";
 import { searchParamMessage } from "@/lib/utils";
 import type { InventoryLocation, MaterialCatalogItem } from "@/types/app";
 
@@ -18,11 +20,7 @@ function getSearchParam(params: Record<string, string | string[] | undefined>, k
 
 function matchesSearch(item: MaterialCatalogItem, search: string) {
   if (!search) return true;
-  return [item.name, item.manufacturer, item.short_description, item.typical_use, ...(item.search_terms ?? [])]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase()
-    .includes(search.toLowerCase());
+  return includesGermanSearch([item.name, item.manufacturer, item.short_description, item.typical_use, ...(item.search_terms ?? [])].filter(Boolean).join(" "), search);
 }
 
 export default async function MaterialImportPage({
@@ -55,20 +53,20 @@ export default async function MaterialImportPage({
 
   const { data } = await supabase
     .from("material_catalog")
-    .select("*, material_categories(id, name, slug), material_subcategories(id, name, slug)")
+    .select(materialCatalogItemSelect)
     .eq("active", true)
     .order("popularity", { ascending: false })
     .order("name", { ascending: true })
     .limit(search ? 180 : 36);
 
-  const catalogItems = ((data ?? []) as MaterialCatalogItem[]).filter((item) => matchesSearch(item, search));
+  const catalogItems = ((data ?? []) as unknown as MaterialCatalogItem[]).filter((item) => matchesSearch(item, search));
   const returnTo = search ? `/materials/import?q=${encodeURIComponent(search)}` : "/materials/import";
 
   return (
     <>
       <PageHeader
         title="Schnellerfassung"
-        description="Die haeufigsten Dachdeckerartikel mit Lagerort, Mindestbestand und Startmenge aufnehmen."
+        description="Die häufigsten Dachdeckerartikel mit Lagerort, Mindestbestand und Startmenge aufnehmen."
         actionHref="/materials/catalog"
         actionLabel="Ganzer Katalog"
         actionIcon={Search}
@@ -100,9 +98,9 @@ export default async function MaterialImportPage({
         <EmptyState
           icon={Upload}
           title="Kein Material gefunden"
-          description="Nutze den Katalog fuer eine breitere Suche."
+          description="Nutze den Katalog für eine breitere Suche."
           actionHref="/materials/catalog"
-          actionLabel="Katalog oeffnen"
+          actionLabel="Katalog öffnen"
         />
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">

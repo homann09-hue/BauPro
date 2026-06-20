@@ -2,6 +2,7 @@ import { OrderWizardForm } from "@/components/forms/order-wizard-form";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { requireManager } from "@/lib/auth";
+import { companyPricingSettingsSelect, customerFormSelect, profileOptionSelect } from "@/lib/data/selects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { searchParamMessage } from "@/lib/utils";
 import type { CompanyPricingSettings, Customer, Profile } from "@/types/app";
@@ -22,9 +23,24 @@ export default async function NewOrderPage({
   const { error, success } = searchParamMessage(params);
 
   const [customersResult, employeesResult, settingsResult] = await Promise.all([
-    supabase.from("customers").select("*").eq("status", "aktiv").order("updated_at", { ascending: false }),
-    supabase.from("profiles").select("*").eq("active", true).in("role", ["mitarbeiter", "vorarbeiter"]).order("full_name"),
-    supabase.from("company_pricing_settings").select("*").eq("company_id", context.companyId).maybeSingle()
+    supabase
+      .from("customers")
+      .select(customerFormSelect)
+      .eq("company_id", context.companyId)
+      .eq("status", "aktiv")
+      .order("updated_at", { ascending: false }),
+    supabase
+      .from("profiles")
+      .select(profileOptionSelect)
+      .eq("company_id", context.companyId)
+      .eq("active", true)
+      .in("role", ["mitarbeiter", "vorarbeiter"])
+      .order("full_name"),
+    supabase
+      .from("company_pricing_settings")
+      .select(companyPricingSettingsSelect)
+      .eq("company_id", context.companyId)
+      .maybeSingle()
   ]);
 
   const settings = (settingsResult.data ?? {

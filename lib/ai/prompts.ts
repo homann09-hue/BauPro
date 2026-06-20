@@ -76,14 +76,39 @@ export const DAILY_REPORT_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
+    general_information: { type: "string" },
+    weather_section: { type: "string" },
+    employees_section: { type: "string" },
     activities: { type: "string" },
     material_usage: { type: "string" },
+    machine_usage: { type: "string" },
+    special_notes: { type: "string" },
+    defects_obstructions: { type: "string" },
+    next_steps: { type: "string" },
     issues: { type: "string" },
     weather: { type: ["string", "null"] },
     summary: { type: "string" },
-    follow_up_questions: { type: "array", items: { type: "string" } }
+    missing_information: { type: "array", items: { type: "string" } },
+    follow_up_questions: { type: "array", items: { type: "string" } },
+    token_note: { type: "string" }
   },
-  required: ["activities", "material_usage", "issues", "weather", "summary", "follow_up_questions"]
+  required: [
+    "general_information",
+    "weather_section",
+    "employees_section",
+    "activities",
+    "material_usage",
+    "machine_usage",
+    "special_notes",
+    "defects_obstructions",
+    "next_steps",
+    "issues",
+    "weather",
+    "summary",
+    "missing_information",
+    "follow_up_questions",
+    "token_note"
+  ]
 } as const;
 
 export const ASSISTANT_ANSWER_SCHEMA = {
@@ -236,12 +261,12 @@ export const AI_JOB_DRAFT_SCHEMA = {
 
 export function roleAwareSystemPrompt(role: Role, canManage: boolean) {
   return [
-    "Du bist BauPro KI, ein produktiver Assistent fuer deutsche Dachdecker- und Handwerksbetriebe.",
-    "Antworte immer auf Deutsch, knapp, praktisch und mit klaren naechsten Schritten.",
-    "Speichere oder versende niemals Daten selbst. Du lieferst nur Vorschlaege, die ein Nutzer bestaetigen muss.",
-    "Wenn Angaben fehlen oder unsicher sind, stelle Rueckfragen statt Annahmen als Tatsache auszugeben.",
+    "Du bist BauPro KI, ein produktiver Assistent für deutsche Dachdecker- und Handwerksbetriebe.",
+    "Antworte immer auf Deutsch, knapp, praktisch und mit klaren nächsten Schritten.",
+    "Speichere oder versende niemals Daten selbst. Du lieferst nur Vorschläge, die ein Nutzer bestätigen muss.",
+    "Wenn Angaben fehlen oder unsicher sind, stelle Rückfragen statt Annahmen als Tatsache auszugeben.",
     canManage
-      ? "Der Nutzer ist Chef/Admin. Preis- und Kalkulationsdaten duerfen verwendet werden, wenn sie im Kontext enthalten sind."
+      ? "Der Nutzer ist Chef/Admin. Preis- und Kalkulationsdaten dürfen verwendet werden, wenn sie im Kontext enthalten sind."
       : "Der Nutzer ist Mitarbeiter. Gib niemals EK, VK, Marge, Aufschlag, Gewinn, Angebotssummen oder Preisvergleichsdaten aus.",
     `Aktuelle Rolle: ${role}.`
   ].join("\n");
@@ -249,11 +274,11 @@ export function roleAwareSystemPrompt(role: Role, canManage: boolean) {
 
 export function businessInputPrompt(contextJson: string) {
   return [
-    "Analysiere den folgenden Spracheingabe- oder Freitext fuer eine Dachdecker-App.",
+    "Analysiere den folgenden Spracheingabe- oder Freitext für eine Dachdecker-App.",
     "Ordne ihn genau einem Intent zu und extrahiere Felder als JSON.",
-    "Datumsangaben muessen ISO-Format YYYY-MM-DD haben, falls erkennbar.",
-    "Zeiten muessen HH:MM sein, falls erkennbar.",
-    "Wenn confidence < 0.7, muss follow_up_questions mindestens eine Rueckfrage enthalten.",
+    "Datumsangaben müssen ISO-Format YYYY-MM-DD haben, falls erkennbar.",
+    "Zeiten müssen HH:MM sein, falls erkennbar.",
+    "Wenn confidence < 0.7, muss follow_up_questions mindestens eine Rückfrage enthalten.",
     "Kontext aus der App, nur zur Zuordnung:",
     contextJson
   ].join("\n");
@@ -261,10 +286,15 @@ export function businessInputPrompt(contextJson: string) {
 
 export function dailyReportPrompt(contextJson: string) {
   return [
-    "Erstelle aus Stichpunkten oder Sprache einen sauberen Tagesbericht fuer einen Dachdeckerbetrieb.",
-    "Strukturiere Taetigkeiten, Materialverbrauch und Probleme/Besonderheiten.",
-    "Erfinde keine Fakten. Wenn Informationen fehlen, schreibe sie in follow_up_questions.",
-    "Kontext aus der App:",
+    "Erstelle aus Spracheingabe, Text, Wetter, Arbeitszeiten, Material, Maschinen/Fahrzeugen und optionalen Fotos einen sauberen Bautagesbericht für einen deutschen Dachdeckerbetrieb.",
+    "Gliedere den Bericht exakt in diese Abschnitte: Allgemeine Angaben, Wetter, Mitarbeiter, Ausgeführte Arbeiten, Materialverbrauch, Maschinen/Fahrzeuge, Besonderheiten, Mängel/Behinderungen, Nächste Schritte.",
+    "Nutze ausschließlich die Angaben aus Stichpunkten und App-Kontext. Erfinde niemals Baustellen, Namen, Zeiten, Wetter, Mengen, Materialien, Mängel oder Fotos.",
+    "Wenn eine Angabe fehlt oder unsicher ist, setze sie in missing_information und formuliere eine konkrete Rückfrage in follow_up_questions.",
+    "Wenn Fotos als Bildkontext mitgegeben werden, nutze nur klar erkennbare, baustellenrelevante Inhalte. Unsichere Bilddetails als Rückfrage markieren.",
+    "Wenn nur Foto-Dateinamen/Anzahl vorliegen, darfst du daraus keine Bildinhalte ableiten.",
+    "Schreibe praktisch, sachlich und prüfbar. Keine Rechtsberatung, keine Spekulation.",
+    "Felder activities, material_usage, machine_usage und issues müssen direkt in das BauPro-Formular übernehmbar sein.",
+    "Kontext aus der App, bereits rollenbereinigt:",
     contextJson
   ].join("\n");
 }
@@ -272,9 +302,9 @@ export function dailyReportPrompt(contextJson: string) {
 export function assistantPrompt(contextJson: string) {
   return [
     "Beantworte Fragen zur BauPro-App mit den bereitgestellten echten Betriebsdaten.",
-    "Wenn der Nutzer eine Aktion wuenscht, gib nur einen Entwurf und setze needs_confirmation=true.",
+    "Wenn der Nutzer eine Aktion wünscht, gib nur einen Entwurf und setze needs_confirmation=true.",
     "Keine Rechtsberatung, keine finalen Angebote/Rechnungen, keine automatische Speicherung.",
-    "Nutze ausschliesslich den Kontext. Wenn etwas nicht im Kontext steht, sage das klar.",
+    "Nutze ausschließlich den Kontext. Wenn etwas nicht im Kontext steht, sage das klar.",
     "Rollenbereinigter App-Kontext:",
     contextJson
   ].join("\n");
@@ -282,9 +312,9 @@ export function assistantPrompt(contextJson: string) {
 
 export function materialMatchPrompt(contextJson: string) {
   return [
-    "Normalisiere einen diktierten Dachdecker-Materialnamen und ordne ihn moeglichen Katalogartikeln zu.",
+    "Normalisiere einen diktierten Dachdecker-Materialnamen und ordne ihn möglichen Katalogartikeln zu.",
     "Keine Fantasieprodukte. Nutze typische deutsche Dachdecker-Begriffe.",
-    "Wenn keine sichere Zuordnung moeglich ist, confidence niedrig setzen und erklaeren.",
+    "Wenn keine sichere Zuordnung möglich ist, confidence niedrig setzen und erklären.",
     "Katalog-/Lagerkontext:",
     contextJson
   ].join("\n");
@@ -292,14 +322,14 @@ export function materialMatchPrompt(contextJson: string) {
 
 export function jobDraftPrompt(contextJson: string) {
   return [
-    "Extrahiere aus Sprache oder Text einen vollstaendigen Auftragsentwurf fuer einen deutschen Dachdeckerbetrieb.",
+    "Extrahiere aus Sprache oder Text einen vollständigen Auftragsentwurf für einen deutschen Dachdeckerbetrieb.",
     "Du bereitest nur vor. Du darfst keine Daten speichern und keine finale Kalkulation behaupten.",
-    "Ordne vorhandene Kunden ueber Namen zu, wenn der Kontext einen plausiblen Treffer enthaelt. Setze sonst existing_customer_id=null.",
-    "Datumsangaben als YYYY-MM-DD, falls erkennbar. Relative Begriffe wie naechste Woche aus dem Kontextdatum ableiten, wenn moeglich.",
-    "Maße in Meter und Quadratmeter. Wenn Laenge und Breite vorhanden sind, area_m2 berechnen.",
+    "Ordne vorhandene Kunden über Namen zu, wenn der Kontext einen plausiblen Treffer enthält. Setze sonst existing_customer_id=null.",
+    "Datumsangaben als YYYY-MM-DD, falls erkennbar. Relative Begriffe wie nächste Woche aus dem Kontextdatum ableiten, wenn möglich.",
+    "Maße in Meter und Quadratmeter. Wenn Länge und Breite vorhanden sind, area_m2 berechnen.",
     "order_type muss einer App-Kategorie entsprechen: steildach, flachdach, reparatur, dachrinne, blech, wartung, sonstiges.",
     "Wichtige fehlende Angaben in missing_fields und als konkrete follow_up_questions aufnehmen.",
-    "suggested_materials sind nur fachliche Vorschlaege; Mengen werden danach regelbasiert von der App berechnet.",
+    "suggested_materials sind nur fachliche Vorschläge; Mengen werden danach regelbasiert von der App berechnet.",
     "Kontext aus der App:",
     contextJson
   ].join("\n");

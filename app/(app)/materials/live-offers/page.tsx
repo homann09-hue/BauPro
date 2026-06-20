@@ -9,10 +9,16 @@ import {
   matchSupplierOfferAction
 } from "@/lib/actions/supplier-actions";
 import { requireManager } from "@/lib/auth";
+import {
+  inventoryPriceOptionSelect,
+  supplierOfferMatchLiveSelect,
+  supplierOfferWithIntegrationSelect
+} from "@/lib/data/selects";
 import { formatQuantity } from "@/lib/inventory";
 import { supplierProviders } from "@/lib/suppliers/provider-config";
 import { bestDealScore } from "@/lib/suppliers/matcher";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { includesGermanSearch } from "@/lib/text/german";
 import { cn, formatDateTime, formatMoney, searchParamMessage } from "@/lib/utils";
 import type { InventoryItem, SupplierOffer, SupplierOfferMatch } from "@/types/app";
 
@@ -23,11 +29,7 @@ function param(params: Record<string, string | string[] | undefined>, key: strin
 
 function matchesSearch(offer: SupplierOffer, search: string) {
   if (!search) return true;
-  return [offer.product_name, offer.manufacturer, offer.category, offer.supplier_name, offer.stock_status]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase()
-    .includes(search.toLowerCase());
+  return includesGermanSearch([offer.product_name, offer.manufacturer, offer.category, offer.supplier_name, offer.stock_status].filter(Boolean).join(" "), search);
 }
 
 function sortOffers(offers: SupplierOffer[], sort: string) {
@@ -46,7 +48,7 @@ export default async function LiveOffersPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireManager();
+  const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const params = (await searchParams) ?? {};
   const { error, success } = searchParamMessage(params);
@@ -60,22 +62,25 @@ export default async function LiveOffersPage({
   const [offersResult, materialsResult, matchesResult] = await Promise.all([
     supabase
       .from("supplier_offers")
-      .select("*, supplier_integrations(id, name, provider_key, type)")
+      .select(supplierOfferWithIntegrationSelect)
+      .eq("company_id", context.companyId)
       .order("last_checked_at", { ascending: false })
       .limit(300),
     supabase
       .from("inventory_items")
-      .select("id, name, unit, purchase_price, manufacturer")
+      .select(inventoryPriceOptionSelect)
+      .eq("company_id", context.companyId)
       .order("name", { ascending: true }),
     supabase
       .from("supplier_offer_matches")
-      .select("*, supplier_offers(*), inventory_items(id, name, unit, purchase_price, manufacturer)")
+      .select(supplierOfferMatchLiveSelect)
+      .eq("company_id", context.companyId)
       .order("match_score", { ascending: false })
   ]);
 
-  const allOffers = (offersResult.data ?? []) as SupplierOffer[];
-  const materials = (materialsResult.data ?? []) as InventoryItem[];
-  const matches = (matchesResult.data ?? []) as SupplierOfferMatch[];
+  const allOffers = (offersResult.data ?? []) as unknown as SupplierOffer[];
+  const materials = (materialsResult.data ?? []) as unknown as InventoryItem[];
+  const matches = (matchesResult.data ?? []) as unknown as SupplierOfferMatch[];
   const matchesByOfferId = new Map<string, SupplierOfferMatch[]>();
 
   for (const match of matches) {

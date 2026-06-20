@@ -1,7 +1,11 @@
+import { selectTimeEntriesWithWeatherFallback } from "@/lib/data/time-entries";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { formatMinutesAsHours, formatTime, monthName, sumNetMinutes } from "@/lib/time-tracking";
-import type { Company, Profile, TimeEntry, TimeReport } from "@/types/app";
+import { weatherDetailsLine, weatherSummary } from "@/lib/weather/display";
+import { cleanPdfText, line, text } from "@/lib/pdf/simple-pdf";
+import { safeUtf8FilenamePart } from "@/lib/text/german";
+import type { Company, Jobsite, Profile, TimeEntry, TimeReport } from "@/types/app";
 
 export type TimeReportExportData = {
   company: Company;
@@ -12,11 +16,7 @@ export type TimeReportExportData = {
 };
 
 export function safeFilenamePart(value: string) {
-  return value
-    .trim()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-zA-Z0-9_-]+/g, "")
-    .replace(/_+/g, "_") || "Mitarbeiter";
+  return safeUtf8FilenamePart(value, "Mitarbeiter");
 }
 
 export function timeReportFilename(data: TimeReportExportData, extension: "pdf" | "csv") {
@@ -29,7 +29,7 @@ export async function loadTimeReportExportData(reportId: string, companyId: stri
 
   const { data: report, error: reportError } = await supabase
     .from("time_reports")
-    .select("*")
+    .select("id, company_id, employee_id, month, year, date_from, date_to, status, generated_by, generated_at")
     .eq("id", reportId)
     .eq("company_id", companyId)
     .single();
@@ -40,31 +40,48 @@ export async function loadTimeReportExportData(reportId: string, companyId: stri
   const [{ data: company }, { data: employee }, { data: generatedBy }, { data: links }] = await Promise.all([
     supabase.from("companies").select("id, name").eq("id", companyId).single(),
     typedReport.employee_id
-      ? supabase.from("profiles").select("*").eq("id", typedReport.employee_id).eq("company_id", companyId).maybeSingle()
+      ? supabase.from("profiles").select("id, company_id, email, full_name, role, active").eq("id", typedReport.employee_id).eq("company_id", companyId).maybeSingle()
       : Promise.resolve({ data: null }),
     typedReport.generated_by
-      ? supabase.from("profiles").select("*").eq("id", typedReport.generated_by).eq("company_id", companyId).maybeSingle()
+      ? supabase.from("profiles").select("id, company_id, email, full_name, role, active").eq("id", typedReport.generated_by).eq("company_id", companyId).maybeSingle()
       : Promise.resolve({ data: null }),
     supabase.from("time_report_entries").select("time_entry_id").eq("time_report_id", reportId)
   ]);
 
   const entryIds = (links ?? []).map((link) => link.time_entry_id as string);
-  const { data: entries } =
+  const entriesResult =
     entryIds.length > 0
-      ? await supabase
-          .from("time_entries")
-          .select("*, profiles!time_entries_employee_id_fkey(id, full_name, email), jobsites(id, name, address, customer)")
-          .in("id", entryIds)
-          .eq("company_id", companyId)
-          .order("date", { ascending: true })
+      ? await selectTimeEntriesWithWeatherFallback((select) =>
+          supabase
+            .from("time_entries")
+            .select(select)
+            .in("id", entryIds)
+            .eq("company_id", companyId)
+            .order("date", { ascending: true })
+        )
       : { data: [] };
+  const rawEntries = (entriesResult.data ?? []) as TimeEntry[];
+  const jobsiteIds = [...new Set(rawEntries.map((entry) => entry.job_id).filter(Boolean))];
+  const { data: jobsiteRows } =
+    jobsiteIds.length > 0
+      ? await supabase
+          .from("jobsites")
+          .select("id, name, address, customer")
+          .eq("company_id", companyId)
+          .in("id", jobsiteIds)
+      : { data: [] };
+  const jobsitesById = new Map(((jobsiteRows ?? []) as Pick<Jobsite, "id" | "name" | "address" | "customer">[]).map((jobsite) => [jobsite.id, jobsite]));
+  const entries = rawEntries.map((entry) => ({
+    ...entry,
+    jobsites: jobsitesById.get(entry.job_id) ?? null
+  }));
 
   return {
     company: (company as Company | null) ?? { id: companyId, name: "Meine Firma" },
     report: typedReport,
-    employee: (employee as Profile | null) ?? null,
-    generatedBy: (generatedBy as Profile | null) ?? null,
-    entries: (entries ?? []) as TimeEntry[]
+    employee: (employee as unknown as Profile | null) ?? null,
+    generatedBy: (generatedBy as unknown as Profile | null) ?? null,
+    entries
   };
 }
 
@@ -83,8 +100,13 @@ export function buildTimeReportCsv(data: TimeReportExportData) {
       "Ende",
       "Pause Min.",
       "Netto Stunden",
-      "Taetigkeit",
-      "Status"
+      "Tätigkeit",
+      "Status",
+      "Wetter",
+      "Temperatur C",
+      "Niederschlag mm",
+      "Wind km/h",
+      "Wetterquelle"
     ],
     ...data.entries.map((entry) => [
       formatDate(entry.date),
@@ -95,7 +117,12 @@ export function buildTimeReportCsv(data: TimeReportExportData) {
       entry.break_minutes,
       formatMinutesAsHours(entry.net_minutes),
       entry.activity,
-      entry.status
+      entry.status,
+      weatherSummary(entry) ?? "",
+      entry.weather_temperature_c ?? "",
+      entry.weather_precipitation_mm ?? "",
+      entry.weather_wind_kmh ?? "",
+      entry.weather_source ?? ""
     ])
   ];
 
@@ -108,36 +135,15 @@ export function buildTimeReportCsv(data: TimeReportExportData) {
     "",
     formatMinutesAsHours(sumNetMinutes(data.entries)),
     `${data.entries.length} Tage`,
+    "",
+    "",
+    "",
+    "",
+    "",
     ""
   ]);
 
   return `\uFEFF${rows.map((row) => row.map(csvCell).join(";")).join("\n")}`;
-}
-
-function cleanPdfText(value: string | number | null | undefined) {
-  return String(value ?? "")
-    .replace(/ä/g, "ae")
-    .replace(/ö/g, "oe")
-    .replace(/ü/g, "ue")
-    .replace(/Ä/g, "Ae")
-    .replace(/Ö/g, "Oe")
-    .replace(/Ü/g, "Ue")
-    .replace(/ß/g, "ss")
-    .replace(/[^\x20-\x7E]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function pdfEscape(value: string | number | null | undefined) {
-  return cleanPdfText(value).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
-}
-
-function text(x: number, y: number, size: number, value: string | number | null | undefined, font = "F1") {
-  return `BT /${font} ${size} Tf ${x} ${y} Td (${pdfEscape(value)}) Tj ET\n`;
-}
-
-function line(x1: number, y1: number, x2: number, y2: number) {
-  return `${x1} ${y1} m ${x2} ${y2} l S\n`;
 }
 
 function truncate(value: string | null | undefined, length: number) {
@@ -150,7 +156,7 @@ function buildPdfDocument(pageContents: string[]) {
   objects.push("<< /Type /Catalog /Pages 2 0 R >>");
   const kids = pageContents.map((_, index) => `${4 + index * 2} 0 R`).join(" ");
   objects.push(`<< /Type /Pages /Kids [${kids}] /Count ${pageContents.length} >>`);
-  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
 
   pageContents.forEach((content, index) => {
     const pageObjectId = 4 + index * 2;
@@ -177,7 +183,7 @@ function buildPdfDocument(pageContents: string[]) {
 }
 
 export function buildTimeReportPdf(data: TimeReportExportData) {
-  const rowsPerPage = 15;
+  const rowsPerPage = 12;
   const pages: string[] = [];
   const totalMinutes = sumNetMinutes(data.entries);
   const employeeName = data.employee?.full_name || data.employee?.email || "Mitarbeiter";
@@ -203,11 +209,12 @@ export function buildTimeReportPdf(data: TimeReportExportData) {
     content += text(426, headerY, 8, "Ende");
     content += text(468, headerY, 8, "Pause");
     content += text(516, headerY, 8, "Netto");
-    content += text(568, headerY, 8, "Taetigkeit");
+    content += text(568, headerY, 8, "Tätigkeit");
     content += line(36, headerY - 5, 806, headerY - 5);
 
     pageEntries.forEach((entry, rowIndex) => {
-      const y = headerY - 24 - rowIndex * 24;
+      const y = headerY - 24 - rowIndex * 30;
+      const weatherLine = weatherDetailsLine(entry);
       content += text(38, y, 8, formatDate(entry.date));
       content += text(88, y, 8, truncate(entry.jobsites?.name ?? entry.work_location, 24));
       content += text(228, y, 8, truncate(entry.work_address, 28));
@@ -216,7 +223,10 @@ export function buildTimeReportPdf(data: TimeReportExportData) {
       content += text(468, y, 8, `${entry.break_minutes} min`);
       content += text(516, y, 8, formatMinutesAsHours(entry.net_minutes));
       content += text(568, y, 8, truncate(entry.activity, 40));
-      content += line(36, y - 6, 806, y - 6);
+      if (weatherSummary(entry) || weatherLine) {
+        content += text(568, y - 10, 7, truncate(`Wetter: ${weatherSummary(entry) ?? "-"} | ${weatherLine}`, 43));
+      }
+      content += line(36, y - 16, 806, y - 16);
     });
 
     if (pageIndex === Math.ceil(data.entries.length / rowsPerPage) - 1 || data.entries.length === 0) {

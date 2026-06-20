@@ -18,13 +18,13 @@ export default async function AiAssistantPage({
   const runtime = aiRuntimeState(context, settings);
   const disabledMessage = runtime.enabled
     ? null
-    : runtime.message ?? "KI ist in den Einstellungen fuer diese Rolle deaktiviert.";
+    : runtime.message ?? "KI ist in den Einstellungen für diese Rolle deaktiviert.";
 
   return (
     <>
       <PageHeader
         title="KI-Assistent"
-        description="Fragen, Diktate und Entwuerfe fuer Baustellen, Zeiten, Lager, Kunden und Tagesberichte. Ergebnisse immer pruefen."
+        description="Fragen, Diktate und Entwürfe für Baustellen, Zeiten, Lager, Kunden und Tagesberichte. Ergebnisse immer prüfen."
       />
       <MessageBox error={error} success={success} />
       <AiAssistantPanel canManage={context.canManage} configured={runtime.configured} enabledMessage={disabledMessage} />

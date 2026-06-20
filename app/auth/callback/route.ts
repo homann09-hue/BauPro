@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+const AUTH_CALLBACK_ERROR = "Anmeldung konnte nicht abgeschlossen werden. Bitte erneut versuchen.";
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
@@ -9,7 +11,7 @@ export async function GET(request: Request) {
 
   if (callbackError) {
     return NextResponse.redirect(
-      new URL(`/login?error=${encodeURIComponent(callbackError)}`, request.url)
+      new URL(`/login?error=${encodeURIComponent(AUTH_CALLBACK_ERROR)}`, request.url)
     );
   }
 
@@ -19,7 +21,7 @@ export async function GET(request: Request) {
 
     if (error) {
       return NextResponse.redirect(
-        new URL(`/login?error=${encodeURIComponent(error.message)}`, request.url)
+        new URL(`/login?error=${encodeURIComponent(AUTH_CALLBACK_ERROR)}`, request.url)
       );
     }
 

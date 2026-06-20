@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { signInAction } from "@/lib/actions/auth-actions";
+import { PlayCircle } from "lucide-react";
+import { signInAction, startDemoModeAction } from "@/lib/actions/auth-actions";
 import { MessageBox } from "@/components/message-box";
 import { SubmitButton } from "@/components/submit-button";
 import { searchParamMessage } from "@/lib/utils";
@@ -45,6 +46,24 @@ export default async function LoginPage({
         </div>
         <SubmitButton className="w-full">Einloggen</SubmitButton>
       </form>
+
+      <div className="mt-5 rounded-lg border border-primary/20 bg-mint p-4">
+        <div className="flex items-start gap-3">
+          <PlayCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary-dark" aria-hidden="true" />
+          <div>
+            <p className="font-black text-primary-dark">Noch keinen Account?</p>
+            <p className="mt-1 text-sm leading-6 text-primary-dark/80">
+              Starte eine vorbereitete Demo-Firma mit Baustellen, Team, Lager, Aufträgen und Tagesstunden.
+            </p>
+          </div>
+        </div>
+        <form action={startDemoModeAction} className="mt-3">
+          <input type="hidden" name="return_to" value="/login" />
+          <SubmitButton className="w-full" variant="secondary">
+            Demo-Modus starten
+          </SubmitButton>
+        </form>
+      </div>
 
       <p className="mt-6 rounded-md bg-fog px-3 py-3 text-center text-sm text-slate-600">
         Noch kein Account?{" "}

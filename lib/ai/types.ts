@@ -16,6 +16,7 @@ export type AiFeature =
   | "daily_report"
   | "order_assistant"
   | "material_matching"
+  | "material_calculation"
   | "inventory_assistant"
   | "customer_assistant"
   | "time_tracking"
@@ -56,12 +57,47 @@ export type ClassifiedBusinessInput = {
 };
 
 export type DailyReportDraft = {
+  general_information: string;
+  weather_section: string;
+  employees_section: string;
   activities: string;
   material_usage: string;
+  machine_usage: string;
+  special_notes: string;
+  defects_obstructions: string;
+  next_steps: string;
   issues: string;
   weather: string | null;
   summary: string;
+  missing_information: string[];
   follow_up_questions: string[];
+  token_note: string;
+};
+
+export type DailyReportAutomationContext = {
+  jobsite_label?: string | null;
+  report_date?: string | null;
+  weather?: {
+    summary?: string | null;
+    temperature_c?: string | null;
+    precipitation_mm?: string | null;
+    wind_kmh?: string | null;
+    source?: string | null;
+  };
+  employees?: string[];
+  time_entries?: string[];
+  material_usage?: string | null;
+  machine_usage?: string | null;
+  vehicle_names?: string[];
+  existing_photo_names?: string[];
+  selected_photo_names?: string[];
+  photo_context_note?: string | null;
+};
+
+export type DailyReportAutomationPayload = {
+  input: string;
+  context?: DailyReportAutomationContext;
+  imageUrls?: string[];
 };
 
 export type MaterialMatchDraft = {

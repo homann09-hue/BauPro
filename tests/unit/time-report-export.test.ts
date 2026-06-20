@@ -3,12 +3,12 @@ import { buildTimeReportCsv, buildTimeReportPdf, safeFilenamePart, timeReportFil
 import type { TimeReportExportData } from "@/lib/time-report-export";
 
 const exportData: TimeReportExportData = {
-  company: { id: "company-1", name: "Mueller Dachtechnik GmbH" },
+  company: { id: "company-1", name: "Müller Dachtechnik GmbH" },
   employee: {
     id: "employee-1",
     company_id: "company-1",
     email: "max@example.test",
-    full_name: "Max Mustermann",
+    full_name: "Max Müller",
     role: "mitarbeiter",
     active: true
   },
@@ -16,7 +16,7 @@ const exportData: TimeReportExportData = {
     id: "chef-1",
     company_id: "company-1",
     email: "chef@example.test",
-    full_name: "Sabine Mueller",
+    full_name: "Sabine Schröder",
     role: "chef",
     active: true
   },
@@ -40,17 +40,17 @@ const exportData: TimeReportExportData = {
       job_id: "job-1",
       customer_id: null,
       date: "2026-06-15",
-      work_location: "Dachsanierung Altbau",
-      work_address: "Hauptstrasse 12, Koeln",
+      work_location: "Dachsanierung Altbau König",
+      work_address: "Dachdeckerstraße 12, Köln",
       start_time: "07:00:00",
       end_time: "16:00:00",
       break_minutes: 60,
       gross_minutes: 540,
       net_minutes: 480,
-      activity: "Unterspannbahn und Lattung vorbereitet",
+      activity: "Fußpfette gemessen, Größe und Maßangaben geprüft",
       weather: "trocken",
       kilometers: 18,
-      notes: null,
+      notes: "Überstunden abgestimmt",
       status: "approved",
       approved_by: "chef-1",
       approved_at: "2026-06-15T17:00:00.000Z",
@@ -59,9 +59,9 @@ const exportData: TimeReportExportData = {
       updated_at: "2026-06-15T17:00:00.000Z",
       jobsites: {
         id: "job-1",
-        name: "Dachsanierung Altbau",
-        address: "Hauptstrasse 12, Koeln",
-        customer: "Schmidt"
+        name: "Dachsanierung Altbau König",
+        address: "Dachdeckerstraße 12, Köln",
+        customer: "König"
       }
     }
   ]
@@ -69,14 +69,18 @@ const exportData: TimeReportExportData = {
 
 describe("time report export", () => {
   it("creates safe filenames", () => {
-    expect(safeFilenamePart("Max Müller / Dach")).toBe("Max_Mller_Dach");
-    expect(timeReportFilename(exportData, "pdf")).toBe("stundenzettel_Max_Mustermann_06_2026.pdf");
+    expect(safeFilenamePart("Max Müller / Dach")).toBe("Max_Müller_Dach");
+    expect(timeReportFilename(exportData, "pdf")).toBe("stundenzettel_Max_Müller_06_2026.pdf");
   });
 
   it("creates a CSV with totals", () => {
     const csv = buildTimeReportCsv(exportData);
+    expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).toContain("Datum");
-    expect(csv).toContain("Dachsanierung Altbau");
+    expect(csv).toContain("Tätigkeit");
+    expect(csv).toContain("Dachsanierung Altbau König");
+    expect(csv).toContain("Dachdeckerstraße 12, Köln");
+    expect(csv).toContain("Fußpfette gemessen, Größe und Maßangaben geprüft");
     expect(csv).toContain("8,00 h");
     expect(csv).toContain("1 Tage");
   });
@@ -85,5 +89,8 @@ describe("time report export", () => {
     const pdf = buildTimeReportPdf(exportData);
     expect(pdf.subarray(0, 8).toString("utf8")).toBe("%PDF-1.4");
     expect(pdf.length).toBeGreaterThan(500);
+    const pdfText = pdf.toString("latin1");
+    expect(pdfText).toContain("Max M\\374ller");
+    expect(pdfText).toContain("Fu\\337pfette");
   });
 });

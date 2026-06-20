@@ -1,6 +1,7 @@
 import { SafeActionError } from "@/lib/security/errors";
 
 export const MAX_REPORT_PHOTO_BYTES = 10 * 1024 * 1024;
+export const MAX_CUSTOMER_DOCUMENT_BYTES = 15 * 1024 * 1024;
 
 export const ALLOWED_REPORT_PHOTO_TYPES = new Set([
   "image/jpeg",
@@ -9,6 +10,8 @@ export const ALLOWED_REPORT_PHOTO_TYPES = new Set([
   "image/heic",
   "image/heif"
 ]);
+
+export const ALLOWED_CUSTOMER_DOCUMENT_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
 
 export function sanitizeUploadFileName(name: string) {
   const fallback = "foto";
@@ -48,6 +51,26 @@ async function hasAllowedImageSignature(file: File) {
   return false;
 }
 
+async function hasAllowedCustomerDocumentSignature(file: File) {
+  const bytes = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+  const type = file.type.toLowerCase();
+
+  if (type === "application/pdf") return startsWith(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d]);
+  if (type === "image/jpeg") return startsWith(bytes, [0xff, 0xd8, 0xff]);
+  if (type === "image/png") return startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (type === "image/webp") {
+    return (
+      startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) &&
+      bytes[8] === 0x57 &&
+      bytes[9] === 0x45 &&
+      bytes[10] === 0x42 &&
+      bytes[11] === 0x50
+    );
+  }
+
+  return false;
+}
+
 export async function validateReportPhoto(file: File) {
   if (!ALLOWED_REPORT_PHOTO_TYPES.has(file.type)) {
     throw new SafeActionError("Nur JPG, PNG, WebP oder HEIC Fotos sind erlaubt.");
@@ -59,5 +82,19 @@ export async function validateReportPhoto(file: File) {
 
   if (!(await hasAllowedImageSignature(file))) {
     throw new SafeActionError("Die Datei passt nicht zum angegebenen Bildformat.");
+  }
+}
+
+export async function validateCustomerDocument(file: File) {
+  if (!ALLOWED_CUSTOMER_DOCUMENT_TYPES.has(file.type)) {
+    throw new SafeActionError("Nur PDF, JPG, PNG oder WebP sind als Kundendokument erlaubt.");
+  }
+
+  if (file.size > MAX_CUSTOMER_DOCUMENT_BYTES) {
+    throw new SafeActionError("Ein Kundendokument darf maximal 15 MB gross sein.");
+  }
+
+  if (!(await hasAllowedCustomerDocumentSignature(file))) {
+    throw new SafeActionError("Die Datei passt nicht zum angegebenen Dokumentformat.");
   }
 }

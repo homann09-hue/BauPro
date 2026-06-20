@@ -1,4 +1,5 @@
 import { getOptionalAppContext } from "@/lib/auth";
+import { downloadHeaders } from "@/lib/security/downloads";
 import { buildTimeReportPdf, loadTimeReportExportData, timeReportFilename } from "@/lib/time-report-export";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -11,10 +12,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const data = await loadTimeReportExportData(id, context.companyId);
     const pdf = buildTimeReportPdf(data);
     return new Response(new Uint8Array(pdf), {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${timeReportFilename(data, "pdf")}"`
-      }
+      headers: downloadHeaders("application/pdf", timeReportFilename(data, "pdf"))
     });
   } catch (error) {
     console.error("time-report-pdf-export-failed", error);

@@ -4,12 +4,13 @@ import type { Role } from "@/types/app";
 
 describe("role permissions", () => {
   it("keeps pricing/admin rights limited to admin and chef", () => {
-    const roles: Role[] = ["admin", "chef", "vorarbeiter", "mitarbeiter"];
+    const roles: Role[] = ["admin", "chef", "vorarbeiter", "mitarbeiter", "kunde"];
     expect(Object.fromEntries(roles.map((role) => [role, isManager(role)]))).toEqual({
       admin: true,
       chef: true,
       vorarbeiter: false,
-      mitarbeiter: false
+      mitarbeiter: false,
+      kunde: false
     });
   });
 
@@ -19,6 +20,7 @@ describe("role permissions", () => {
     expect(canOperate("chef")).toBe(true);
     expect(canOperate("vorarbeiter")).toBe(true);
     expect(canOperate("mitarbeiter")).toBe(false);
+    expect(canOperate("kunde")).toBe(false);
     expect(isManager("vorarbeiter")).toBe(false);
   });
 });

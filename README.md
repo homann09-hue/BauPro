@@ -5,17 +5,25 @@ BauPro ist eine mobile-first Betriebssoftware fuer deutsche Dachdecker- und Hand
 ## Funktionen
 
 - Firmenregistrierung mit Admin-Profil
+- Startassistent fuer neue Betriebe: Firmenprofil, Demo-Daten, Mitarbeiterimport, Baustellenimport und gefuehrte Einfuehrung
+- Demo-Modus fuer Interessenten: vorbereitete Firma mit Baustellen, Team, Lager, Auftraegen, Zeiten und 2-Minuten-Tour
 - Firmenprofil, Profilseite, Rollenverwaltung und Chef-Einstellungen
 - Login/Logout ueber Supabase Auth
-- Rollen: `admin`, `chef`, `vorarbeiter`, `mitarbeiter`
+- Rollen: `admin`, `chef`, `vorarbeiter`, `mitarbeiter`, `kunde`
 - Vorarbeiter-Rolle ohne Preis-/Chef-Rechte
 - Rollenklare Navigation fuer Chef/Admin, Vorarbeiter und Mitarbeiter
+- Predictive Prefetching fuer rollenabhaengige Hauptstrecken, schlanke Route-Warmups und Kundenportal-Assets
 - Dashboard als Betriebszentrale bzw. Mitarbeiter-Arbeitstag
 - Kundenkartei mit Privatkunden, Gewerbekunden, Hausverwaltungen, Architekten und Versicherungen
+- Sicheres Kundenportal per ablaufendem Link mit Baustellenstatus, Fortschritt, freigegebenen Fotos, Updates, Terminen, Dokumenten, Auftraegen, Bautagesberichten, Unterschriften und Kundenfragen
 - Auftragsanlage aus der Kundenkartei mit automatischer Auftragsnummer
+- Angebote/Rechnungen aus Auftraegen mit Positionen, Status, Summen, PDF-Export, DATEV-CSV und XRechnung-XML-Entwurf
+- Digitale Arbeitsauftraege mit Touch-/Maus-Unterschrift, Status Entwurf/Gesendet/Gesehen/Unterschrieben/Abgelehnt, Hash und PDF-Nachweis
 - Kalenderuebersicht fuer Auftraege, Baustellen und Zeiten
 - Baustellen-CRUD mit Mitarbeiterzuordnung
-- Tagesberichte-CRUD mit Arbeitszeiten, Wetter, Materialverbrauch, Besonderheiten und Foto-Upload
+- Zentrale Baustellenakte je Auftrag/Baustelle mit Dokumenten, Verlauf, Fotos, Aufgaben, Zeiten, Materialbedarf und kaufmaennischen Dokumenten
+- Baustellendokumente mit privatem Storage, Rollenrechten, Kundenfreigabe, Archivierung und digitaler Bestätigung/Abnahme
+- Bautagesberichte mit Sprache/Text, KI-Entwurf nach DSGVO-Opt-in, Wetter-Nachweis, uebernommenen Arbeitszeiten, Materialverbrauch, Maschinen/Fahrzeugen, Fotos, PDF-Export, Chef-Pruefung/Freigabe und revisionssicherer digitaler Unterschrift
 - Mitarbeiter-Zeiterfassung mit Freigabe, Aenderungsprotokoll, Monats-Stundenzettel, PDF- und CSV-Export
 - Sprache-zu-Text Diktat mit Bestaetigung fuer Mitbringlisten, Zeiterfassung und Materialmeldungen
 - OpenAI-KI-Assistent fuer Diktat-Auswertung, Tagesbericht-Entwuerfe, Materialnamen-Abgleich und rollenbasierte Betriebsfragen
@@ -26,7 +34,7 @@ BauPro ist eine mobile-first Betriebssoftware fuer deutsche Dachdecker- und Hand
 - Material-/Lagerverwaltung mit Lagerorten, Mindestbestand, Preisen, Schnellerfassung und Umlagerung
 - Live-Preisvergleich vorbereitet fuer manuelle Angebote, CSV-Feeds und offizielle Anbieter-APIs
 - Online Price Discovery als optionaler Chef-Preisindikator ueber erlaubte Feeds/offizielle APIs
-- Materialberechnung je Baustelle und Auftrag mit Dachart, Maßen, 20 % Standard-Verschnitt und Chef-Preisen
+- Materialberechnung je Baustelle und Auftrag mit Dachart, strukturiertem Aufmass, 20 % Standard-Verschnitt und Chef-Preisen
 - Angebote/Rechnungen als klar markierter vorbereiteter Produktbereich
 - Fahrzeuge mit einfachem Fahrzeuglager
 - Teamverwaltung und manuelles Anlegen von Mitarbeitern
@@ -52,7 +60,7 @@ npm install
 supabase/schema.sql
 ```
 
-Die Datei erstellt Tabellen, RLS-Policies, Auth-Trigger, den privaten Storage Bucket `report-photos`, Audit-Hooks und die atomaren Lager-RPCs. Frische Installationen brauchen keine Repair-Hotfixes.
+Die Datei erstellt Tabellen, RLS-Policies, Auth-Trigger, die privaten Storage Buckets `report-photos`, `customer-documents` und `jobsite-documents`, Audit-Hooks und die atomaren Lager-RPCs. Frische Installationen brauchen keine Repair-Hotfixes.
 
 Wenn dein Projekt bereits mit einer aelteren BauPro-Version laeuft, fuehre die Delta-Migrationen in dieser Reihenfolge im Supabase SQL Editor aus:
 
@@ -70,6 +78,37 @@ supabase/migrations/20260615_ai_job_wizard.sql
 supabase/migrations/20260615_roles_security_hardening.sql
 supabase/migrations/20260615_privacy_compliance.sql
 supabase/migrations/20260615_zz_redteam_hardening.sql
+supabase/migrations/20260616_weather_fields.sql
+supabase/migrations/20260616_live_weather.sql
+supabase/migrations/20260616_help_material_intelligence.sql
+supabase/migrations/20260617_customer_portal_work_orders.sql
+supabase/migrations/20260617_performance_indexes.sql
+supabase/migrations/20260617_inventory_rpc_actor_hardening.sql
+supabase/migrations/20260617_vehicle_material_tenant_hardening.sql
+supabase/migrations/20260617_legacy_soft_delete_hardening.sql
+supabase/migrations/20260617_report_archive_hardening.sql
+supabase/migrations/20260617_task_assignment_hardening.sql
+supabase/migrations/20260617_bring_list_direct_update_hardening.sql
+supabase/migrations/20260619_stripe_billing.sql
+supabase/migrations/20260619_dashboard_rpc.sql
+supabase/migrations/20260620_soft_delete_columns.sql
+supabase/migrations/20260621_schema_gap_fix.sql
+supabase/migrations/20260622_commercial_documents.sql
+supabase/migrations/20260623_roof_measurements.sql
+supabase/migrations/20260624_jobsite_file_documents.sql
+supabase/migrations/20260625_digital_signatures.sql
+supabase/migrations/20260626_construction_daily_reports.sql
+supabase/migrations/20260627_customer_portal_jobsites.sql
+supabase/migrations/20260628_planning_board.sql
+supabase/migrations/20260629_planning_weather_risks.sql
+supabase/migrations/20260630_inventory_jobsite_flow.sql
+supabase/migrations/20260701_auto_bring_lists.sql
+supabase/migrations/20260702_delivery_note_recognition.sql
+supabase/migrations/20260703_ai_roof_material_calculation.sql
+supabase/migrations/20260704_resource_vehicle_management.sql
+supabase/migrations/20260705_flexible_checklists.sql
+supabase/migrations/20260706_defect_management.sql
+supabase/migrations/20260707_performance_followup_indexes.sql
 ```
 
 `20260615_material_alerts_repair.sql` bleibt idempotent, damit aeltere Testdatenbanken mit fehlender Mitbringlisten-Kette repariert werden koennen. Fuer neue Projekte ist der vollstaendige Stand bereits in `supabase/schema.sql` enthalten.
@@ -102,13 +141,22 @@ SUPABASE_SERVICE_ROLE_KEY=...
 SUPPLIER_API_ENCRYPTION_KEY=...
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4.1-mini
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_STARTER_MONTHLY_PRICE_ID=
+STRIPE_PROFESSIONAL_MONTHLY_PRICE_ID=
+STRIPE_PROFESSIONAL_YEARLY_PRICE_ID=
+STRIPE_BUSINESS_MONTHLY_PRICE_ID=
+STRIPE_BUSINESS_YEARLY_PRICE_ID=
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` ist nur serverseitig und wird fuer das manuelle Anlegen von Mitarbeitern benoetigt.
+`SUPABASE_SERVICE_ROLE_KEY` ist nur serverseitig und wird fuer das manuelle Anlegen von Mitarbeitern sowie das sichere Kundenportal mit ablaufenden Token-Links benoetigt.
 `SUPPLIER_API_ENCRYPTION_KEY` ist optional, aber erforderlich, wenn du offizielle API-Keys fuer Lieferanten speichern willst.
 Die `ONLINE_PRICE_*` Variablen fuer CSV-Preislisten, eBay, PriceAPI, DataForSEO und SearchApi sind optional.
 Ohne konfigurierte Quelle zeigt die App sauber an, dass keine aktuellen Online-Angebote gefunden wurden.
 `OPENAI_API_KEY` ist optional und darf niemals mit `NEXT_PUBLIC_` beginnen. Ohne Key bleiben alle Kernfunktionen aktiv; KI-Bereiche zeigen dann „KI-Funktionen sind noch nicht konfiguriert.“
+KI-Bautagesberichte laufen ueber `/api/ai/report-draft`, verlangen ein aktives Nutzer-Opt-in und senden den OpenAI-Key nie an den Browser.
+`STRIPE_SECRET_KEY` und `STRIPE_WEBHOOK_SECRET` sind nur serverseitig. Die Stripe Price IDs legst du im Stripe Dashboard je Tarif/Intervall an und traegst sie in `.env.local` ein.
 
 5. Supabase Auth konfigurieren:
 
@@ -116,14 +164,20 @@ Ohne konfigurierte Quelle zeigt die App sauber an, dass keine aktuellen Online-A
 - Redirect URL: `http://localhost:3000/auth/callback`
 - Fuer lokale Tests kannst du E-Mail-Bestaetigung deaktivieren.
 
-6. Optionale Demo-Firma anlegen:
+6. Demo-Modus fuer Interessenten:
+
+Der Demo-Modus ist lokal ueber `/demo` oder den Button auf `/login` erreichbar. Er legt serverseitig die Demo-Firma `Müller Dachtechnik GmbH` mit einem Chef, zwei Vorarbeitern, fuenf Mitarbeitern, Baustellen, Lagerbestand, Auftraegen, Aufmass, Zeiten, Berichten, Mitbringliste, Materialwarnungen und Einkaufsvorschlaegen an und loggt direkt als Chef ein.
+
+In Production ist die Demo nur aktiv, wenn `DEMO_MODE_ENABLED=true` gesetzt ist. `SUPABASE_SERVICE_ROLE_KEY` wird serverseitig benoetigt, damit Auth-User und Beispieldaten automatisch angelegt werden koennen.
+
+Optional kannst du die Demo-Firma auch per CLI vorgeladen:
 
 ```bash
 npm run seed:demo
 ```
 
 Das Skript benoetigt `NEXT_PUBLIC_SUPABASE_URL` und `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`.
-Es legt die Demo-Firma `Müller Dachtechnik GmbH` mit einem Chef, zwei Vorarbeitern, fuenf Mitarbeitern, Baustellen, Lagerbestand, Fahrzeugen, Zeiten, Berichten, Mitbringliste, Materialwarnungen und Einkaufsvorschlaegen an.
+Der UI-Demo-Start fuehrt danach auf `/demo-tour`, damit der Nutzen in etwa zwei Minuten sichtbar wird.
 
 Standard-Login:
 
@@ -147,11 +201,20 @@ Danach im Browser oeffnen:
 http://localhost:3000
 ```
 
+Nach der ersten Registrierung landet Chef/Admin automatisch im Startassistenten unter `/onboarding`. Dort kann ein Betrieb in wenigen Minuten:
+
+- Firmendaten vervollstaendigen
+- realistische Demo-Daten anlegen
+- Mitarbeiter aus einer Excel-/CSV-Liste importieren
+- Baustellen aus einer Excel-/CSV-Liste importieren
+- die wichtigsten Arbeitsablaeufe Schritt fuer Schritt oeffnen
+
 ## Rollenmodell
 
 - `admin` und `chef`: duerfen Firma, Kunden, Auftraege, Team, Baustellen, Material, Fahrzeuge, Aufgaben und alle Berichte verwalten.
 - `vorarbeiter`: sieht zugeordnete Baustellen, Auftraege, Zeiten, Tagesberichte, Mitbringlisten, Materialmeldungen und preisbereinigte Lagerdaten. EK, VK, Marge, Einkaufsvorschlaege und Preisvergleich bleiben gesperrt.
 - `mitarbeiter`: sieht eigene Aufgaben, eigene/zugeordnete Berichte, zugeordnete Baustellen, zugeordnete Auftraege, eigene Zeiten, Mitbringlisten und Materialmeldungen. Stammdaten, Preisquellen, EK, VK, Aufschlag und Marge bleiben gesperrt.
+- `kunde`: ist fuer Kundenzugaenge vorgesehen. Kunden sehen im Portal nur explizit freigegebene Projektdaten, Fotos, Dokumente und Arbeitsauftraege.
 
 Die RLS-Policies in `supabase/schema.sql` erzwingen, dass Nutzer nur Daten ihrer eigenen Firma sehen.
 Preisfelder wie `purchase_price`, `sales_price`, `markup_percent`, `price_net`, `price_gross`, Supplier-Angebote und Online-Preisangebote sind nur fuer `admin` und `chef` freigegeben. Mitarbeiter und Vorarbeiter nutzen preisbereinigte Views wie `inventory_items_public`.
@@ -175,14 +238,28 @@ Wichtige Härtungen:
 - Server Actions validieren kritische IDs serverseitig und uebernehmen keine `company_id` aus Formularen.
 - Supplier API Keys bleiben verschluesselt gespeichert und werden nur serverseitig kurz vor dem Provider-Call entschluesselt.
 - Tagesbericht-Fotos werden nach Dateigroesse, MIME und Magic Bytes geprueft; Storage-Pfade muessen `company_id/reports/report_id/...` entsprechen.
+- Kundenportal-Links werden nicht im Klartext gespeichert, sondern als SHA-256-Hash mit Ablaufdatum und Sperrmoeglichkeit.
+- Arbeitsauftraege werden nach Unterschrift/Abweisung finalisiert, versioniert und als PDF-Nachweis exportierbar.
 - Lagerbestand und Reservierungen laufen ueber Postgres-Funktionen mit `for update`, damit parallele Buchungen keinen negativen Bestand erzeugen.
+- Lager-RPCs und Materialbewegungen pruefen serverseitig `auth.uid()`, damit Audit-Logs, Reservierungen und Ziel-Lagerartikel nicht per manipuliertem RPC fremden Nutzern zugeschrieben werden koennen.
 - Security Headers und Origin-Check fuer schreibende Requests sind in Next.js konfiguriert.
+
+## Performance
+
+- Die App-Shell startet nach Login einen unauffaelligen Prefetcher fuer wahrscheinliche naechste Routen.
+- `/api/prefetch/route-data` laedt kleine, rollenbereinigte Datenpakete mit `private, max-age` und `stale-while-revalidate`.
+- Mitarbeiter/Vorarbeiter erhalten beim Prefetch nur preisbereinigte Materialdaten.
+- Chef/Admin waermen zusaetzlich das Live-Wetter der aktivsten Baustelle vor; Mitarbeiterstandorte werden dafuer nicht genutzt.
+- Das Kundenportal prefetches bereits freigegebene Foto- und Dokument-URLs im Idle-Zeitfenster.
+- Listen wie Baustellen, Auftraege, Kunden, Tagesberichte, Materiallager und Zeiterfassung nutzen Pagination bzw. schlanke Selects statt Volltabellen-Loads.
+- `20260617_performance_indexes.sql` legt idempotente Indizes fuer Dashboard, Lager, Zeiten, Materialwarnungen, Kundenportal und Auftraege an.
 
 ## Produktnavigation
 
 Chef/Admin sieht:
 
 - Dashboard
+- Startassistent
 - KI Auftrag
 - Kunden
 - Auftraege
@@ -239,9 +316,9 @@ Die App zeigt unten rechts einen Mikrofon-Button. Die Spracheingabe nutzt die We
 - Beispiel: `Heute Baustelle Hauptstraße von 7 bis 16 Uhr gearbeitet, 30 Minuten Pause, Ziegel eingedeckt`
 - Beispiel: `Baustelle Hauptstraße Unterspannbahn fehlt 2 Rollen`
 
-Mitbringlisten liegen unter `/bring-lists`. Chef/Admin kann Listen manuell erstellen oder im Auftragsdetail aus dem berechneten Materialbedarf eine Liste fuer morgen erzeugen. Mitarbeiter koennen Positionen abhaken und fehlendes Material melden.
+Mitbringlisten liegen unter `/bring-lists`. Chef/Admin kann Listen manuell erstellen oder im Auftragsdetail aus dem berechneten Materialbedarf eine Liste fuer morgen erzeugen. Zusaetzlich erzeugt BauPro fuer morgen automatisch Listen aus Auftrag, Materialplanung, Lagerbestand und Plantafel. Mitarbeiter und Vorarbeiter sehen die ihnen zugeordneten Listen, koennen Positionen abhaken, manuell ergaenzen und fehlendes Material melden.
 
-Der Lagerabgleich prueft Bestand, Mindestbestand und offene Reservierungen. Bei Fehlbestand entstehen Materialwarnungen und Einkaufsvorschlaege fuer Chef/Admin im Dashboard. Einkaufsvorschlaege und Einkaufsdaten sind fuer Mitarbeiter nicht sichtbar.
+Der Lagerabgleich prueft Bestand, Mindestbestand, offene Reservierungen und Fahrzeug-/Lagerorte. Bei Fehlbestand entstehen Materialwarnungen und Einkaufsvorschlaege fuer Chef/Admin im Dashboard. Wenn Material im falschen Fahrzeug liegt oder ein Geraet in der Plantafel als defekt/Werkstatt markiert ist, zeigt die Mitbringliste einen Hinweis. Einkaufsvorschlaege und Einkaufsdaten sind fuer Mitarbeiter nicht sichtbar.
 
 ## KI-Assistent
 
@@ -333,6 +410,7 @@ Die Auftragsstrecke ist unter `/orders` erreichbar:
 
 - `/orders/new`: Wizard fuer Kunde, Auftrag, Maße und automatische Materialberechnung
 - Laenge und Breite berechnen die Flaeche automatisch
+- Auftragsdetail: strukturiertes Aufmass mit Dachflaechen, Abzuegen, Traufe, First, Ortgang, Kehle, Wandanschluss, Fallrohr und Stueckzahlen
 - Standard-Verschnitt ist 20 %, kann aber von Chef/Admin angepasst werden
 - Beim Speichern entsteht automatisch eine verknuepfte Baustelle
 - Materialbedarf wird in `job_material_requirements` gespeichert
@@ -356,6 +434,8 @@ Die App vermeidet sichtbare Scheinfunktionen. Noch nicht produktive Bereiche wie
 Die App enthaelt technische Grundlagen fuer Datenschutz und B2B-SaaS-Betrieb. Diese ersetzen keine anwaltliche Pruefung.
 
 - Datenschutz-Center unter `/privacy` mit eigenem Datenexport, Firmenexport fuer Chef/Admin und Datenschutzanfragen.
+- Billing unter `/billing` mit Stripe Checkout, Stripe Customer Portal, Tariflimits und KI-Kontingent.
+- Angebote/Rechnungen unter `/angebote-rechnungen` mit Belegstatus, PDF-Export, DATEV-CSV, XRechnung-XML-Entwurf und Auftrag-Uebernahme.
 - Rechtliche Entwurfsseiten unter `/legal`.
 - Consent-Banner fuer notwendige Login-Cookies und optionale Analyse/Marketing-Verarbeitung.
 - Datenlandkarte und Subprozessoren in `DATA_PROCESSING.md` und `SUBPROCESSORS.md`.
@@ -382,6 +462,19 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 - `supabase/migrations/20260615_saas_hardening.sql`: Delta fuer Firmenprofil, Archivierung und Audit-Grundlage
 - `supabase/migrations/20260615_roles_security_hardening.sql`: Delta fuer Vorarbeiter-Rolle und Rollen-Haertung
 - `supabase/migrations/20260615_privacy_compliance.sql`: Delta fuer Datenschutzanfragen und Storage-Haertung
+- `supabase/migrations/20260619_stripe_billing.sql`: Delta fuer Stripe Billing, Tariflimits und Webhook-Idempotenz
+- `supabase/migrations/20260619_dashboard_rpc.sql`: Delta fuer gebuendelte Dashboard-RPC, Cache-Tags und mandantensichere Summary-Daten
+- `supabase/migrations/20260620_soft_delete_columns.sql`: Delta fuer Soft-Delete-Schutz und gesperrte Hard-Deletes bei Geschaeftsdaten
+- `supabase/migrations/20260622_commercial_documents.sql`: Delta fuer Angebote/Rechnungen, Positionen, Summen-Trigger und Manager-only RLS
+- `supabase/migrations/20260628_planning_board.sql`: Delta fuer Plantafel, Ressourcenplanung, Konflikt-Erkennung und rollenbasierte RLS
+- `supabase/migrations/20260629_planning_weather_risks.sql`: Delta fuer Plantafel-Wetterrisiken, Cache und Chef-Bestaetigung/Ignorieren
+- `supabase/migrations/20260630_inventory_jobsite_flow.sql`: Delta fuer Baustellen-Verbrauch, Rueckgabe, Verlust/Bruch, Reservierung und unveraenderbare Materialbewegungen
+- `supabase/migrations/20260701_auto_bring_lists.sql`: Delta fuer automatische Mitbringlisten, Quellen-Schutz, manuelle Ergaenzungen und Audit-Log
+- `supabase/migrations/20260702_delivery_note_recognition.sql`: Delta fuer Lieferschein-Fotoerkennung, private Originalfotos, Preis-Isolation und bestaetigten Wareneingang
+- `supabase/migrations/20260703_ai_roof_material_calculation.sql`: Delta fuer KI-gestuetzte Dachdecker-Materialberechnung, Fehlmengen und pruefpflichtige Vorschlaege
+- `supabase/migrations/20260704_resource_vehicle_management.sql`: Delta fuer Fahrzeuge, Maschinen, Werkzeuge, Prueftermine, Dokumente und Plantafel-Zuordnung
+- `supabase/migrations/20260705_flexible_checklists.sql`: Delta fuer wiederverwendbare Checklisten, Baustellen-Checks, Foto-Nachweise, optionale Signatur und automatische Problem-Aufgaben
+- `supabase/migrations/20260706_defect_management.sql`: Delta fuer Maengel, Fotos, Fristen, Kundenfreigabe, interne Benachrichtigungen und PDF-Maengelbericht
 - `supabase/material-catalog-seed.sql`: praxisnaher Dachdecker-Materialkatalog
 - `scripts/seed-demo-company.mjs`: realistische Demo-Firma fuer Verkauf, QA und Produktdemos
 - `tests/`: Unit-, Integration- und E2E-Smoke-Tests

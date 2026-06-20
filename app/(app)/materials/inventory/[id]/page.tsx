@@ -11,6 +11,13 @@ import {
   matchSupplierOfferAction
 } from "@/lib/actions/supplier-actions";
 import { requireManager } from "@/lib/auth";
+import {
+  inventoryItemManagerDetailSelect,
+  onlinePriceDiscoverySelect,
+  onlinePriceOfferSelect,
+  supplierOfferMatchSelect,
+  supplierOfferSelect
+} from "@/lib/data/selects";
 import { formatQuantity } from "@/lib/inventory";
 import { resolveMaterialPriceDecision } from "@/lib/online-price-discovery/pricing-priority";
 import { bestDealScore } from "@/lib/suppliers/matcher";
@@ -92,7 +99,7 @@ export default async function InventoryItemDetailPage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireManager();
+  const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const { id } = await params;
   const { error, success } = searchParamMessage(await searchParams);
@@ -100,25 +107,34 @@ export default async function InventoryItemDetailPage({
   const [itemResult, matchesResult, offersResult, discoveriesResult, onlineOffersResult] = await Promise.all([
     supabase
       .from("inventory_items")
-      .select("*, inventory_locations(id, name, location_type), material_categories(id, name, slug), material_subcategories(id, name, slug), suppliers(id, name)")
+      .select(inventoryItemManagerDetailSelect)
+      .eq("company_id", context.companyId)
       .eq("id", id)
       .single(),
     supabase
       .from("supplier_offer_matches")
-      .select("*, supplier_offers(*)")
+      .select(supplierOfferMatchSelect)
+      .eq("company_id", context.companyId)
       .eq("material_id", id)
       .order("match_score", { ascending: false }),
-    supabase.from("supplier_offers").select("*").order("total_price_gross", { ascending: true }).limit(100),
+    supabase
+      .from("supplier_offers")
+      .select(supplierOfferSelect)
+      .eq("company_id", context.companyId)
+      .order("total_price_gross", { ascending: true })
+      .limit(100),
     supabase
       .from("online_price_discoveries")
-      .select("*")
+      .select(onlinePriceDiscoverySelect)
+      .eq("company_id", context.companyId)
       .eq("material_id", id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
     supabase
       .from("online_price_offers")
-      .select("*")
+      .select(onlinePriceOfferSelect)
+      .eq("company_id", context.companyId)
       .eq("material_id", id)
       .order("total_price_gross", { ascending: true })
       .limit(8)
@@ -126,8 +142,8 @@ export default async function InventoryItemDetailPage({
 
   if (!itemResult.data) notFound();
 
-  const item = itemResult.data as InventoryItem;
-  const matches = (matchesResult.data ?? []) as SupplierOfferMatch[];
+  const item = itemResult.data as unknown as InventoryItem;
+  const matches = (matchesResult.data ?? []) as unknown as SupplierOfferMatch[];
   const matchedOffers = matches.map((match) => match.supplier_offers).filter(Boolean) as SupplierOffer[];
   const allOffers = (offersResult.data ?? []) as SupplierOffer[];
   const latestDiscovery = (discoveriesResult.data ?? null) as OnlinePriceDiscovery | null;

@@ -1,0 +1,71 @@
+{
+  "name": "BauPro - Handwerker Software",
+  "short_name": "BauPro",
+  "id": "/",
+  "description": "Mobile Betriebssoftware für Dachdecker- und Handwerksbetriebe.",
+  "lang": "de-DE",
+  "dir": "ltr",
+  "theme_color": "#2E7D32",
+  "background_color": "#F8FAFC",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "start_url": "/dashboard?source=pwa",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Stunden eintragen",
+      "short_name": "Zeiten",
+      "description": "Arbeitszeit auf der Baustelle erfassen",
+      "url": "/time-tracking/new?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Tagesbericht schreiben",
+      "short_name": "Bericht",
+      "description": "Bautagesbericht erstellen",
+      "url": "/berichte/neu?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Material melden",
+      "short_name": "Material",
+      "description": "Fehlendes Material melden",
+      "url": "/material-melden?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

@@ -2,21 +2,38 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { ensureAutomaticBringListsForDate } from "@/lib/bring-lists/auto-generate";
 import { bringListTemplates } from "@/lib/bring-list-templates";
 import { requireAppContext, requireManager } from "@/lib/auth";
+import {
+  bringListItemSelect,
+  jobMaterialRequirementPublicSelect,
+  orderBringListSourceSelect
+} from "@/lib/data/selects";
+import { searchOrFilter } from "@/lib/data/shared";
+import { revalidateDashboardCache } from "@/lib/data/dashboard";
 import { checkBringListAvailability } from "@/lib/inventory/check-availability";
 import { createOrUpdateMaterialAlert } from "@/lib/inventory/alerts";
 import { generatePurchaseSuggestions } from "@/lib/inventory/purchase-suggestions";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { optionalFormUuid, requiredFormUuid } from "@/lib/security/form-data";
+import { safeReturnPath } from "@/lib/security/redirects";
 import { assertBringListAccess, assertJobsiteInCompany, assertProfilesInCompany, assertVehicleInCompany } from "@/lib/security/tenant-guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalString, requiredString } from "@/lib/utils";
-import type { BringListItemType, JobMaterialRequirement, Order } from "@/types/app";
+import type { BringListItem, BringListItemType, JobMaterialRequirement, OrderType } from "@/types/app";
+
+type OrderBringListSource = {
+  id: string;
+  company_id: string;
+  jobsite_id: string | null;
+  title: string;
+  order_type: OrderType;
+  jobsites?: { id: string; name: string } | null;
+};
 
 function redirectTarget(formData: FormData, fallback = "/bring-lists") {
-  const value = String(formData.get("return_to") ?? "");
-  return value.startsWith("/") ? value : fallback;
+  return safeReturnPath(formData.get("return_to"), fallback);
 }
 
 function tomorrowIsoDate() {
@@ -48,7 +65,7 @@ async function findInventoryItemByName({
     .from("inventory_items")
     .select("id, name, unit, location_id, stock, minimum_stock, inventory_locations(id, name, location_type)")
     .eq("company_id", companyId)
-    .ilike("name", `%${name}%`)
+    .or(searchOrFilter(["name"], name))
     .order("stock", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -61,6 +78,31 @@ async function findInventoryItemByName({
         inventory_locations?: { name?: string | null } | null;
       }
     | null;
+}
+
+async function logBringListAudit({
+  supabase,
+  context,
+  bringListId,
+  action,
+  oldValues,
+  newValues
+}: {
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  context: Awaited<ReturnType<typeof requireAppContext>>;
+  bringListId: string;
+  action: string;
+  oldValues?: Record<string, unknown>;
+  newValues?: Record<string, unknown>;
+}) {
+  await supabase.from("bring_list_audit_log").insert({
+    company_id: context.companyId,
+    bring_list_id: bringListId,
+    actor_id: context.userId,
+    action,
+    old_values: oldValues ?? null,
+    new_values: newValues ?? null
+  });
 }
 
 async function insertBringListItems({
@@ -84,7 +126,9 @@ async function insertBringListItems({
       item_type: item.itemType,
       quantity: item.quantity,
       unit: inventory?.unit ?? item.unit,
-      storage_location: inventory?.inventory_locations?.name ?? null
+      storage_location: inventory?.inventory_locations?.name ?? null,
+      auto_generated: false,
+      source_type: "manual"
     });
   }
 
@@ -171,6 +215,13 @@ export async function createBringListAction(formData: FormData) {
     });
 
     await checkBringListAvailability({ supabase, companyId: context.companyId, bringListId: list.id as string });
+    await logBringListAudit({
+      supabase,
+      context,
+      bringListId: list.id as string,
+      action: "created_manual",
+      newValues: { item_count: names.length }
+    });
     target = `/bring-lists/${list.id}?success=${toQuery("Mitbringliste wurde erstellt.")}`;
   } catch (error) {
     target = `${returnTo}?error=${toQuery(safeErrorMessage(error, "Mitbringliste konnte nicht erstellt werden."))}`;
@@ -178,6 +229,7 @@ export async function createBringListAction(formData: FormData) {
 
   revalidatePath("/bring-lists");
   revalidatePath("/dashboard");
+  revalidateDashboardCache(context.companyId);
   redirect(target);
 }
 
@@ -190,13 +242,13 @@ export async function createBringListFromOrderAction(formData: FormData) {
   try {
     const { data: orderData } = await supabase
       .from("orders")
-      .select("*, jobsites(id, name)")
+      .select(orderBringListSourceSelect)
       .eq("id", orderId)
       .eq("company_id", context.companyId)
       .single();
     if (!orderData) throw new SafeActionError("Auftrag wurde nicht gefunden.");
 
-    const order = orderData as Order & { jobsites?: { id: string; name: string } | null };
+    const order = orderData as unknown as OrderBringListSource;
     if (!order.jobsite_id) throw new SafeActionError("Auftrag hat keine verknuepfte Baustelle.");
 
     const { data: list, error } = await supabase
@@ -217,11 +269,12 @@ export async function createBringListFromOrderAction(formData: FormData) {
 
     const { data: requirements } = await supabase
       .from("job_material_requirements")
-      .select("*")
+      .select(jobMaterialRequirementPublicSelect)
       .eq("order_id", orderId)
-      .eq("company_id", context.companyId);
+      .eq("company_id", context.companyId)
+      .is("archived_at", null);
 
-    const materialItems = ((requirements ?? []) as JobMaterialRequirement[]).map((item) => ({
+    const materialItems = ((requirements ?? []) as unknown as JobMaterialRequirement[]).map((item) => ({
       name: item.material_name,
       quantity: Number(item.total_quantity),
       unit: item.unit,
@@ -250,6 +303,7 @@ export async function createBringListFromOrderAction(formData: FormData) {
   revalidatePath("/bring-lists");
   revalidatePath(`/orders/${orderId}`);
   revalidatePath("/dashboard");
+  revalidateDashboardCache(context.companyId);
   redirect(target);
 }
 
@@ -263,7 +317,7 @@ export async function updateBringListItemPackedAction(formData: FormData) {
   try {
     await assertBringListAccess({ supabase, context, bringListId });
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("bring_list_items")
       .update({
         packed,
@@ -271,16 +325,26 @@ export async function updateBringListItemPackedAction(formData: FormData) {
         packed_at: packed ? new Date().toISOString() : null
       })
       .eq("id", itemId)
-      .eq("bring_list_id", bringListId);
+      .eq("bring_list_id", bringListId)
+      .select("id")
+      .maybeSingle();
 
-    if (error) throw new SafeActionError("Position konnte nicht aktualisiert werden.");
+    if (error || !data) throw new SafeActionError("Position konnte nicht aktualisiert werden.");
 
     await checkBringListAvailability({ supabase, companyId: context.companyId, bringListId });
+    await logBringListAudit({
+      supabase,
+      context,
+      bringListId,
+      action: packed ? "item_packed" : "item_reopened",
+      newValues: { item_id: itemId, packed }
+    });
   } catch (error) {
     redirect(`/bring-lists/${bringListId}?error=${toQuery(safeErrorMessage(error, "Position konnte nicht aktualisiert werden."))}`);
   }
 
   revalidatePath(`/bring-lists/${bringListId}`);
+  revalidateDashboardCache(context.companyId);
   redirect(`/bring-lists/${bringListId}?success=${toQuery(packed ? "Position eingepackt." : "Position wieder offen.")}`);
 }
 
@@ -295,14 +359,28 @@ export async function updateBringListStatusAction(formData: FormData) {
 
   try {
     await assertBringListAccess({ supabase, context, bringListId });
-    const { error } = await supabase.from("bring_lists").update({ status }).eq("id", bringListId).eq("company_id", context.companyId);
-    if (error) throw new SafeActionError("Status konnte nicht gespeichert werden.");
+    const { data, error } = await supabase
+      .from("bring_lists")
+      .update({ status })
+      .eq("id", bringListId)
+      .eq("company_id", context.companyId)
+      .select("id")
+      .maybeSingle();
+    if (error || !data) throw new SafeActionError("Status konnte nicht gespeichert werden.");
+    await logBringListAudit({
+      supabase,
+      context,
+      bringListId,
+      action: "status_changed",
+      newValues: { status }
+    });
   } catch (error) {
     redirect(`/bring-lists/${bringListId}?error=${toQuery(safeErrorMessage(error, "Status konnte nicht gespeichert werden."))}`);
   }
 
   revalidatePath("/bring-lists");
   revalidatePath(`/bring-lists/${bringListId}`);
+  revalidateDashboardCache(context.companyId);
   redirect(`/bring-lists/${bringListId}?success=${toQuery("Status wurde gespeichert.")}`);
 }
 
@@ -312,44 +390,70 @@ export async function reportMissingBringListItemAction(formData: FormData) {
   const bringListId = requiredFormUuid(formData, "bring_list_id", "Mitbringliste");
   const itemId = requiredFormUuid(formData, "item_id", "Position");
 
-  const list = await assertBringListAccess({ supabase, context, bringListId });
+  try {
+    const list = await assertBringListAccess({ supabase, context, bringListId });
 
-  const { data: item } = await supabase.from("bring_list_items").select("*").eq("id", itemId).eq("bring_list_id", bringListId).single();
+    const { data: item } = await supabase
+      .from("bring_list_items")
+      .select(bringListItemSelect)
+      .eq("id", itemId)
+      .eq("bring_list_id", bringListId)
+      .single();
 
-  if (!item) redirect(`/bring-lists/${bringListId}?error=${toQuery("Position wurde nicht gefunden.")}`);
+    if (!item) throw new SafeActionError("Position wurde nicht gefunden.");
+    const typedItem = item as unknown as BringListItem;
 
-  await supabase.from("bring_list_items").update({ missing_reported: true }).eq("id", itemId);
-  await createOrUpdateMaterialAlert({
-    supabase,
-    companyId: context.companyId,
-    materialId: item.material_id as string | null,
-    inventoryItemId: item.inventory_item_id as string | null,
-    jobId: list.job_id ?? null,
-    bringListId,
-    alertType: "missing_for_job",
-    severity: "critical",
-    message: `Mitarbeiter meldet fehlend: ${item.custom_item_name}`,
-    requiredQuantity: Number(item.quantity ?? 0),
-    availableQuantity: 0,
-    missingQuantity: Number(item.quantity ?? 0),
-    unit: String(item.unit ?? "Stueck"),
-    createdBySystem: false
-  });
+    const { data: updatedItem, error: updateError } = await supabase
+      .from("bring_list_items")
+      .update({ missing_reported: true })
+      .eq("id", itemId)
+      .eq("bring_list_id", bringListId)
+      .select("id")
+      .maybeSingle();
+    if (updateError || !updatedItem) throw new SafeActionError("Fehlmeldung konnte nicht gespeichert werden.");
 
-  await generatePurchaseSuggestions({
-    supabase,
-    companyId: context.companyId,
-    materialId: item.material_id as string | null,
-    inventoryItemId: item.inventory_item_id as string | null,
-    jobId: list.job_id ?? null,
-    bringListId,
-    quantityNeeded: Number(item.quantity ?? 0),
-    unit: String(item.unit ?? "Stueck"),
-    reason: `Mitarbeiter meldet fehlendes Material: ${item.custom_item_name}`
-  });
+    await createOrUpdateMaterialAlert({
+      supabase,
+      companyId: context.companyId,
+      materialId: typedItem.material_id,
+      inventoryItemId: typedItem.inventory_item_id,
+      jobId: list.job_id ?? null,
+      bringListId,
+      alertType: "missing_for_job",
+      severity: "critical",
+      message: `Mitarbeiter meldet fehlend: ${typedItem.custom_item_name}`,
+      requiredQuantity: Number(typedItem.quantity ?? 0),
+      availableQuantity: 0,
+      missingQuantity: Number(typedItem.quantity ?? 0),
+      unit: typedItem.unit,
+      createdBySystem: false
+    });
+
+    await generatePurchaseSuggestions({
+      supabase,
+      companyId: context.companyId,
+      materialId: typedItem.material_id,
+      inventoryItemId: typedItem.inventory_item_id,
+      jobId: list.job_id ?? null,
+      bringListId,
+      quantityNeeded: Number(typedItem.quantity ?? 0),
+      unit: typedItem.unit,
+      reason: `Mitarbeiter meldet fehlendes Material: ${typedItem.custom_item_name}`
+    });
+    await logBringListAudit({
+      supabase,
+      context,
+      bringListId,
+      action: "missing_reported",
+      newValues: { item_id: itemId, item_name: typedItem.custom_item_name }
+    });
+  } catch (error) {
+    redirect(`/bring-lists/${bringListId}?error=${toQuery(safeErrorMessage(error, "Fehlendes Material konnte nicht gemeldet werden."))}`);
+  }
 
   revalidatePath(`/bring-lists/${bringListId}`);
   revalidatePath("/dashboard");
+  revalidateDashboardCache(context.companyId);
   redirect(`/bring-lists/${bringListId}?success=${toQuery("Fehlendes Material wurde dem Chef gemeldet.")}`);
 }
 
@@ -373,7 +477,93 @@ export async function reserveBringListMaterialsAction(formData: FormData) {
 
   revalidatePath(`/bring-lists/${bringListId}`);
   revalidatePath("/dashboard");
+  revalidateDashboardCache(context.companyId);
   redirect(`/bring-lists/${bringListId}?success=${toQuery("Material wurde reserviert und geprueft.")}`);
+}
+
+export async function syncAutomaticBringListsAction(formData: FormData) {
+  const context = await requireAppContext();
+  const supabase = await createSupabaseServerClient();
+  const returnTo = redirectTarget(formData);
+  const dateValue = String(formData.get("date") ?? tomorrowIsoDate());
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(dateValue) ? dateValue : tomorrowIsoDate();
+  let target = returnTo;
+
+  if (!context.canOperate) {
+    redirect(`${returnTo}?error=${toQuery("Keine Berechtigung fuer automatische Mitbringlisten.")}`);
+  }
+
+  try {
+    const result = await ensureAutomaticBringListsForDate({ supabase, context, date });
+    target = `${returnTo}?success=${toQuery(
+      `Mitbringlisten aktualisiert: ${result.created} neu, ${result.updated} aktualisiert, ${result.checked} geprueft.`
+    )}`;
+  } catch (error) {
+    target = `${returnTo}?error=${toQuery(safeErrorMessage(error, "Automatische Mitbringlisten konnten nicht aktualisiert werden."))}`;
+  }
+
+  revalidatePath("/bring-lists");
+  revalidatePath("/bring-lists/tomorrow");
+  revalidatePath("/morgen");
+  revalidatePath("/dashboard");
+  revalidateDashboardCache(context.companyId);
+  redirect(target);
+}
+
+export async function addBringListItemAction(formData: FormData) {
+  const context = await requireAppContext();
+  const supabase = await createSupabaseServerClient();
+  const bringListId = requiredFormUuid(formData, "bring_list_id", "Mitbringliste");
+  const returnTo = redirectTarget(formData, `/bring-lists/${bringListId}`);
+  let target = returnTo;
+
+  try {
+    await assertBringListAccess({ supabase, context, bringListId });
+    const name = requiredString(formData, "item_name");
+    const itemType = itemTypeValue(formData.get("item_type"));
+    const quantity = numberValue(formData.get("item_quantity"));
+    const unit = optionalString(formData, "item_unit") ?? "Stueck";
+    const notes = optionalString(formData, "item_notes");
+    const inventory = itemType === "material" ? await findInventoryItemByName({ supabase, companyId: context.companyId, name }) : null;
+
+    const { data, error } = await supabase
+      .from("bring_list_items")
+      .insert({
+        bring_list_id: bringListId,
+        inventory_item_id: inventory?.id ?? null,
+        custom_item_name: inventory?.name ?? name,
+        item_type: itemType,
+        quantity,
+        unit: inventory?.unit ?? unit,
+        storage_location: inventory?.inventory_locations?.name ?? null,
+        notes,
+        auto_generated: false,
+        source_type: "manual"
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (error || !data) throw new SafeActionError("Position konnte nicht ergaenzt werden.");
+
+    await checkBringListAvailability({ supabase, companyId: context.companyId, bringListId });
+    await logBringListAudit({
+      supabase,
+      context,
+      bringListId,
+      action: "item_added_manual",
+      newValues: { item_id: data.id as string, item_name: inventory?.name ?? name, item_type: itemType }
+    });
+
+    target = `${returnTo}?success=${toQuery("Position wurde ergaenzt.")}`;
+  } catch (error) {
+    target = `${returnTo}?error=${toQuery(safeErrorMessage(error, "Position konnte nicht ergaenzt werden."))}`;
+  }
+
+  revalidatePath(`/bring-lists/${bringListId}`);
+  revalidatePath("/bring-lists");
+  revalidatePath("/dashboard");
+  revalidateDashboardCache(context.companyId);
+  redirect(target);
 }
 
 export async function updatePurchaseSuggestionStatusAction(formData: FormData) {
@@ -385,14 +575,17 @@ export async function updatePurchaseSuggestionStatusAction(formData: FormData) {
     redirect(`/dashboard?error=${toQuery("Ungueltiger Einkaufsvorschlag-Status.")}`);
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("purchase_suggestions")
     .update({ status })
     .eq("id", id)
-    .eq("company_id", context.companyId);
+    .eq("company_id", context.companyId)
+    .select("id")
+    .maybeSingle();
 
-  if (error) redirect(`/dashboard?error=${toQuery("Einkaufsvorschlag konnte nicht aktualisiert werden.")}`);
+  if (error || !data) redirect(`/dashboard?error=${toQuery("Einkaufsvorschlag konnte nicht aktualisiert werden.")}`);
 
   revalidatePath("/dashboard");
+  revalidateDashboardCache(context.companyId);
   redirect(`/dashboard?success=${toQuery("Einkaufsvorschlag wurde aktualisiert.")}`);
 }

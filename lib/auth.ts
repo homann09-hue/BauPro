@@ -23,7 +23,7 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
 
   let { data: profile, error } = await supabase
     .from("profiles")
-    .select("*, companies(id, name)")
+    .select("id, company_id, email, full_name, role, active, companies(id, name)")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -32,7 +32,7 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
 
     const retry = await supabase
       .from("profiles")
-      .select("*, companies(id, name)")
+      .select("id, company_id, email, full_name, role, active, companies(id, name)")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -42,7 +42,7 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
 
   if (error || !profile) return null;
 
-  const typedProfile = profile as Profile;
+  const typedProfile = profile as unknown as Profile;
   const company = typedProfile.companies;
 
   return {

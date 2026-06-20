@@ -32,7 +32,7 @@ export default async function TimeReportDetailPage({
       <div className="mb-4 flex flex-wrap gap-2">
         <Link href="/time-tracking/reports" className="btn-secondary">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Zurueck
+          Zurück
         </Link>
         <a href={`/time-tracking/reports/${id}/pdf`} className="btn-primary">
           <Download className="h-4 w-4" aria-hidden="true" />
@@ -77,7 +77,7 @@ export default async function TimeReportDetailPage({
       <section className="surface overflow-hidden p-0">
         <div className="flex items-center gap-3 border-b border-line p-4">
           <FileText className="h-5 w-5 text-moss" aria-hidden="true" />
-          <h2 className="text-lg font-black text-ink">Eintraege</h2>
+          <h2 className="text-lg font-black text-ink">Einträge</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
@@ -90,7 +90,7 @@ export default async function TimeReportDetailPage({
                 <th className="px-4 py-3">Ende</th>
                 <th className="px-4 py-3">Pause</th>
                 <th className="px-4 py-3">Netto</th>
-                <th className="px-4 py-3">Taetigkeit</th>
+                <th className="px-4 py-3">Tätigkeit</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">

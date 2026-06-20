@@ -5,6 +5,7 @@ import { getInitials } from "@/lib/utils";
 import type { AppContext } from "@/lib/auth";
 import { FloatingActionButton } from "@/components/construction-ui";
 import { NavLink } from "@/components/nav-link";
+import { PredictivePrefetch } from "@/components/performance/PredictivePrefetch";
 import { VoiceDictation } from "@/components/voice-dictation";
 
 type NavItem = Omit<React.ComponentProps<typeof NavLink>, "variant">;
@@ -12,23 +13,34 @@ type NavItem = Omit<React.ComponentProps<typeof NavLink>, "variant">;
 const managerPrimaryNav: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   { href: "/baustellen", label: "Baustellen", icon: "baustellen" },
+  { href: "/plantafel", label: "Plantafel", icon: "plantafel" },
   { href: "/berichte", label: "Berichte", icon: "berichte" },
   { href: "/materials", label: "Material", icon: "material" },
-  { href: "/team", label: "Team", icon: "team" },
-  { href: "/settings", label: "Einstellungen", icon: "einstellungen" }
+  { href: "/team", label: "Team", icon: "team" }
 ];
 
 const managerQuickLinks: NavItem[] = [
+  { href: "/onboarding", label: "Startassistent", icon: "onboarding" },
+  { href: "/demo-tour", label: "Demo-Tour", icon: "warum" },
+  { href: "/warum-baupro", label: "Warum BauPro?", icon: "warum" },
   { href: "/customers", label: "Kunden", icon: "kunden" },
   { href: "/orders", label: "Aufträge", icon: "auftraege" },
+  { href: "/fahrzeuge", label: "Fahrzeuge/Geräte", icon: "fahrzeuge" },
+  { href: "/checklists", label: "Checklisten", icon: "checklisten" },
+  { href: "/maengel", label: "Mängel", icon: "maengel" },
+  { href: "/settings", label: "Einstellungen", icon: "einstellungen" },
   { href: "/calendar", label: "Kalender", icon: "kalender" },
   { href: "/bring-lists", label: "Mitbringlisten", icon: "mitbringen" },
+  { href: "/materials/control-center", label: "Material-Zentrale", icon: "material" },
   { href: "/time-tracking", label: "Zeiterfassung", icon: "zeiten" },
+  { href: "/time-tracking/daily", label: "Tagesstunden", icon: "zeiten" },
   { href: "/time-tracking/reports", label: "Stundenzettel", icon: "stundenzettel" },
   { href: "/materials/live-offers", label: "Preisquellen", icon: "lieferanten" },
-  { href: "/billing", label: "Angebote/Rechnungen", icon: "angebote" },
+  { href: "/angebote-rechnungen", label: "Angebote/Rechnungen", icon: "angebote" },
+  { href: "/billing", label: "Abo", icon: "angebote" },
   { href: "/ai/job-wizard", label: "KI Auftrag", icon: "ki" },
-  { href: "/privacy", label: "Datenschutz", icon: "datenschutz" }
+  { href: "/privacy", label: "Datenschutz", icon: "datenschutz" },
+  { href: "/hilfe", label: "Hilfe", icon: "datenschutz" }
 ];
 
 const foremanPrimaryNav: NavItem[] = [
@@ -50,16 +62,21 @@ const employeePrimaryNav: NavItem[] = [
 ];
 
 const employeeQuickLinks: NavItem[] = [
+  { href: "/warum-baupro", label: "Warum BauPro?", icon: "warum" },
+  { href: "/checklists", label: "Checklisten", icon: "checklisten" },
+  { href: "/maengel", label: "Mängel", icon: "maengel" },
   { href: "/material-melden", label: "Material melden", icon: "materialMelden" },
   { href: "/ai-assistant", label: "KI fragen", icon: "ki" },
-  { href: "/privacy", label: "Datenschutz", icon: "datenschutz" }
+  { href: "/privacy", label: "Datenschutz", icon: "datenschutz" },
+  { href: "/hilfe", label: "Hilfe", icon: "datenschutz" }
 ];
 
 const roleLabels = {
   admin: "Admin",
   chef: "Chef",
   vorarbeiter: "Vorarbeiter",
-  mitarbeiter: "Mitarbeiter"
+  mitarbeiter: "Mitarbeiter",
+  kunde: "Kunde"
 } as const;
 
 function getShellNavigation(context: AppContext) {
@@ -208,13 +225,14 @@ export function AppShell({
         </div>
       </header>
 
-      <main className="pb-32 lg:ml-80 lg:pb-0">
+      <main className="pb-[calc(8rem+env(safe-area-inset-bottom))] lg:ml-80 lg:pb-0">
         <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </div>
       </main>
 
       <VoiceDictation />
+      <PredictivePrefetch role={context.profile.role} canManage={context.canManage} />
 
       <Link
         href="/ai-assistant"
@@ -228,7 +246,7 @@ export function AppShell({
 
       <FloatingActionButton href={floatingAction.href} icon={floatingAction.icon} label={floatingAction.label} />
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/80 bg-white/95 px-2 pb-[env(safe-area-inset-bottom)] pt-1 shadow-[0_-16px_40px_rgba(23,33,27,0.12)] backdrop-blur-xl lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/80 bg-white/95 px-2 pb-[calc(0.25rem+env(safe-area-inset-bottom))] pt-1 shadow-[0_-16px_40px_rgba(23,33,27,0.12)] backdrop-blur-xl lg:hidden">
         <div className="mx-auto grid max-w-3xl grid-cols-5 gap-1 pb-1">
           {mobileNav.map((item) => (
             <NavLink key={item.href} {...item} variant="mobile" />

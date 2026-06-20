@@ -7,19 +7,17 @@ import { getProposedAiActionForUser, markAiActionStatus } from "@/lib/actions/ai
 import { createOrUpdateMaterialAlert } from "@/lib/inventory/alerts";
 import { generatePurchaseSuggestions } from "@/lib/inventory/purchase-suggestions";
 import { requireAppContext } from "@/lib/auth";
+import { searchOrFilter } from "@/lib/data/shared";
+import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
+import { safeReturnPath } from "@/lib/security/redirects";
 import { calculateTimeMinutes } from "@/lib/time-tracking";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { parseVoiceInput } from "@/lib/voice/voice-router";
 import type { ClassifiedBusinessInput } from "@/lib/ai/types";
 import type { ParsedMaterialEntity } from "@/lib/voice/entity-parser";
 
-function toQuery(value: string) {
-  return encodeURIComponent(value);
-}
-
 function returnTo(formData: FormData) {
-  const value = String(formData.get("return_to") ?? "/dashboard");
-  return value.startsWith("/") ? value : "/dashboard";
+  return safeReturnPath(formData.get("return_to"), "/dashboard");
 }
 
 function aiIntentToVoiceIntent(intent: ClassifiedBusinessInput["intent"]) {
@@ -56,7 +54,7 @@ async function parseConfirmedInput(formData: FormData, rawText: string) {
 
   if (Number(action.confidence) < 0.7) {
     const questions = action.parsed_json.follow_up_questions.join(" ");
-    throw new Error(`KI ist noch unsicher. Bitte zuerst pruefen: ${questions || "Angaben fehlen."}`);
+    throw new SafeActionError(`KI ist noch unsicher. Bitte zuerst pruefen: ${questions || "Angaben fehlen."}`);
   }
 
   return { parsed: parsedFromAi(action.parsed_json), aiActionId };
@@ -72,7 +70,7 @@ async function findJobsite(companyId: string, targetName: string | null) {
     .from("jobsites")
     .select("id, name, address, customer")
     .eq("company_id", companyId)
-    .or(`name.ilike.%${searchTerm}%,customer.ilike.%${searchTerm}%,address.ilike.%${searchTerm}%`)
+    .or(searchOrFilter(["name", "customer", "address"], searchTerm))
     .limit(1)
     .maybeSingle();
 
@@ -85,7 +83,7 @@ async function findInventoryItem(companyId: string, material: ParsedMaterialEnti
     .from("inventory_items")
     .select("id, name, unit, inventory_locations(id, name, location_type)")
     .eq("company_id", companyId)
-    .ilike("name", `%${material.name}%`)
+    .or(searchOrFilter(["name"], material.name))
     .order("stock", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -146,7 +144,7 @@ export async function confirmVoiceNoteAction(formData: FormData) {
     const jobsite = await findJobsite(context.companyId, parsed.targetName);
 
     if (parsed.intent === "bring_list") {
-      if (!jobsite) throw new Error("Bitte Baustelle im Diktat nennen oder Text bearbeiten.");
+      if (!jobsite) throw new SafeActionError("Bitte Baustelle im Diktat nennen oder Text bearbeiten.");
 
       const { data: list, error } = await supabase
         .from("bring_lists")
@@ -163,7 +161,7 @@ export async function confirmVoiceNoteAction(formData: FormData) {
         .select("id")
         .single();
 
-      if (error || !list) throw new Error(error?.message ?? "Mitbringliste konnte nicht gespeichert werden.");
+      if (error || !list) throw new Error("voice_bring_list_insert_failed");
 
       const rows = [];
       for (const material of parsed.materials) {
@@ -181,7 +179,7 @@ export async function confirmVoiceNoteAction(formData: FormData) {
 
       if (rows.length > 0) {
         const { error: itemError } = await supabase.from("bring_list_items").insert(rows);
-        if (itemError) throw new Error(itemError.message);
+        if (itemError) throw new Error("voice_bring_list_items_insert_failed");
       }
 
       await checkBringListAvailability({ supabase, companyId: context.companyId, bringListId: list.id as string });
@@ -199,8 +197,8 @@ export async function confirmVoiceNoteAction(formData: FormData) {
       revalidatePath("/dashboard");
       redirectTo = `/bring-lists/${list.id}?success=${toQuery("Diktat wurde als Mitbringliste gespeichert.")}`;
     } else if (parsed.intent === "time_tracking") {
-      if (!jobsite) throw new Error("Bitte Baustelle im Diktat nennen oder Text bearbeiten.");
-      if (!parsed.startTime || !parsed.endTime) throw new Error("Bitte Beginn und Ende nennen, z. B. von 7 bis 16 Uhr.");
+      if (!jobsite) throw new SafeActionError("Bitte Baustelle im Diktat nennen oder Text bearbeiten.");
+      if (!parsed.startTime || !parsed.endTime) throw new SafeActionError("Bitte Beginn und Ende nennen, z. B. von 7 bis 16 Uhr.");
 
       const breakMinutes = parsed.breakMinutes ?? 0;
       const calculated = calculateTimeMinutes({ startTime: parsed.startTime, endTime: parsed.endTime, breakMinutes });
@@ -225,7 +223,7 @@ export async function confirmVoiceNoteAction(formData: FormData) {
         .select("id")
         .single();
 
-      if (error || !entry) throw new Error(error?.message ?? "Zeiterfassung konnte nicht gespeichert werden.");
+      if (error || !entry) throw new Error("voice_time_entry_insert_failed");
       await createVoiceNote({
         companyId: context.companyId,
         userId: context.userId,
@@ -240,7 +238,7 @@ export async function confirmVoiceNoteAction(formData: FormData) {
       redirectTo = `/time-tracking?success=${toQuery("Diktat wurde als Arbeitszeit gespeichert.")}`;
     } else if (parsed.intent === "material_alert") {
       const firstMaterial = parsed.materials[0];
-      if (!firstMaterial) throw new Error("Bitte Material und Menge nennen.");
+      if (!firstMaterial) throw new SafeActionError("Bitte Material und Menge nennen.");
       const inventory = await findInventoryItem(context.companyId, firstMaterial);
       const alertId = await createOrUpdateMaterialAlert({
         supabase,
@@ -292,7 +290,7 @@ export async function confirmVoiceNoteAction(formData: FormData) {
       redirectTo = `${target}?error=${toQuery("Diktat konnte keinem Bereich sicher zugeordnet werden. Bitte Text bearbeiten.")}`;
     }
   } catch (error) {
-    redirect(`${target}?error=${toQuery(error instanceof Error ? error.message : "Diktat konnte nicht gespeichert werden.")}`);
+    redirect(`${target}?error=${toQuery(safeErrorMessage(error, "Diktat konnte nicht gespeichert werden."))}`);
   }
 
   redirect(redirectTo);

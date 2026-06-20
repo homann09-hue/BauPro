@@ -3,8 +3,11 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAppContext } from "@/lib/auth";
+import { revalidateDashboardCache } from "@/lib/data/dashboard";
+import { searchOrFilter } from "@/lib/data/shared";
 import { createOrUpdateMaterialAlert } from "@/lib/inventory/alerts";
 import { generatePurchaseSuggestions } from "@/lib/inventory/purchase-suggestions";
+import { safeReturnPath } from "@/lib/security/redirects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalNumber, optionalString, requiredString } from "@/lib/utils";
 
@@ -13,8 +16,7 @@ function toQuery(value: string) {
 }
 
 function returnTo(formData: FormData) {
-  const value = String(formData.get("return_to") ?? "/material-melden");
-  return value.startsWith("/") ? value : "/material-melden";
+  return safeReturnPath(formData.get("return_to"), "/material-melden");
 }
 
 export async function reportMaterialNeedAction(formData: FormData) {
@@ -31,7 +33,7 @@ export async function reportMaterialNeedAction(formData: FormData) {
     .from("inventory_items")
     .select("id, name, unit")
     .eq("company_id", context.companyId)
-    .ilike("name", `%${materialName}%`)
+    .or(searchOrFilter(["name"], materialName))
     .order("stock", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -71,5 +73,6 @@ export async function reportMaterialNeedAction(formData: FormData) {
 
   revalidatePath("/dashboard");
   revalidatePath("/material-melden");
+  revalidateDashboardCache(context.companyId);
   redirect(`${target}?success=${toQuery("Materialmeldung wurde an Chef/Admin gesendet.")}`);
 }

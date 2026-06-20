@@ -1,4 +1,5 @@
 export const CONSENT_STORAGE_KEY = "baupro-consent-v1";
+export const CONSENT_CHANGED_EVENT = "baupro-consent-changed";
 export const CONSENT_VERSION = "2026-06-15";
 
 export type ConsentState = {

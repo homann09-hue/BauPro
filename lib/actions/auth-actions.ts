@@ -4,12 +4,23 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAppContext, requireManager } from "@/lib/auth";
+import { checkUserLimit } from "@/lib/billing/plans";
+import { ensureDemoModeData } from "@/lib/demo/demo-mode";
 import { requiredFormUuid } from "@/lib/security/form-data";
+import { safeErrorMessage } from "@/lib/security/errors";
+import { publicAppOrigin } from "@/lib/security/origin";
 import { assertRateLimit } from "@/lib/security/rate-limit";
+import { safeReturnPath } from "@/lib/security/redirects";
 import { isUnsupportedVorarbeiterRoleError } from "@/lib/supabase/errors";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalString, requiredString } from "@/lib/utils";
 import type { Role } from "@/types/app";
+
+type LoginProfile = {
+  id: string;
+  role: Role;
+  companies?: { onboarding_completed_at?: string | null } | null;
+};
 
 function toQuery(value: string) {
   return encodeURIComponent(value);
@@ -17,7 +28,9 @@ function toQuery(value: string) {
 
 function normalizeRole(value: FormDataEntryValue | null): Role {
   const role = String(value ?? "mitarbeiter");
-  return role === "admin" || role === "chef" || role === "vorarbeiter" || role === "mitarbeiter" ? role : "mitarbeiter";
+  return role === "admin" || role === "chef" || role === "vorarbeiter" || role === "mitarbeiter" || role === "kunde"
+    ? role
+    : "mitarbeiter";
 }
 
 export async function signInAction(formData: FormData) {
@@ -46,7 +59,7 @@ export async function signInAction(formData: FormData) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id")
+    .select("id, role, companies(onboarding_completed_at)")
     .eq("id", data.user.id)
     .maybeSingle();
 
@@ -56,12 +69,48 @@ export async function signInAction(formData: FormData) {
     );
   }
 
+  const loginProfile = profile as unknown as LoginProfile;
+  if ((loginProfile.role === "admin" || loginProfile.role === "chef") && !loginProfile.companies?.onboarding_completed_at) {
+    redirect("/onboarding");
+  }
+
   redirect("/dashboard");
+}
+
+export async function startDemoModeAction(formData: FormData) {
+  const supabase = await createSupabaseServerClient();
+  const errorPath = safeReturnPath(formData.get("return_to"), "/demo");
+
+  try {
+    assertRateLimit("demo:start", 6, 60_000);
+  } catch {
+    redirect(`${errorPath}?error=${toQuery("Demo wurde zu oft gestartet. Bitte kurz warten.")}`);
+  }
+
+  let demo: Awaited<ReturnType<typeof ensureDemoModeData>>;
+  try {
+    demo = await ensureDemoModeData();
+  } catch (error) {
+    redirect(`${errorPath}?error=${toQuery(safeErrorMessage(error, "Demo-Modus konnte nicht vorbereitet werden."))}`);
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: demo.chefEmail,
+    password: demo.password
+  });
+
+  if (error || !data.user) {
+    redirect(`${errorPath}?error=${toQuery("Demo-Login konnte nicht gestartet werden.")}`);
+  }
+
+  await supabase.rpc("bootstrap_my_profile");
+  revalidatePath("/dashboard");
+  redirect("/demo-tour?success=Demo-Modus gestartet. Folge den Karten von oben nach unten.");
 }
 
 export async function signUpCompanyAction(formData: FormData) {
   const supabase = await createSupabaseServerClient();
-  const origin = (await headers()).get("origin") ?? "";
+  const origin = publicAppOrigin((await headers()).get("origin"));
   const companyName = requiredString(formData, "company_name");
   const fullName = requiredString(formData, "full_name");
   const email = requiredString(formData, "email");
@@ -85,7 +134,7 @@ export async function signUpCompanyAction(formData: FormData) {
   }
 
   if (data.session) {
-    redirect("/dashboard");
+    redirect("/onboarding");
   }
 
   redirect(
@@ -101,6 +150,7 @@ export async function signOutAction() {
 
 export async function createEmployeeAction(formData: FormData) {
   const context = await requireManager();
+  const supabase = await createSupabaseServerClient();
   let admin: ReturnType<typeof createSupabaseAdminClient>;
   try {
     admin = createSupabaseAdminClient();
@@ -112,6 +162,12 @@ export async function createEmployeeAction(formData: FormData) {
   const password = requiredString(formData, "password");
   const fullName = requiredString(formData, "full_name");
   const role = normalizeRole(formData.get("role"));
+
+  try {
+    await checkUserLimit(supabase, context.companyId);
+  } catch (error) {
+    redirect(`/team?error=${toQuery(safeErrorMessage(error, "Nutzerlimit konnte nicht geprueft werden."))}`);
+  }
 
   const { data, error } = await admin.auth.admin.createUser({
     email,
@@ -213,7 +269,7 @@ export async function updateEmployeeAction(formData: FormData) {
 export async function updateOwnProfileAction(formData: FormData) {
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
-  const returnTo = String(formData.get("return_to") ?? "/profile");
+  const returnTo = safeReturnPath(formData.get("return_to"), "/profile");
   const fullName = requiredString(formData, "full_name");
 
   const { error } = await supabase
@@ -234,12 +290,12 @@ export async function updateOwnProfileAction(formData: FormData) {
 export async function updateCompanyProfileAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
-  const returnTo = String(formData.get("return_to") ?? "/settings");
+  const returnTo = safeReturnPath(formData.get("return_to"), "/settings");
   const name = requiredString(formData, "name");
 
-  const { error } = await supabase.from("companies").update({ name }).eq("id", context.companyId);
+  const { data, error } = await supabase.from("companies").update({ name }).eq("id", context.companyId).select("id").maybeSingle();
 
-  if (error) {
+  if (error || !data) {
     redirect(`${returnTo}?error=${toQuery("Firmenprofil konnte nicht gespeichert werden.")}`);
   }
 

@@ -4,6 +4,7 @@ import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { importSupplierOffersCsvAction } from "@/lib/actions/supplier-actions";
 import { requireManager } from "@/lib/auth";
+import { inventoryPriceOptionSelect, supplierIntegrationListSelect } from "@/lib/data/selects";
 import { supplierProviders } from "@/lib/suppliers/provider-config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { searchParamMessage } from "@/lib/utils";
@@ -14,16 +15,25 @@ export default async function ImportLiveOffersPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireManager();
+  const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
   const [materialsResult, integrationsResult] = await Promise.all([
-    supabase.from("inventory_items").select("id, name, unit, purchase_price, manufacturer").order("name"),
-    supabase.from("supplier_integrations").select("*").eq("active", true).order("name")
+    supabase
+      .from("inventory_items")
+      .select(inventoryPriceOptionSelect)
+      .eq("company_id", context.companyId)
+      .order("name"),
+    supabase
+      .from("supplier_integrations")
+      .select(supplierIntegrationListSelect)
+      .eq("company_id", context.companyId)
+      .eq("active", true)
+      .order("name")
   ]);
 
   const materials = (materialsResult.data ?? []) as InventoryItem[];
-  const integrations = (integrationsResult.data ?? []) as SupplierIntegration[];
+  const integrations = (integrationsResult.data ?? []) as unknown as Array<Omit<SupplierIntegration, "api_key_encrypted">>;
 
   return (
     <>
@@ -94,7 +104,7 @@ export default async function ImportLiveOffersPage({
             <textarea
               className="field-input min-h-48 font-mono text-xs"
               name="csv_text"
-              placeholder={"Lieferant;Produktname;Preis brutto;Versand;Einheit\nContorion;Spenglerschrauben V2A 4,5x35;12,99;4,90;Stueck"}
+              placeholder={"Lieferant;Produktname;Preis brutto;Versand;Einheit\nContorion;Spenglerschrauben V2A 4,5x35;12,99;4,90;Stück"}
             />
           </label>
         </div>

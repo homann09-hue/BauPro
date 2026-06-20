@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { Calculator, ClipboardCheck, UserRound } from "lucide-react";
 import { SubmitButton } from "@/components/submit-button";
+import { VoiceInputField } from "@/components/voice/VoiceInputField";
+import { VoiceTextarea } from "@/components/voice/VoiceTextarea";
 import { createOrderAction } from "@/lib/actions/order-actions";
 import {
   customerDisplayName,
@@ -150,10 +152,9 @@ export function OrderWizardForm({
                 <span className="field-label">E-Mail</span>
                 <input className="field-input" name="new_customer_email" type="email" />
               </label>
-              <label>
-                <span className="field-label">Rechnungsadresse</span>
-                <input className="field-input" name="new_customer_billing_address" />
-              </label>
+              <div>
+                <VoiceInputField label="Rechnungsadresse" name="new_customer_billing_address" />
+              </div>
             </>
           ) : selectedCustomer ? (
             <div className="rounded-md border border-line bg-fog p-3 text-sm text-slate-600 sm:col-span-2">
@@ -176,10 +177,9 @@ export function OrderWizardForm({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="sm:col-span-2">
-            <span className="field-label">Auftragstitel</span>
-            <input className="field-input" name="title" placeholder="z. B. Sanierung Hauptdach Müller" required />
-          </label>
+          <div className="sm:col-span-2">
+            <VoiceInputField label="Auftragstitel" name="title" placeholder="z. B. Sanierung Hauptdach Müller" required />
+          </div>
           <label>
             <span className="field-label">Auftragsart</span>
             <select className="field-input" name="order_type" defaultValue="steildach">
@@ -218,24 +218,22 @@ export function OrderWizardForm({
             <span className="field-label">Ende</span>
             <input className="field-input" name="end_date" type="date" />
           </label>
-          <label className="sm:col-span-2 lg:col-span-4">
-            <span className="field-label">Baustellenadresse</span>
-            <textarea
-              className="field-input min-h-24"
+          <div className="sm:col-span-2 lg:col-span-4">
+            <VoiceTextarea
+              label="Baustellenadresse"
               name="jobsite_address"
               value={jobsiteAddress}
-              onChange={(event) => setJobsiteAddress(event.target.value)}
+              onValueChange={setJobsiteAddress}
+              rows={3}
               required
             />
-          </label>
-          <label className="sm:col-span-2">
-            <span className="field-label">Beschreibung</span>
-            <textarea className="field-input min-h-28" name="description" />
-          </label>
-          <label className="sm:col-span-2">
-            <span className="field-label">Interne Chef-Notizen</span>
-            <textarea className="field-input min-h-28" name="internal_notes" />
-          </label>
+          </div>
+          <div className="sm:col-span-2">
+            <VoiceTextarea label="Beschreibung" name="description" rows={5} placeholder="Leistungsumfang, Zustand, Kundenwunsch" />
+          </div>
+          <div className="sm:col-span-2">
+            <VoiceTextarea label="Interne Chef-Notizen" name="internal_notes" rows={5} placeholder="Nur für Chef/Admin" />
+          </div>
         </div>
 
         <fieldset className="mt-5">
@@ -340,14 +338,13 @@ export function OrderWizardForm({
             <span className="field-label">Notüberläufe</span>
             <input className="field-input" name="emergency_overflows_count" inputMode="numeric" />
           </label>
-          <label className="sm:col-span-2 lg:col-span-4">
-            <span className="field-label">Notizen zur Berechnung</span>
-            <input className="field-input" name="dimension_notes" />
-          </label>
+          <div className="sm:col-span-2 lg:col-span-4">
+            <VoiceInputField label="Notizen zur Berechnung" name="dimension_notes" />
+          </div>
         </div>
 
         <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <button className="btn-secondary opacity-70" type="button" disabled title="Vorbereitet fuer die Angebots- und Exportstrecke">
+          <button className="btn-secondary opacity-70" type="button" disabled title="Vorbereitet für die Angebots- und Exportstrecke">
             PDF/Export vorbereitet
           </button>
           <SubmitButton>

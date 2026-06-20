@@ -1,5 +1,7 @@
 import type { Jobsite, Profile } from "@/types/app";
 import { SubmitButton } from "@/components/submit-button";
+import { VoiceInputField } from "@/components/voice/VoiceInputField";
+import { VoiceTextarea } from "@/components/voice/VoiceTextarea";
 
 type JobsiteFormProps = {
   action: (formData: FormData) => Promise<void>;
@@ -17,22 +19,13 @@ export function JobsiteForm({ action, jobsite, employees, submitLabel }: Jobsite
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="field-label" htmlFor="name">
-            Baustellenname
-          </label>
-          <input className="field-input" id="name" name="name" defaultValue={jobsite?.name} required />
+          <VoiceInputField label="Baustellenname" id="name" name="name" defaultValue={jobsite?.name} required />
         </div>
         <div>
-          <label className="field-label" htmlFor="customer">
-            Kunde
-          </label>
-          <input className="field-input" id="customer" name="customer" defaultValue={jobsite?.customer} required />
+          <VoiceInputField label="Kunde" id="customer" name="customer" defaultValue={jobsite?.customer} required />
         </div>
         <div className="sm:col-span-2">
-          <label className="field-label" htmlFor="address">
-            Adresse
-          </label>
-          <input className="field-input" id="address" name="address" defaultValue={jobsite?.address} required />
+          <VoiceInputField label="Adresse" id="address" name="address" defaultValue={jobsite?.address} required />
         </div>
         <div>
           <label className="field-label" htmlFor="start_date">
@@ -57,15 +50,7 @@ export function JobsiteForm({ action, jobsite, employees, submitLabel }: Jobsite
           </select>
         </div>
         <div className="sm:col-span-2">
-          <label className="field-label" htmlFor="notes">
-            Notizen
-          </label>
-          <textarea
-            className="field-input min-h-28"
-            id="notes"
-            name="notes"
-            defaultValue={jobsite?.notes ?? ""}
-          />
+          <VoiceTextarea label="Notizen" id="notes" name="notes" defaultValue={jobsite?.notes ?? ""} rows={5} />
         </div>
       </div>
 

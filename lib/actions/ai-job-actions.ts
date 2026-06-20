@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { bringListTemplates } from "@/lib/bring-list-templates";
 import { requireManager } from "@/lib/auth";
+import { searchOrFilter } from "@/lib/data/shared";
+import { aiJobDraftSelect, customerFormSelect } from "@/lib/data/selects";
 import { checkBringListAvailability } from "@/lib/inventory/check-availability";
 import { generatePurchaseSuggestions } from "@/lib/inventory/purchase-suggestions";
 import {
@@ -14,15 +16,13 @@ import {
 } from "@/lib/ai/job-drafts";
 import { buildOrderMaterialRequirementRows, type OrderDimensionValues } from "@/lib/order-materials";
 import { customerDisplayName } from "@/lib/order-labels";
+import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
+import { safeReturnPath } from "@/lib/security/redirects";
 import { isMissingSchemaError, migrationMissingMessage } from "@/lib/supabase/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalNumber, optionalString, requiredString, toBoolean } from "@/lib/utils";
 import type { AiJobDraftParsed, AiJobDraftPreview, AiJobDraftRow } from "@/lib/ai/types";
 import type { Customer, JobMaterialRequirement, JobsiteStatus, OrderPriority, OrderStatus, OrderType } from "@/types/app";
-
-function toQuery(value: string) {
-  return encodeURIComponent(value);
-}
 
 function tomorrowIsoDate() {
   const date = new Date();
@@ -81,13 +81,13 @@ async function loadDraft({
 }) {
   const { data, error } = await supabase
     .from("ai_job_drafts")
-    .select("*")
+    .select(aiJobDraftSelect)
     .eq("id", draftId)
     .eq("company_id", companyId)
     .maybeSingle();
 
-  if (error || !data) throw new Error("KI-Auftragsentwurf wurde nicht gefunden.");
-  return data as AiJobDraftRow;
+  if (error || !data) throw new SafeActionError("KI-Auftragsentwurf wurde nicht gefunden.");
+  return data as unknown as AiJobDraftRow;
 }
 
 async function resolveCustomer({
@@ -105,26 +105,26 @@ async function resolveCustomer({
   if (parsed.existing_customer_id) {
     const { data } = await supabase
       .from("customers")
-      .select("*")
+      .select(customerFormSelect)
       .eq("id", parsed.existing_customer_id)
       .eq("company_id", companyId)
       .maybeSingle();
-    if (data) return data as Customer;
+    if (data) return data as unknown as Customer;
   }
 
   if (parsed.customer_name) {
     const search = parsed.customer_name.replace(/[(),%]/g, " ").trim();
     const { data } = await supabase
       .from("customers")
-      .select("*")
+      .select(customerFormSelect)
       .eq("company_id", companyId)
-      .or(`company.ilike.%${search}%,last_name.ilike.%${search}%,first_name.ilike.%${search}%`)
+      .or(searchOrFilter(["company", "last_name", "first_name"], search))
       .limit(1)
       .maybeSingle();
-    if (data) return data as Customer;
+    if (data) return data as unknown as Customer;
   }
 
-  if (!parsed.customer_name) throw new Error("Kunde fehlt. Bitte Entwurf ergaenzen.");
+  if (!parsed.customer_name) throw new SafeActionError("Kunde fehlt. Bitte Entwurf ergaenzen.");
   const parts = parsed.customer_name.split(/\s+/).filter(Boolean);
   const { data, error } = await supabase
     .from("customers")
@@ -140,11 +140,11 @@ async function resolveCustomer({
       status: "aktiv",
       created_by: userId
     })
-    .select("*")
+    .select(customerFormSelect)
     .single();
 
-  if (error || !data) throw new Error(error?.message ?? "Kunde konnte nicht aus KI-Entwurf angelegt werden.");
-  return data as Customer;
+  if (error || !data) throw new Error("ai_customer_insert_failed");
+  return data as unknown as Customer;
 }
 
 async function createBringListForOrder({
@@ -182,7 +182,7 @@ async function createBringListForOrder({
     .select("id")
     .single();
 
-  if (error || !list) throw new Error(error?.message ?? "Mitbringliste konnte nicht erzeugt werden.");
+  if (error || !list) throw new Error("ai_bring_list_insert_failed");
 
   const materialItems = requirements.map((item) => ({
     bring_list_id: list.id,
@@ -204,7 +204,7 @@ async function createBringListForOrder({
   }));
 
   const { error: itemError } = await supabase.from("bring_list_items").insert([...materialItems, ...templateItems]);
-  if (itemError) throw new Error(itemError.message);
+  if (itemError) throw new Error("ai_bring_list_items_insert_failed");
 
   await checkBringListAvailability({ supabase, companyId, bringListId: list.id as string, reserve, reservedBy: reserve ? userId : undefined });
   return list.id as string;
@@ -251,7 +251,7 @@ async function insertEstimate({
     .select("id")
     .single();
 
-  if (error || !data) throw new Error(error?.message ?? "Kalkulation konnte nicht gespeichert werden.");
+  if (error || !data) throw new Error("ai_estimate_insert_failed");
 
   const rows = preview.items.map((item) => ({
     estimate_id: data.id,
@@ -269,7 +269,7 @@ async function insertEstimate({
 
   if (rows.length) {
     const { error: itemError } = await supabase.from("job_estimate_items").insert(rows);
-    if (itemError) throw new Error(itemError.message);
+    if (itemError) throw new Error("ai_estimate_items_insert_failed");
   }
 }
 
@@ -281,10 +281,14 @@ export async function prepareAiJobDraftAction(formData: FormData) {
 
   try {
     const settings = await loadCalculationSettings(supabase, context.companyId);
-    if (!settings.allow_ai_job_creation) throw new Error("KI-Auftragserstellung ist in den Einstellungen deaktiviert.");
+    if (!settings.allow_ai_job_creation) throw new SafeActionError("KI-Auftragserstellung ist in den Einstellungen deaktiviert.");
 
     const result = await createJobDraftFromAI({ supabase, context, input });
-    if (!result.ok) throw new Error(result.message);
+    if (!result.ok) {
+      throw new SafeActionError(
+        result.disabled ? result.message : "KI-Auftrag konnte nicht vorbereitet werden. Bitte Text pruefen oder spaeter erneut versuchen."
+      );
+    }
 
     const preview = result.data;
     const status = preview.parsed.confidence < 0.7 || preview.parsed.missing_fields.length ? "incomplete" : "proposed";
@@ -304,11 +308,8 @@ export async function prepareAiJobDraftAction(formData: FormData) {
       .single();
 
     if (error || !data) {
-      throw new Error(
-        error && isMissingSchemaError(error)
-          ? migrationMissingMessage("KI-Auftragswizard")
-          : error?.message ?? "KI-Auftragsentwurf konnte nicht gespeichert werden."
-      );
+      if (error && isMissingSchemaError(error)) throw new SafeActionError(migrationMissingMessage("KI-Auftragswizard"));
+      throw new Error("ai_job_draft_insert_failed");
     }
 
     await supabase.from("ai_actions").insert({
@@ -324,7 +325,7 @@ export async function prepareAiJobDraftAction(formData: FormData) {
     revalidatePath("/ai/job-wizard");
     target = `/ai/job-wizard?draft_id=${data.id}&success=${toQuery("KI-Auftragsentwurf wurde vorbereitet.")}`;
   } catch (error) {
-    target = `/ai/job-wizard?error=${toQuery(error instanceof Error ? error.message : "KI-Auftrag konnte nicht vorbereitet werden.")}`;
+    target = `/ai/job-wizard?error=${toQuery(safeErrorMessage(error, "KI-Auftrag konnte nicht vorbereitet werden."))}`;
   }
 
   redirect(target);
@@ -334,7 +335,19 @@ export async function rejectAiJobDraftAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const draftId = requiredString(formData, "draft_id");
-  await supabase.from("ai_job_drafts").update({ status: "rejected" }).eq("id", draftId).eq("company_id", context.companyId);
+
+  const { data, error } = await supabase
+    .from("ai_job_drafts")
+    .update({ status: "rejected" })
+    .eq("id", draftId)
+    .eq("company_id", context.companyId)
+    .select("id")
+    .maybeSingle();
+
+  if (error || !data) {
+    redirect(`/ai/job-wizard?error=${toQuery("KI-Auftragsentwurf wurde nicht gefunden.")}`);
+  }
+
   revalidatePath("/ai/job-wizard");
   redirect(`/ai/job-wizard?success=${toQuery("KI-Auftragsentwurf wurde verworfen.")}`);
 }
@@ -343,7 +356,19 @@ export async function saveAiJobDraftAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const draftId = requiredString(formData, "draft_id");
-  await supabase.from("ai_job_drafts").update({ status: "incomplete" }).eq("id", draftId).eq("company_id", context.companyId);
+
+  const { data, error } = await supabase
+    .from("ai_job_drafts")
+    .update({ status: "incomplete" })
+    .eq("id", draftId)
+    .eq("company_id", context.companyId)
+    .select("id")
+    .maybeSingle();
+
+  if (error || !data) {
+    redirect(`/ai/job-wizard?error=${toQuery("KI-Auftragsentwurf wurde nicht gefunden.")}`);
+  }
+
   revalidatePath("/ai/job-wizard");
   redirect(`/ai/job-wizard?draft_id=${draftId}&success=${toQuery("Entwurf bleibt gespeichert und unvollstaendig markiert.")}`);
 }
@@ -356,8 +381,8 @@ export async function updateAiJobDraftPreviewAction(formData: FormData) {
 
   try {
     const draft = await loadDraft({ supabase, companyId: context.companyId, draftId });
-    if (draft.status === "rejected") throw new Error("Verworfene Entwuerfe koennen nicht bearbeitet werden.");
-    if (draft.converted_order_id) throw new Error("Dieser Entwurf wurde bereits in einen Auftrag umgewandelt.");
+    if (draft.status === "rejected") throw new SafeActionError("Verworfene Entwuerfe koennen nicht bearbeitet werden.");
+    if (draft.converted_order_id) throw new SafeActionError("Dieser Entwurf wurde bereits in einen Auftrag umgewandelt.");
 
     const currentPreview = draft.preview_json as AiJobDraftPreview;
     const current = currentPreview.parsed;
@@ -413,13 +438,14 @@ export async function updateAiJobDraftPreviewAction(formData: FormData) {
       .eq("company_id", context.companyId);
 
     if (error) {
-      throw new Error(isMissingSchemaError(error) ? migrationMissingMessage("KI-Auftragswizard") : error.message);
+      if (isMissingSchemaError(error)) throw new SafeActionError(migrationMissingMessage("KI-Auftragswizard"));
+      throw new Error("ai_job_draft_update_failed");
     }
     revalidatePath("/ai/job-wizard");
     target = `/ai/job-wizard?draft_id=${draftId}&success=${toQuery("Entwurf wurde aktualisiert und neu berechnet.")}`;
   } catch (error) {
     target = `/ai/job-wizard?draft_id=${draftId}&error=${toQuery(
-      error instanceof Error ? error.message : "KI-Entwurf konnte nicht aktualisiert werden."
+      safeErrorMessage(error, "KI-Entwurf konnte nicht aktualisiert werden.")
     )}`;
   }
 
@@ -439,12 +465,12 @@ export async function createOrderFromAiDraftAction(formData: FormData) {
     if (draft.converted_order_id) {
       target = `/orders/${draft.converted_order_id}`;
     } else {
-      if (draft.status === "rejected") throw new Error("Dieser KI-Entwurf wurde verworfen.");
+      if (draft.status === "rejected") throw new SafeActionError("Dieser KI-Entwurf wurde verworfen.");
 
       const preview = draft.preview_json as AiJobDraftPreview;
       const parsed = preview.parsed;
-      if (!parsed.jobsite_address) throw new Error("Baustellenadresse fehlt.");
-      if (!parsed.dimensions.area_m2 || parsed.dimensions.area_m2 <= 0) throw new Error("Maße oder Flaeche fehlen.");
+      if (!parsed.jobsite_address) throw new SafeActionError("Baustellenadresse fehlt.");
+      if (!parsed.dimensions.area_m2 || parsed.dimensions.area_m2 <= 0) throw new SafeActionError("Maße oder Flaeche fehlen.");
 
       const customer = await resolveCustomer({ supabase, companyId: context.companyId, userId: context.userId, preview });
       const customerName = customerDisplayName(customer);
@@ -466,7 +492,7 @@ export async function createOrderFromAiDraftAction(formData: FormData) {
         })
         .select("id")
         .single();
-      if (jobsiteError || !jobsite) throw new Error(jobsiteError?.message ?? "Baustelle konnte nicht erstellt werden.");
+      if (jobsiteError || !jobsite) throw new Error("ai_jobsite_insert_failed");
 
       const { data: order, error: orderError } = await supabase
         .from("orders")
@@ -490,7 +516,7 @@ export async function createOrderFromAiDraftAction(formData: FormData) {
         })
         .select("id")
         .single();
-      if (orderError || !order) throw new Error(orderError?.message ?? "Auftrag konnte nicht erstellt werden.");
+      if (orderError || !order) throw new Error("ai_order_insert_failed");
       createdOrderId = order.id as string;
 
       const settings = await loadCalculationSettings(supabase, context.companyId);
@@ -506,7 +532,7 @@ export async function createOrderFromAiDraftAction(formData: FormData) {
         })
         .select("id")
         .single();
-      if (dimensionError || !dimension) throw new Error(dimensionError?.message ?? "Maße konnten nicht gespeichert werden.");
+      if (dimensionError || !dimension) throw new Error("ai_dimension_insert_failed");
 
       const requirements = (await buildOrderMaterialRequirementRows({
         supabase,
@@ -521,7 +547,7 @@ export async function createOrderFromAiDraftAction(formData: FormData) {
 
       if (requirements.length) {
         const { error: requirementError } = await supabase.from("job_material_requirements").insert(requirements);
-        if (requirementError) throw new Error(requirementError.message);
+        if (requirementError) throw new Error("ai_requirements_insert_failed");
       }
 
       for (const item of preview.items.filter((row) => row.missing_quantity > 0)) {
@@ -576,7 +602,7 @@ export async function createOrderFromAiDraftAction(formData: FormData) {
   } catch (error) {
     const base = createdOrderId ? `/orders/${createdOrderId}` : `/ai/job-wizard?draft_id=${draftId}`;
     const separator = base.includes("?") ? "&" : "?";
-    target = `${base}${separator}error=${toQuery(error instanceof Error ? error.message : "KI-Auftrag konnte nicht erstellt werden.")}`;
+    target = `${base}${separator}error=${toQuery(safeErrorMessage(error, "KI-Auftrag konnte nicht erstellt werden."))}`;
   }
 
   redirect(target);
@@ -591,7 +617,7 @@ export async function updateCalculationSettingsAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const current = await loadCalculationSettings(supabase, context.companyId);
-  const returnTo = optionalString(formData, "return_to") ?? "/settings";
+  const returnTo = safeReturnPath(formData.get("return_to"), "/settings");
 
   const values = {
     company_id: context.companyId,
@@ -611,7 +637,9 @@ export async function updateCalculationSettingsAction(formData: FormData) {
 
   const { error } = await supabase.from("calculation_settings").upsert(values, { onConflict: "company_id" });
   if (error) {
-    const message = isMissingSchemaError(error) ? migrationMissingMessage("KI-Kalkulationseinstellungen") : error.message;
+    const message = isMissingSchemaError(error)
+      ? migrationMissingMessage("KI-Kalkulationseinstellungen")
+      : "KI-Kalkulationseinstellungen konnten nicht gespeichert werden.";
     redirect(`${returnTo}?error=${toQuery(message)}`);
   }
 

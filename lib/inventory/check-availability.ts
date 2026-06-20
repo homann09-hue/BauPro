@@ -1,4 +1,5 @@
 import { createOrUpdateMaterialAlert } from "@/lib/inventory/alerts";
+import { bringListItemWithInventorySelect, bringListOperationalSelect } from "@/lib/data/selects";
 import { generatePurchaseSuggestions } from "@/lib/inventory/purchase-suggestions";
 import { createMaterialReservation, reservedQuantityForInventoryItem } from "@/lib/inventory/reservations";
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -85,6 +86,19 @@ function severityForStatus(status: AvailabilityStatus): MaterialAlertSeverity {
   return "info";
 }
 
+function snapshotRiskForStatus(status: AvailabilityStatus) {
+  if (status === "nicht_vorhanden") return "red";
+  if (status === "knapp" || status === "unter_mindestbestand_nach_reservierung") return "yellow";
+  return "green";
+}
+
+function snapshotLabelForStatus(status: AvailabilityStatus) {
+  if (status === "nicht_vorhanden") return "Fehlt";
+  if (status === "knapp") return "Knapp";
+  if (status === "unter_mindestbestand_nach_reservierung") return "Unter Mindestbestand";
+  return "Alles da";
+}
+
 export async function checkBringListAvailability({
   supabase,
   companyId,
@@ -99,12 +113,12 @@ export async function checkBringListAvailability({
   reservedBy?: string;
 }) {
   const [{ data: bringList }, { data: items }] = await Promise.all([
-    supabase.from("bring_lists").select("*").eq("id", bringListId).eq("company_id", companyId).single(),
-    supabase.from("bring_list_items").select("*, inventory_items(*)").eq("bring_list_id", bringListId)
+    supabase.from("bring_lists").select(bringListOperationalSelect).eq("id", bringListId).eq("company_id", companyId).single(),
+    supabase.from("bring_list_items").select(bringListItemWithInventorySelect).eq("bring_list_id", bringListId)
   ]);
 
   const results = [];
-  for (const item of ((items ?? []) as BringListItem[]).filter((row) => row.item_type === "material")) {
+  for (const item of ((items ?? []) as unknown as BringListItem[]).filter((row) => row.item_type === "material")) {
     const availability = await checkMaterialAvailability({
       supabase,
       companyId,
@@ -112,6 +126,20 @@ export async function checkBringListAvailability({
       requiredQuantity: Number(item.quantity),
       unit: item.unit,
       excludeBringListId: bringListId
+    });
+
+    await supabase.from("bring_list_availability_snapshots").insert({
+      company_id: companyId,
+      bring_list_id: bringListId,
+      bring_list_item_id: item.id,
+      inventory_item_id: item.inventory_item_id,
+      required_quantity: availability.requiredQuantity,
+      available_quantity: availability.availableQuantity,
+      reserved_quantity: availability.reservedQuantity,
+      missing_quantity: availability.missingQuantity,
+      risk_level: snapshotRiskForStatus(availability.status),
+      status_label: snapshotLabelForStatus(availability.status),
+      source: reserve ? "reservation_check" : "availability_check"
     });
 
     if (availability.status !== "ausreichend") {

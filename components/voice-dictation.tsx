@@ -1,13 +1,15 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { Mic, Pencil, Save, Sparkles, Trash2, TriangleAlert, X } from "lucide-react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { BellPlus, ClipboardList, Clock3, ListChecks, Mic, Pencil, Save, Sparkles, StickyNote, Trash2, TriangleAlert, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { classifyBusinessInputAction } from "@/lib/actions/ai-actions";
 import { discardVoiceNoteAction, confirmVoiceNoteAction } from "@/lib/actions/voice-actions";
 import { createGermanSpeechRecognition, supportsSpeechRecognition } from "@/lib/voice/speech";
 import { parseVoiceInput } from "@/lib/voice/voice-router";
 import { usePathname } from "next/navigation";
 import type { ClassifiedBusinessInput } from "@/lib/ai/types";
+import type { VoiceQuickActionKind } from "@/components/voice/VoiceQuickAction";
 
 const intentLabels = {
   bring_list: "Mitbringliste",
@@ -31,6 +33,42 @@ const aiIntentLabels: Record<ClassifiedBusinessInput["intent"], string> = {
 
 type AiAnalysisState = Awaited<ReturnType<typeof classifyBusinessInputAction>> | null;
 
+const quickActionTemplates: Record<
+  VoiceQuickActionKind,
+  { label: string; helper: string; prefix: string; icon: LucideIcon }
+> = {
+  time_tracking: {
+    label: "Stunde erfassen",
+    helper: "z. B. heute Baustelle Mueller von 7 bis 16 Uhr, 30 Minuten Pause...",
+    prefix: "Arbeitszeit: ",
+    icon: Clock3
+  },
+  report_entry: {
+    label: "Tagesbericht",
+    helper: "Tätigkeit, Material, Probleme und Hinweis für morgen diktieren.",
+    prefix: "Tagesbericht: ",
+    icon: ClipboardList
+  },
+  bring_list: {
+    label: "Material für morgen",
+    helper: "z. B. morgen Baustelle Mueller 20 Latten und den Brenner mitnehmen.",
+    prefix: "Mitbringliste morgen: ",
+    icon: ListChecks
+  },
+  material_alert: {
+    label: "Problem melden",
+    helper: "Fehlendes Material oder Engpass direkt an Chef/Admin melden.",
+    prefix: "Materialmeldung: ",
+    icon: BellPlus
+  },
+  job_note: {
+    label: "Baustelle notieren",
+    helper: "Hinweis, Schaden, Kundenwunsch oder offene Frage festhalten.",
+    prefix: "Baustellennotiz: ",
+    icon: StickyNote
+  }
+};
+
 export function VoiceDictation() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -45,9 +83,28 @@ export function VoiceDictation() {
   const displayMaterials = aiResult ? [...aiResult.materials, ...aiResult.tools] : parsed.materials;
   const aiActionId = aiAnalysis?.ok ? aiAnalysis.actionId ?? "" : "";
 
+  useEffect(() => {
+    function openFromEvent(event: Event) {
+      const detail = (event as CustomEvent<{ kind?: VoiceQuickActionKind }>).detail;
+      setOpen(true);
+      setEditing(false);
+      if (detail?.kind) {
+        setText(quickActionTemplates[detail.kind].prefix);
+      }
+    }
+
+    window.addEventListener("baupro:open-voice", openFromEvent);
+    return () => window.removeEventListener("baupro:open-voice", openFromEvent);
+  }, []);
+
   function updateText(value: string) {
     setText(value);
     setAiAnalysis(null);
+  }
+
+  function chooseQuickAction(kind: VoiceQuickActionKind) {
+    updateText(quickActionTemplates[kind].prefix);
+    setEditing(false);
   }
 
   function analyzeWithAi() {
@@ -130,8 +187,30 @@ export function VoiceDictation() {
                 value={text}
                 readOnly={!editing}
                 onChange={(event) => updateText(event.target.value)}
-                placeholder="Diktat oder Text eingeben, z. B. Fuer Baustelle Mueller morgen 30 Dachlatten mitnehmen."
+                placeholder="Diktat oder Text eingeben, z. B. Für Baustelle Mueller morgen 30 Dachlatten mitnehmen."
               />
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                {Object.entries(quickActionTemplates).map(([kind, item]) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={kind}
+                      type="button"
+                      onClick={() => chooseQuickAction(kind as VoiceQuickActionKind)}
+                      className="flex min-h-16 items-start gap-3 rounded-md border border-line bg-white p-3 text-left shadow-sm transition hover:border-primary/40 hover:bg-mint"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <span>
+                        <span className="block text-sm font-black text-ink">{item.label}</span>
+                        <span className="mt-1 block text-xs font-semibold text-slate-500">{item.helper}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
 
               <div className="grid gap-2 rounded-md bg-fog p-3 text-sm sm:grid-cols-2">
                 <Info label="Bereich" value={aiResult ? aiIntentLabels[aiResult.intent] : intentLabels[parsed.intent]} />
@@ -154,7 +233,7 @@ export function VoiceDictation() {
                   <div>
                     <p className="text-sm font-black text-ink">KI-Auswertung</p>
                     <p className="mt-1 text-sm text-slate-600">
-                      Optional. Die KI erstellt nur einen Vorschlag; gespeichert wird erst nach deiner Bestaetigung.
+                      Optional. Die KI erstellt nur einen Vorschlag; gespeichert wird erst nach deiner Bestätigung.
                     </p>
                   </div>
                   <button type="button" className="btn-secondary" onClick={analyzeWithAi} disabled={!text.trim() || aiPending}>

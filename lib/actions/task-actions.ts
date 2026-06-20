@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAppContext, requireManager } from "@/lib/auth";
+import { revalidateDashboardCache } from "@/lib/data/dashboard";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { optionalFormUuid, requiredFormUuid } from "@/lib/security/form-data";
 import { assertJobsiteInCompany, assertProfilesInCompany } from "@/lib/security/tenant-guards";
@@ -49,6 +50,7 @@ export async function createTaskAction(formData: FormData) {
   }
 
   revalidatePath("/dashboard");
+  revalidateDashboardCache(context.companyId);
   redirect(`/dashboard?success=${toQuery("Aufgabe wurde angelegt.")}`);
 }
 
@@ -57,17 +59,36 @@ export async function updateTaskStatusAction(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const id = requiredFormUuid(formData, "id", "Aufgabe");
 
-  const { error } = await supabase
-    .from("tasks")
-    .update({ status: taskStatus(formData.get("status")) })
-    .eq("id", id)
-    .eq("company_id", context.companyId);
+  try {
+    let taskQuery = supabase
+      .from("tasks")
+      .select("id")
+      .eq("id", id)
+      .eq("company_id", context.companyId)
+      .is("archived_at", null);
 
-  if (error) {
-    redirect(`/dashboard?error=${toQuery("Aufgabe konnte nicht aktualisiert werden.")}`);
+    if (!context.canManage) taskQuery = taskQuery.eq("assigned_to", context.userId);
+
+    const { data: task } = await taskQuery.maybeSingle();
+    if (!task) throw new SafeActionError("Aufgabe wurde nicht gefunden oder ist dir nicht zugewiesen.");
+
+    let updateQuery = supabase
+      .from("tasks")
+      .update({ status: taskStatus(formData.get("status")) })
+      .eq("id", id)
+      .eq("company_id", context.companyId)
+      .is("archived_at", null);
+
+    if (!context.canManage) updateQuery = updateQuery.eq("assigned_to", context.userId);
+
+    const { data, error } = await updateQuery.select("id").maybeSingle();
+    if (error || !data) throw new Error("task_status_update_failed");
+  } catch (error) {
+    redirect(`/dashboard?error=${toQuery(safeErrorMessage(error, "Aufgabe konnte nicht aktualisiert werden."))}`);
   }
 
   revalidatePath("/dashboard");
+  revalidateDashboardCache(context.companyId);
   redirect(`/dashboard?success=${toQuery("Aufgabe wurde aktualisiert.")}`);
 }
 
@@ -76,16 +97,22 @@ export async function deleteTaskAction(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const id = requiredFormUuid(formData, "id", "Aufgabe");
 
-  const { error } = await supabase
-    .from("tasks")
-    .delete()
-    .eq("id", id)
-    .eq("company_id", context.companyId);
+  try {
+    const { data, error } = await supabase
+      .from("tasks")
+      .update({ archived_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("company_id", context.companyId)
+      .is("archived_at", null)
+      .select("id")
+      .maybeSingle();
 
-  if (error) {
-    redirect(`/dashboard?error=${toQuery("Aufgabe konnte nicht geloescht werden.")}`);
+    if (error || !data) throw new Error("task_archive_failed");
+  } catch (error) {
+    redirect(`/dashboard?error=${toQuery(safeErrorMessage(error, "Aufgabe konnte nicht archiviert werden."))}`);
   }
 
   revalidatePath("/dashboard");
-  redirect(`/dashboard?success=${toQuery("Aufgabe wurde geloescht.")}`);
+  revalidateDashboardCache(context.companyId);
+  redirect(`/dashboard?success=${toQuery("Aufgabe wurde archiviert.")}`);
 }

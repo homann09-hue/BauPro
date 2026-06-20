@@ -1,4 +1,18 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock3, MapPin, ShieldCheck } from "lucide-react";
 import { SubmitButton } from "@/components/submit-button";
+import { VoiceInputField } from "@/components/voice/VoiceInputField";
+import { VoiceTextarea } from "@/components/voice/VoiceTextarea";
+import { WeatherSuggestionField } from "@/components/weather/WeatherSuggestionField";
+import {
+  breakMinuteOptions,
+  buildHalfHourTimeOptions,
+  calculateTimeMinutes,
+  cycleOption,
+  formatMinutesAsHours
+} from "@/lib/time-tracking";
 import type { Jobsite, Profile, TimeEntry } from "@/types/app";
 
 export function TimeEntryForm({
@@ -8,7 +22,10 @@ export function TimeEntryForm({
   employees,
   canManage,
   currentUserId,
-  submitLabel
+  submitLabel,
+  defaultDate,
+  defaultJobsiteId,
+  existingDailyNetMinutes = 0
 }: {
   action: (formData: FormData) => Promise<void>;
   entry?: TimeEntry;
@@ -17,214 +34,276 @@ export function TimeEntryForm({
   canManage: boolean;
   currentUserId: string;
   submitLabel: string;
+  defaultDate?: string;
+  defaultJobsiteId?: string;
+  existingDailyNetMinutes?: number;
 }) {
   const selectedEmployeeId = entry?.employee_id ?? currentUserId;
-  const selectedJobsite = jobsites.find((jobsite) => jobsite.id === entry?.job_id);
+  const initialJobId = entry?.job_id ?? defaultJobsiteId ?? "";
+  const initialJobsite = jobsites.find((jobsite) => jobsite.id === initialJobId);
+  const [jobId, setJobId] = useState(initialJobId);
+  const [workLocation, setWorkLocation] = useState(entry?.work_location ?? initialJobsite?.name ?? "");
+  const [workAddress, setWorkAddress] = useState(entry?.work_address ?? initialJobsite?.address ?? "");
+  const [startTime, setStartTime] = useState(entry?.start_time?.slice(0, 5) ?? "07:00");
+  const [endTime, setEndTime] = useState(entry?.end_time?.slice(0, 5) ?? "16:00");
+  const [breakMinutes, setBreakMinutes] = useState(String(entry?.break_minutes ?? 30));
+  const timeOptions = useMemo(() => buildHalfHourTimeOptions(), []);
+  const pauseOptions = useMemo(() => breakMinuteOptions.map(String), []);
+  const calculated = useMemo(() => {
+    try {
+      return calculateTimeMinutes({ startTime, endTime, breakMinutes: Number(breakMinutes) });
+    } catch {
+      return null;
+    }
+  }, [breakMinutes, endTime, startTime]);
+  const dailyTotal = existingDailyNetMinutes + (calculated?.netMinutes ?? 0);
+
+  function updateJobsite(nextJobId: string) {
+    setJobId(nextJobId);
+    const jobsite = jobsites.find((item) => item.id === nextJobId);
+    setWorkLocation(jobsite?.name ?? "");
+    setWorkAddress(jobsite?.address ?? "");
+  }
 
   return (
-    <form action={action} className="surface p-4 sm:p-5">
+    <form action={action} className="space-y-4">
       {entry ? <input type="hidden" name="id" value={entry.id} /> : null}
+      <input type="hidden" name="return_to" value={entry ? `/time-tracking/${entry.id}/edit` : "/time/new"} />
 
-      <div className="mb-5 rounded-md border border-line bg-fog p-3 text-sm text-slate-700">
-        <strong className="text-ink">Hinweis:</strong> Die Zeiterfassung ersetzt keine Rechtsberatung. Sie erfasst die
-        Daten vollstaendig, nachvollziehbar und exportierbar.
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <div>
-          <label className="field-label" htmlFor="date">
-            Datum
-          </label>
-          <input
-            className="field-input"
-            id="date"
-            name="date"
-            type="date"
-            defaultValue={entry?.date ?? new Date().toISOString().slice(0, 10)}
-            required
-          />
+      <section className="surface-strong construction-rail p-4 sm:p-5">
+        <div className="mb-4 flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary text-white">
+            <Clock3 className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <div>
+            <p className="section-kicker">Baustellen-Zeit</p>
+            <h2 className="section-title">Schnell eintragen</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Große Felder, 30-Minuten-Schritte und Spracheingabe für wenig Tippen auf der Baustelle.
+            </p>
+          </div>
         </div>
 
-        <div>
-          <label className="field-label" htmlFor="employee_id">
-            Mitarbeiter
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label>
+            <span className="field-label">Datum</span>
+            <input className="field-input min-h-14 text-base" name="date" type="date" defaultValue={entry?.date ?? defaultDate ?? ""} required />
           </label>
-          {canManage ? (
-            <select className="field-input" id="employee_id" name="employee_id" defaultValue={selectedEmployeeId} required>
-              {employees.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.full_name || employee.email || "Mitarbeiter"}
+
+          <div>
+            <label className="field-label" htmlFor="employee_id">
+              Mitarbeiter
+            </label>
+            {canManage ? (
+              <select className="field-input min-h-14 text-base" id="employee_id" name="employee_id" defaultValue={selectedEmployeeId} required>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.full_name || employee.email || "Mitarbeiter"}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="field-input min-h-14 bg-slate-50 text-base">
+                <input type="hidden" name="employee_id" value={currentUserId} />
+                {employees.find((employee) => employee.id === currentUserId)?.full_name ||
+                  employees.find((employee) => employee.id === currentUserId)?.email ||
+                  "Du"}
+              </div>
+            )}
+          </div>
+
+          <label className="sm:col-span-2">
+            <span className="field-label">Baustelle / Auftrag</span>
+            <select className="field-input min-h-14 text-base" name="job_id" value={jobId} onChange={(event) => updateJobsite(event.target.value)} required>
+              <option value="">Baustelle auswählen</option>
+              {jobsites.map((jobsite) => (
+                <option key={jobsite.id} value={jobsite.id}>
+                  {jobsite.name} - {jobsite.customer}
                 </option>
               ))}
             </select>
-          ) : (
-            <div className="field-input bg-slate-50">
-              <input type="hidden" name="employee_id" value={currentUserId} />
-              {employees.find((employee) => employee.id === currentUserId)?.full_name ||
-                employees.find((employee) => employee.id === currentUserId)?.email ||
-                "Du"}
-            </div>
-          )}
+            {defaultJobsiteId && !entry ? <p className="field-help">Vorauswahl aus deiner zugeordneten aktiven Baustelle.</p> : null}
+          </label>
+        </div>
+      </section>
+
+      <section className="surface p-4 sm:p-5">
+        <div className="mb-4 flex items-center gap-2">
+          <CalendarDays className="h-5 w-5 text-primary" aria-hidden="true" />
+          <h2 className="section-title">Arbeitszeit</h2>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <CyclicOptionField label="Beginn" name="start_time" options={timeOptions} value={startTime} onChange={setStartTime} />
+          <CyclicOptionField label="Ende" name="end_time" options={timeOptions} value={endTime} onChange={setEndTime} />
+          <CyclicOptionField
+            label="Pause"
+            name="break_minutes"
+            options={pauseOptions}
+            value={breakMinutes}
+            onChange={setBreakMinutes}
+            displayValue={(value) => `${value} Min.`}
+            className="col-span-2 sm:col-span-1"
+          />
+          <label className="col-span-2 sm:col-span-1">
+            <span className="field-label">Kilometer optional</span>
+            <input className="field-input min-h-14 text-base" name="kilometers" inputMode="decimal" defaultValue={entry?.kilometers ?? ""} />
+          </label>
         </div>
 
-        <div>
-          <label className="field-label" htmlFor="job_id">
-            Baustelle / Auftrag
-          </label>
-          <select className="field-input" id="job_id" name="job_id" defaultValue={entry?.job_id ?? ""} required>
-            <option value="">Baustelle auswaehlen</option>
-            {jobsites.map((jobsite) => (
-              <option key={jobsite.id} value={jobsite.id}>
-                {jobsite.name} - {jobsite.customer}
-              </option>
-            ))}
-          </select>
-          <p className="field-help">Ort und Adresse werden aus der Baustelle uebernommen, koennen aber ergaenzt werden.</p>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <TimeMetric label="Bruttozeit" value={calculated ? formatMinutesAsHours(calculated.grossMinutes) : "prüfen"} />
+          <TimeMetric label="Nettozeit" value={calculated ? formatMinutesAsHours(calculated.netMinutes) : "prüfen"} highlight />
+          <TimeMetric label="Tagesgesamt" value={formatMinutesAsHours(dailyTotal)} />
         </div>
+        {!calculated ? (
+          <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+            Endzeit muss nach Startzeit liegen und die Pause darf nicht laenger als die Arbeitszeit sein.
+          </p>
+        ) : null}
+      </section>
 
-        <div>
-          <label className="field-label" htmlFor="status">
-            Status
-          </label>
-          <select className="field-input" id="status" name="status" defaultValue={entry?.status ?? "submitted"}>
-            <option value="draft">Entwurf</option>
-            <option value="submitted">Eingereicht</option>
-            {canManage ? <option value="approved">Freigegeben</option> : null}
-            {canManage ? <option value="rejected">Abgelehnt</option> : null}
-          </select>
+      <section className="surface p-4 sm:p-5">
+        <div className="mb-4 flex items-center gap-2">
+          <MapPin className="h-5 w-5 text-primary" aria-hidden="true" />
+          <h2 className="section-title">Ort und Beschreibung</h2>
         </div>
-
-        <div>
-          <label className="field-label" htmlFor="work_location">
-            Ort / Baustellenname
-          </label>
-          <input
-            className="field-input"
-            id="work_location"
+        <div className="grid gap-3 sm:grid-cols-2">
+          <VoiceInputField
+            label="Ort / Baustellenname"
             name="work_location"
-            defaultValue={entry?.work_location ?? selectedJobsite?.name ?? ""}
-            placeholder="Wird sonst aus der Baustelle uebernommen"
+            value={workLocation}
+            onValueChange={setWorkLocation}
+            placeholder="Wird sonst aus der Baustelle übernommen"
           />
-        </div>
-
-        <div>
-          <label className="field-label" htmlFor="work_address">
-            Baustellenadresse
-          </label>
-          <input
-            className="field-input"
-            id="work_address"
+          <VoiceInputField
+            label="Baustellenadresse"
             name="work_address"
-            defaultValue={entry?.work_address ?? selectedJobsite?.address ?? ""}
-            placeholder="Wird sonst aus der Baustelle uebernommen"
+            value={workAddress}
+            onValueChange={setWorkAddress}
+            placeholder="Wird sonst aus der Baustelle übernommen"
           />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="field-label" htmlFor="start_time">
-              Beginn
-            </label>
-            <input
-              className="field-input"
-              id="start_time"
-              name="start_time"
-              type="time"
-              defaultValue={entry?.start_time?.slice(0, 5) ?? "07:00"}
-              required
-            />
-          </div>
-          <div>
-            <label className="field-label" htmlFor="end_time">
-              Ende
-            </label>
-            <input
-              className="field-input"
-              id="end_time"
-              name="end_time"
-              type="time"
-              defaultValue={entry?.end_time?.slice(0, 5) ?? "16:00"}
-              required
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="field-label" htmlFor="break_minutes">
-              Pause in Minuten
-            </label>
-            <input
-              className="field-input"
-              id="break_minutes"
-              name="break_minutes"
-              type="number"
-              min="0"
-              step="1"
-              defaultValue={entry?.break_minutes ?? 30}
-              required
-            />
-          </div>
-          <div>
-            <label className="field-label" htmlFor="kilometers">
-              Kilometer optional
-            </label>
-            <input
-              className="field-input"
-              id="kilometers"
-              name="kilometers"
-              type="number"
-              min="0"
-              step="0.1"
-              defaultValue={entry?.kilometers ?? ""}
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="field-label" htmlFor="weather">
-            Wetter optional
-          </label>
-          <input className="field-input" id="weather" name="weather" defaultValue={entry?.weather ?? ""} />
-        </div>
-
-        <div>
-          <label className="field-label" htmlFor="change_reason">
-            Aenderungsgrund
-          </label>
-          <input
-            className="field-input"
-            id="change_reason"
+          <VoiceInputField
+            label="Aenderungsgrund"
             name="change_reason"
             defaultValue=""
             placeholder={entry ? "z. B. Uhrzeit korrigiert" : "Optional"}
           />
         </div>
-      </div>
 
-      <div className="mt-4">
-        <label className="field-label" htmlFor="activity">
-          Taetigkeit / Beschreibung
-        </label>
-        <textarea
-          className="field-input min-h-28"
-          id="activity"
-          name="activity"
-          defaultValue={entry?.activity ?? ""}
-          required
-        />
-      </div>
+        <div className="mt-4 grid gap-4">
+          <VoiceTextarea
+            label="Tätigkeit / Beschreibung"
+            name="activity"
+            defaultValue={entry?.activity ?? ""}
+            rows={5}
+            required
+            placeholder="z. B. Unterspannbahn verlegt, Lattung entfernt, Ortgang vorbereitet"
+          />
+          <VoiceTextarea label="Notizen optional" name="notes" defaultValue={entry?.notes ?? ""} rows={4} placeholder="Hinweise für Chef, Material, Kunde oder morgen" />
+        </div>
+      </section>
 
-      <div className="mt-4">
-        <label className="field-label" htmlFor="notes">
-          Notizen optional
-        </label>
-        <textarea className="field-input min-h-20" id="notes" name="notes" defaultValue={entry?.notes ?? ""} />
-      </div>
+      <WeatherSuggestionField
+        jobFieldName="job_id"
+        dateFieldName="date"
+        canManage={canManage}
+        defaultWeather={{
+          summary: entry?.weather_summary ?? entry?.weather,
+          temperatureC: entry?.weather_temperature_c,
+          precipitationMm: entry?.weather_precipitation_mm,
+          windKmh: entry?.weather_wind_kmh,
+          source: entry?.weather_source,
+          fetchedAt: entry?.weather_fetched_at,
+          lat: entry?.weather_lat,
+          lng: entry?.weather_lng
+        }}
+      />
 
-      <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <SubmitButton>{submitLabel}</SubmitButton>
-      </div>
+      {canManage ? (
+        <section className="surface p-4 sm:p-5">
+          <div className="mb-3 flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
+            <h2 className="section-title">Chef-Status</h2>
+          </div>
+          <select className="field-input min-h-14 text-base" name="status" defaultValue={entry?.status ?? "submitted"}>
+            <option value="draft">Entwurf</option>
+            <option value="submitted">Eingereicht</option>
+            <option value="approved">Freigegeben</option>
+            <option value="rejected">Abgelehnt</option>
+          </select>
+          <div className="mt-4 flex justify-end">
+            <SubmitButton className="w-full sm:w-auto">{submitLabel}</SubmitButton>
+          </div>
+        </section>
+      ) : (
+        <div className="sticky bottom-20 z-10 grid gap-2 rounded-lg border border-line bg-white/95 p-3 shadow-lift backdrop-blur sm:static sm:grid-cols-2 sm:bg-transparent sm:p-0 sm:shadow-none">
+          <SubmitButton variant="secondary" className="w-full" name="status" value="draft">
+            Als Entwurf speichern
+          </SubmitButton>
+          <SubmitButton className="w-full" name="status" value="submitted">
+            Einreichen
+          </SubmitButton>
+        </div>
+      )}
     </form>
+  );
+}
+
+function TimeMetric({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className={highlight ? "rounded-md border border-primary/20 bg-mint p-3" : "rounded-md border border-line bg-white p-3"}>
+      <p className="meta-label">{label}</p>
+      <p className="mt-1 text-xl font-black text-ink">{value}</p>
+    </div>
+  );
+}
+
+function CyclicOptionField({
+  label,
+  name,
+  options,
+  value,
+  onChange,
+  displayValue = (current) => current,
+  className
+}: {
+  label: string;
+  name: string;
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+  displayValue?: (value: string) => string;
+  className?: string;
+}) {
+  function change(direction: -1 | 1) {
+    onChange(cycleOption(options, value, direction));
+  }
+
+  return (
+    <div className={className}>
+      <span className="field-label">{label}</span>
+      <input type="hidden" name={name} value={value} />
+      <div className="grid min-h-14 grid-cols-[48px_1fr_48px] overflow-hidden rounded-md border border-line bg-white shadow-sm">
+        <button
+          type="button"
+          onClick={() => change(-1)}
+          className="flex items-center justify-center border-r border-line bg-fog text-ink transition hover:bg-mint focus:outline-none focus:ring-4 focus:ring-primary/15"
+          aria-label={`${label} niedriger`}
+        >
+          <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+        </button>
+        <div className="flex items-center justify-center px-2 text-center text-lg font-black text-ink tabular-nums">
+          {displayValue(value)}
+        </div>
+        <button
+          type="button"
+          onClick={() => change(1)}
+          className="flex items-center justify-center border-l border-line bg-fog text-ink transition hover:bg-mint focus:outline-none focus:ring-4 focus:ring-primary/15"
+          aria-label={`${label} hoeher`}
+        >
+          <ChevronRight className="h-5 w-5" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
   );
 }

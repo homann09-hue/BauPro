@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { SubmitButton } from "@/components/submit-button";
 import { createEmployeeAction, updateEmployeeAction } from "@/lib/actions/auth-actions";
 import { requireManager } from "@/lib/auth";
+import { teamProfileSelect } from "@/lib/data/selects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { searchParamMessage } from "@/lib/utils";
 import type { Profile } from "@/types/app";
@@ -13,7 +14,8 @@ const roleLabels = {
   admin: "Admin",
   chef: "Chef",
   vorarbeiter: "Vorarbeiter",
-  mitarbeiter: "Mitarbeiter"
+  mitarbeiter: "Mitarbeiter",
+  kunde: "Kunde"
 } as const;
 
 function RoleOptions() {
@@ -23,6 +25,7 @@ function RoleOptions() {
       <option value="vorarbeiter">Vorarbeiter</option>
       <option value="chef">Chef</option>
       <option value="admin">Admin</option>
+      <option value="kunde">Kunde</option>
     </>
   );
 }
@@ -36,7 +39,11 @@ export default async function TeamPage({
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
 
-  const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: true });
+  const { data } = await supabase
+    .from("profiles")
+    .select(teamProfileSelect)
+    .eq("company_id", context.companyId)
+    .order("created_at", { ascending: true });
   const profiles = (data ?? []) as Profile[];
   const hasServiceRole = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
   const activeProfiles = profiles.filter((profile) => profile.active).length;
@@ -72,7 +79,7 @@ export default async function TeamPage({
             {!hasServiceRole ? (
               <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                 SUPABASE_SERVICE_ROLE_KEY fehlt. Trage ihn in .env.local ein, damit Mitarbeiter serverseitig
-                angelegt werden koennen.
+                angelegt werden können.
               </p>
             ) : null}
             <form action={createEmployeeAction} className="space-y-3">

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
+import { ConsentSettingsCard } from "@/components/consent-settings-card";
 import { getLegalPage, legalPages } from "@/lib/legal/pages";
 
 export function generateStaticParams() {
@@ -21,13 +22,15 @@ export default async function LegalPage({ params }: { params: Promise<{ slug: st
         <header className="mt-5 surface-strong p-5 sm:p-7">
           <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-900">
             <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-            Pruefpflichtiger Entwurf
+            Prüfpflichtiger Entwurf
           </div>
           <h1 className="text-3xl font-black text-ink">{page.title}</h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">{page.summary}</p>
         </header>
 
         <div className="mt-5 space-y-4">
+          {slug === "datenschutz" || slug === "cookies" ? <ConsentSettingsCard /> : null}
+
           {page.sections.map((section) => (
             <section key={section.heading} className="surface p-5">
               <h2 className="section-title">{section.heading}</h2>

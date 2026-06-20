@@ -7,13 +7,13 @@ import { discoverOnlinePrices } from "@/lib/online-price-discovery/service";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { optionalFormUuid } from "@/lib/security/form-data";
 import { assertRateLimit } from "@/lib/security/rate-limit";
+import { safeReturnPath } from "@/lib/security/redirects";
 import { assertInventoryItemInCompany } from "@/lib/security/tenant-guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalString } from "@/lib/utils";
 
 function redirectTarget(formData: FormData, fallback = "/materials/online-discovery") {
-  const value = String(formData.get("return_to") ?? "");
-  return value.startsWith("/") ? value : fallback;
+  return safeReturnPath(formData.get("return_to"), fallback);
 }
 
 function revalidateDiscoveryRoutes(materialId?: string | null) {

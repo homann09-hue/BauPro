@@ -13,6 +13,13 @@ export async function createSupabaseServerClient() {
 
   const cookieStore = await cookies();
 
+  /**
+   * Skalierungsnotiz:
+   * Dieser Client nutzt die Supabase-Projekt-URL aus NEXT_PUBLIC_SUPABASE_URL,
+   * also die HTTP/PostgREST-Schicht von Supabase. Er baut keinen direkten
+   * Postgres-Socket aus der Serverless Function auf. Connection Pooling und
+   * Datenbankverbindungen werden dadurch auf Supabase-Seite verwaltet.
+   */
   return createServerClient(url, anonKey, {
     cookies: {
       getAll() {
@@ -39,6 +46,13 @@ export function createSupabaseAdminClient() {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY fehlt.");
   }
 
+  /**
+   * Service-Role-Client sparsam einsetzen:
+   * Auch dieser Client verwendet die Supabase-HTTP-API, laeuft aber ohne
+   * Nutzerkontext und umgeht RLS. In Serverless sollte er nur fuer Webhooks,
+   * interne Jobs und klar begrenzte Admin-Flows genutzt werden, weil viele
+   * parallele privilegierte Requests schwerere Datenbankarbeit ausloesen koennen.
+   */
   return createClient(url, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,

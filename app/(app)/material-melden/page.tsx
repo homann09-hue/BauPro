@@ -1,8 +1,11 @@
 import { BellPlus, Send } from "lucide-react";
+import { ContextualHelpTip } from "@/components/help/ContextualHelpTip";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
+import { VoiceInputField } from "@/components/voice/VoiceInputField";
 import { reportMaterialNeedAction } from "@/lib/actions/material-alert-actions";
 import { requireAppContext } from "@/lib/auth";
+import { jobsiteFormSelect } from "@/lib/data/selects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { searchParamMessage } from "@/lib/utils";
 import type { Jobsite } from "@/types/app";
@@ -12,16 +15,24 @@ export default async function MaterialReportPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireAppContext();
+  const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
 
-  const { data: jobsites } = await supabase
-    .from("jobsites")
-    .select("*")
+  const jobsitesQuery = (
+    context.canManage
+      ? supabase.from("jobsites").select(jobsiteFormSelect).eq("company_id", context.companyId)
+      : supabase
+          .from("jobsites")
+          .select(jobsiteFormSelect)
+          .eq("company_id", context.companyId)
+          .contains("assigned_employee_ids", [context.userId])
+  )
     .in("status", ["geplant", "aktiv"])
     .order("start_date", { ascending: true, nullsFirst: false })
     .limit(50);
+
+  const { data: jobsites } = await jobsitesQuery;
 
   const visibleJobsites = (jobsites ?? []) as Jobsite[];
 
@@ -32,6 +43,7 @@ export default async function MaterialReportPage({
         description="Fehlendes oder knappes Material direkt an Chef/Admin melden. Preis- und Einkaufsdaten bleiben ausgeblendet."
       />
       <MessageBox error={error} success={success} />
+      <ContextualHelpTip featureKey="material_missing_report" returnTo="/material-melden" />
 
       <section className="surface p-4 sm:p-5">
         <div className="mb-4 flex items-center gap-3">
@@ -46,17 +58,16 @@ export default async function MaterialReportPage({
 
         <form action={reportMaterialNeedAction} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <input type="hidden" name="return_to" value="/material-melden" />
-          <label className="sm:col-span-2">
-            <span className="field-label">Material</span>
-            <input className="field-input" name="material_name" placeholder="z. B. Unterspannbahn, Schrauben, Rinnenhalter" required />
-          </label>
+          <div className="sm:col-span-2">
+            <VoiceInputField label="Material" name="material_name" placeholder="z. B. Unterspannbahn, Schrauben, Rinnenhalter" required />
+          </div>
           <label>
             <span className="field-label">Menge</span>
             <input className="field-input" name="quantity" inputMode="decimal" defaultValue="1" />
           </label>
           <label>
             <span className="field-label">Einheit</span>
-            <input className="field-input" name="unit" defaultValue="Stueck" />
+            <input className="field-input" name="unit" defaultValue="Stück" />
           </label>
           <label className="sm:col-span-2">
             <span className="field-label">Baustelle</span>
@@ -69,10 +80,9 @@ export default async function MaterialReportPage({
               ))}
             </select>
           </label>
-          <label className="sm:col-span-2">
-            <span className="field-label">Hinweis</span>
-            <input className="field-input" name="note" placeholder="optional, z. B. dringend fuer morgen" />
-          </label>
+          <div className="sm:col-span-2">
+            <VoiceInputField label="Hinweis" name="note" placeholder="optional, z. B. dringend für morgen" />
+          </div>
           <button className="btn-primary sm:col-span-2 lg:col-span-4" type="submit">
             <Send className="h-4 w-4" aria-hidden="true" />
             Meldung senden

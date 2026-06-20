@@ -4,6 +4,7 @@ import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { updateCustomerAction } from "@/lib/actions/customer-actions";
 import { requireManager } from "@/lib/auth";
+import { customerFormSelect } from "@/lib/data/selects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { searchParamMessage } from "@/lib/utils";
 import { customerDisplayName } from "@/lib/order-labels";
@@ -16,11 +17,16 @@ export default async function EditCustomerPage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireManager();
+  const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const { id } = await params;
   const { error, success } = searchParamMessage(await searchParams);
-  const { data } = await supabase.from("customers").select("*").eq("id", id).single();
+  const { data } = await supabase
+    .from("customers")
+    .select(customerFormSelect)
+    .eq("company_id", context.companyId)
+    .eq("id", id)
+    .single();
 
   if (!data) {
     notFound();

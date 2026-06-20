@@ -1,6 +1,7 @@
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { AppContext } from "@/lib/auth";
 import type { AiFeature, AiRuntimeState, AiSettings } from "@/lib/ai/types";
+import { aiSettingsSelect } from "@/lib/data/selects";
 import { getOpenAiModel, isOpenAiConfigured } from "@/lib/ai/openai";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
@@ -14,7 +15,7 @@ export const DEFAULT_AI_SETTINGS = {
 };
 
 export async function loadAiSettings(supabase: SupabaseServerClient, companyId: string): Promise<AiSettings> {
-  const { data, error } = await supabase.from("ai_settings").select("*").eq("company_id", companyId).maybeSingle();
+  const { data, error } = await supabase.from("ai_settings").select(aiSettingsSelect).eq("company_id", companyId).maybeSingle();
 
   if (error || !data) {
     return {
@@ -37,7 +38,7 @@ export function canUseAiFeature(context: AppContext, settings: AiSettings, featu
   if (!context.canManage && !settings.allow_employee_ai) return false;
   if (feature === "daily_report" && !settings.allow_ai_daily_reports) return false;
   if (feature === "time_tracking" && !settings.allow_ai_time_tracking) return false;
-  if (feature === "material_matching" && !settings.allow_ai_material_matching) return false;
+  if ((feature === "material_matching" || feature === "material_calculation") && !settings.allow_ai_material_matching) return false;
   return true;
 }
 

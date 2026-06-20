@@ -61,6 +61,13 @@ export default async function RegisterPage({
       </form>
 
       <p className="mt-6 rounded-md bg-fog px-3 py-3 text-center text-sm text-slate-600">
+        Erst ohne Eingabe testen?{" "}
+        <Link href="/demo" className="font-semibold text-primary">
+          Demo starten
+        </Link>
+      </p>
+
+      <p className="mt-3 rounded-md bg-fog px-3 py-3 text-center text-sm text-slate-600">
         Bereits registriert?{" "}
         <Link href="/login" className="font-semibold text-primary">
           Einloggen

@@ -3,14 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAppContext, requireManager } from "@/lib/auth";
+import {
+  selectSingleTimeEntryWithWeatherFallback,
+  timeEntryWriteOptions
+} from "@/lib/data/time-entries";
+import { revalidateDashboardCache } from "@/lib/data/dashboard";
+import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
+import { safeReturnPath, withStatusMessage } from "@/lib/security/redirects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { calculateTimeMinutes, monthRange, timeEntryWarnings } from "@/lib/time-tracking";
 import { optionalNumber, optionalString, requiredString } from "@/lib/utils";
+import { weatherPayloadFromFormData } from "@/lib/weather/form";
 import type { TimeEntry, TimeEntryStatus } from "@/types/app";
-
-function toQuery(value: string) {
-  return encodeURIComponent(value);
-}
 
 function statusValue(value: FormDataEntryValue | null, canManage: boolean): TimeEntryStatus {
   const status = String(value ?? "submitted");
@@ -42,7 +46,7 @@ async function resolveJobsite(
     .single();
 
   if (error || !data) {
-    throw new Error("Baustelle wurde nicht gefunden oder ist fuer dich nicht freigegeben.");
+    throw new SafeActionError("Baustelle wurde nicht gefunden oder ist fuer dich nicht freigegeben.");
   }
 
   return data as { id: string; name: string; address: string; customer: string };
@@ -62,7 +66,7 @@ async function assertEmployee(
     .single();
 
   if (error || !data) {
-    throw new Error("Mitarbeiter wurde nicht gefunden.");
+    throw new SafeActionError("Mitarbeiter wurde nicht gefunden.");
   }
 }
 
@@ -105,7 +109,7 @@ async function buildTimeEntryPayload({
     gross_minutes: calculated.grossMinutes,
     net_minutes: calculated.netMinutes,
     activity: requiredString(formData, "activity"),
-    weather: optionalString(formData, "weather"),
+    ...weatherPayloadFromFormData(formData),
     kilometers: optionalNumber(formData, "kilometers"),
     notes: optionalString(formData, "notes"),
     status,
@@ -144,6 +148,7 @@ async function insertAuditLog({
 export async function createTimeEntryAction(formData: FormData) {
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
+  const returnTo = safeReturnPath(formData.get("return_to"), "/time/new");
   let target = "/time-tracking";
 
   try {
@@ -154,24 +159,31 @@ export async function createTimeEntryAction(formData: FormData) {
       userId: context.userId
     });
 
-    const { data, error } = await supabase.from("time_entries").insert(payload).select("*").single();
-    if (error || !data) throw new Error(error?.message ?? "Arbeitszeit konnte nicht gespeichert werden.");
+    const writeOptions = await timeEntryWriteOptions(supabase, payload);
+    const { data, error } = await supabase
+      .from("time_entries")
+      .insert(writeOptions.payload)
+      .select(writeOptions.select)
+      .single();
+    if (error || !data) throw new Error("time_entry_insert_failed");
+    const typedEntry = data as unknown as TimeEntry;
 
     await insertAuditLog({
       companyId: context.companyId,
-      entryId: data.id as string,
+      entryId: typedEntry.id,
       userId: context.userId,
       oldValues: null,
       newValues: data,
       reason: "Arbeitszeit angelegt"
     });
 
-    target = `/time-tracking?success=${toQuery(`Arbeitszeit wurde gespeichert.${warningMessage(data as TimeEntry)}`)}`;
+    target = `/time-tracking?success=${toQuery(`Arbeitszeit wurde gespeichert.${warningMessage(typedEntry)}`)}`;
   } catch (error) {
-    target = `/time-tracking/new?error=${toQuery(error instanceof Error ? error.message : "Arbeitszeit konnte nicht gespeichert werden.")}`;
+    target = withStatusMessage(returnTo, "error", safeErrorMessage(error, "Arbeitszeit konnte nicht gespeichert werden."));
   }
 
   revalidatePath("/time-tracking");
+  revalidateDashboardCache(context.companyId);
   redirect(target);
 }
 
@@ -182,18 +194,15 @@ export async function updateTimeEntryAction(formData: FormData) {
   let target = `/time-tracking/${id}/edit`;
 
   try {
-    const { data: oldEntry, error: oldError } = await supabase
-      .from("time_entries")
-      .select("*")
-      .eq("id", id)
-      .eq("company_id", context.companyId)
-      .single();
+    const { data: oldEntry, error: oldError } = await selectSingleTimeEntryWithWeatherFallback((select) =>
+      supabase.from("time_entries").select(select).eq("id", id).eq("company_id", context.companyId).single()
+    );
 
-    if (oldError || !oldEntry) throw new Error("Arbeitszeit wurde nicht gefunden.");
-    const typedOld = oldEntry as TimeEntry;
+    if (oldError || !oldEntry) throw new SafeActionError("Arbeitszeit wurde nicht gefunden.");
+    const typedOld = oldEntry as unknown as TimeEntry;
 
     if (!context.canManage && typedOld.status === "approved") {
-      throw new Error("Freigegebene Zeiten koennen von Mitarbeitern nicht mehr bearbeitet werden.");
+      throw new SafeActionError("Freigegebene Zeiten koennen von Mitarbeitern nicht mehr bearbeitet werden.");
     }
 
     const payload = await buildTimeEntryPayload({
@@ -213,15 +222,17 @@ export async function updateTimeEntryAction(formData: FormData) {
         payload.status === "approved" ? typedOld.approved_at ?? new Date().toISOString() : context.canManage ? null : typedOld.approved_at
     };
 
+    const writeOptions = await timeEntryWriteOptions(supabase, updatePayload);
     const { data, error } = await supabase
       .from("time_entries")
-      .update(updatePayload)
+      .update(writeOptions.payload)
       .eq("id", id)
       .eq("company_id", context.companyId)
-      .select("*")
+      .select(writeOptions.select)
       .single();
 
-    if (error || !data) throw new Error(error?.message ?? "Arbeitszeit konnte nicht aktualisiert werden.");
+    if (error || !data) throw new Error("time_entry_update_failed");
+    const typedEntry = data as unknown as TimeEntry;
 
     await insertAuditLog({
       companyId: context.companyId,
@@ -232,15 +243,16 @@ export async function updateTimeEntryAction(formData: FormData) {
       reason: optionalString(formData, "change_reason") ?? "Arbeitszeit bearbeitet"
     });
 
-    target = `/time-tracking?success=${toQuery(`Arbeitszeit wurde aktualisiert.${warningMessage(data as TimeEntry)}`)}`;
+    target = `/time-tracking?success=${toQuery(`Arbeitszeit wurde aktualisiert.${warningMessage(typedEntry)}`)}`;
   } catch (error) {
     target = `/time-tracking/${id}/edit?error=${toQuery(
-      error instanceof Error ? error.message : "Arbeitszeit konnte nicht aktualisiert werden."
+      safeErrorMessage(error, "Arbeitszeit konnte nicht aktualisiert werden.")
     )}`;
   }
 
   revalidatePath("/time-tracking");
   revalidatePath(`/time-tracking/${id}/edit`);
+  revalidateDashboardCache(context.companyId);
   redirect(target);
 }
 
@@ -249,29 +261,27 @@ export async function setTimeEntryStatusAction(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const id = requiredString(formData, "id");
   const requestedStatus = statusValue(formData.get("status"), context.canManage);
-  let target = "/time-tracking";
+  const returnTo = safeReturnPath(formData.get("return_to"));
+  let target = returnTo;
 
   try {
-    const { data: oldEntry, error: oldError } = await supabase
-      .from("time_entries")
-      .select("*")
-      .eq("id", id)
-      .eq("company_id", context.companyId)
-      .single();
+    const { data: oldEntry, error: oldError } = await selectSingleTimeEntryWithWeatherFallback((select) =>
+      supabase.from("time_entries").select(select).eq("id", id).eq("company_id", context.companyId).single()
+    );
 
-    if (oldError || !oldEntry) throw new Error("Arbeitszeit wurde nicht gefunden.");
-    const typedOld = oldEntry as TimeEntry;
+    if (oldError || !oldEntry) throw new SafeActionError("Arbeitszeit wurde nicht gefunden.");
+    const typedOld = oldEntry as unknown as TimeEntry;
 
     if (!context.canManage && typedOld.employee_id !== context.userId) {
-      throw new Error("Keine Berechtigung fuer diese Arbeitszeit.");
+      throw new SafeActionError("Keine Berechtigung fuer diese Arbeitszeit.");
     }
 
     if (!context.canManage && typedOld.status === "approved") {
-      throw new Error("Freigegebene Zeiten koennen von Mitarbeitern nicht mehr geaendert werden.");
+      throw new SafeActionError("Freigegebene Zeiten koennen von Mitarbeitern nicht mehr geaendert werden.");
     }
 
     if (!context.canManage && !["draft", "submitted"].includes(requestedStatus)) {
-      throw new Error("Mitarbeiter koennen Zeiten nur als Entwurf speichern oder einreichen.");
+      throw new SafeActionError("Mitarbeiter koennen Zeiten nur als Entwurf speichern oder einreichen.");
     }
 
     const statusPayload = {
@@ -280,15 +290,16 @@ export async function setTimeEntryStatusAction(formData: FormData) {
       approved_at: requestedStatus === "approved" ? new Date().toISOString() : null
     };
 
+    const writeOptions = await timeEntryWriteOptions(supabase, statusPayload);
     const { data, error } = await supabase
       .from("time_entries")
-      .update(statusPayload)
+      .update(writeOptions.payload)
       .eq("id", id)
       .eq("company_id", context.companyId)
-      .select("*")
+      .select(writeOptions.select)
       .single();
 
-    if (error || !data) throw new Error(error?.message ?? "Status konnte nicht gespeichert werden.");
+    if (error || !data) throw new Error("time_entry_status_update_failed");
 
     await insertAuditLog({
       companyId: context.companyId,
@@ -299,12 +310,15 @@ export async function setTimeEntryStatusAction(formData: FormData) {
       reason: optionalString(formData, "change_reason") ?? `Status geaendert zu ${requestedStatus}`
     });
 
-    target = `/time-tracking?success=${toQuery("Status wurde gespeichert.")}`;
+    target = withStatusMessage(returnTo, "success", "Status wurde gespeichert.");
   } catch (error) {
-    target = `/time-tracking?error=${toQuery(error instanceof Error ? error.message : "Status konnte nicht gespeichert werden.")}`;
+    target = withStatusMessage(returnTo, "error", safeErrorMessage(error, "Status konnte nicht gespeichert werden."));
   }
 
   revalidatePath("/time-tracking");
+  revalidatePath("/time-tracking/daily");
+  revalidatePath(returnTo.split("?")[0] || "/time-tracking");
+  revalidateDashboardCache(context.companyId);
   redirect(target);
 }
 
@@ -317,8 +331,8 @@ export async function createTimeReportAction(formData: FormData) {
     const employeeId = requiredString(formData, "employee_id");
     const month = positiveInteger(formData, "month");
     const year = positiveInteger(formData, "year");
-    if (month < 1 || month > 12) throw new Error("Bitte gueltigen Monat auswaehlen.");
-    if (year < 2000 || year > 2100) throw new Error("Bitte gueltiges Jahr eintragen.");
+    if (month < 1 || month > 12) throw new SafeActionError("Bitte gueltigen Monat auswaehlen.");
+    if (year < 2000 || year > 2100) throw new SafeActionError("Bitte gueltiges Jahr eintragen.");
 
     await assertEmployee(supabase, employeeId, context.companyId);
     const { dateFrom, dateTo } = monthRange(year, month);
@@ -333,9 +347,9 @@ export async function createTimeReportAction(formData: FormData) {
       .in("status", ["submitted", "approved"])
       .order("date", { ascending: true });
 
-    if (entriesError) throw new Error(entriesError.message);
+    if (entriesError) throw new Error("time_entries_load_failed");
     if (!entries || entries.length === 0) {
-      throw new Error("Keine eingereichten oder freigegebenen Zeiten fuer diesen Zeitraum gefunden.");
+      throw new SafeActionError("Keine eingereichten oder freigegebenen Zeiten fuer diesen Zeitraum gefunden.");
     }
 
     const { data: report, error: reportError } = await supabase
@@ -352,7 +366,7 @@ export async function createTimeReportAction(formData: FormData) {
       .select("id")
       .single();
 
-    if (reportError || !report) throw new Error(reportError?.message ?? "Stundenzettel konnte nicht erstellt werden.");
+    if (reportError || !report) throw new Error("time_report_insert_failed");
 
     const { error: linkError } = await supabase.from("time_report_entries").insert(
       entries.map((entry) => ({
@@ -361,11 +375,11 @@ export async function createTimeReportAction(formData: FormData) {
       }))
     );
 
-    if (linkError) throw new Error(linkError.message);
+    if (linkError) throw new Error("time_report_entries_link_failed");
     target = `/time-tracking/reports/${report.id}?success=${toQuery("Stundenzettel wurde erstellt.")}`;
   } catch (error) {
     target = `/time-tracking/reports?error=${toQuery(
-      error instanceof Error ? error.message : "Stundenzettel konnte nicht erstellt werden."
+      safeErrorMessage(error, "Stundenzettel konnte nicht erstellt werden.")
     )}`;
   }
 

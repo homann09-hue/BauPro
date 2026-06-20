@@ -80,6 +80,7 @@ export async function assertVehicleInCompany({
     .select("id")
     .eq("id", vehicleId)
     .eq("company_id", companyId)
+    .is("archived_at", null)
     .maybeSingle();
 
   if (error || !data) throw new SafeActionError("Fahrzeug wurde nicht gefunden.");

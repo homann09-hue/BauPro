@@ -26,6 +26,17 @@ type ResponsePayload = {
   };
 };
 
+type OpenAiInputContent =
+  | {
+      type: "input_text";
+      text: string;
+    }
+  | {
+      type: "input_image";
+      image_url: string;
+      detail: "low" | "high" | "auto";
+    };
+
 export function getOpenAiModel() {
   return process.env.OPENAI_MODEL?.trim() || DEFAULT_MODEL;
 }
@@ -68,6 +79,7 @@ export async function createStructuredAiResponse<T>({
   user,
   schema,
   schemaName,
+  imageUrls = [],
   maxOutputTokens = 1200
 }: {
   feature: string;
@@ -75,6 +87,7 @@ export async function createStructuredAiResponse<T>({
   user: string;
   schema: object;
   schemaName: string;
+  imageUrls?: string[];
   maxOutputTokens?: number;
 }): Promise<StructuredAiResult<T>> {
   const model = getOpenAiModel();
@@ -90,6 +103,18 @@ export async function createStructuredAiResponse<T>({
   }
 
   try {
+    const userContent: string | OpenAiInputContent[] =
+      imageUrls.length > 0
+        ? [
+            { type: "input_text", text: user },
+            ...imageUrls.slice(0, 4).map((imageUrl) => ({
+              type: "input_image" as const,
+              image_url: imageUrl,
+              detail: "low" as const
+            }))
+          ]
+        : user;
+
     const response = await fetch(OPENAI_RESPONSES_URL, {
       method: "POST",
       headers: {
@@ -100,7 +125,7 @@ export async function createStructuredAiResponse<T>({
         model,
         input: [
           { role: "developer", content: system },
-          { role: "user", content: user }
+          { role: "user", content: userContent }
         ],
         text: {
           format: {
@@ -123,13 +148,26 @@ export async function createStructuredAiResponse<T>({
     const outputTokens = payload.usage?.output_tokens ?? null;
 
     if (!response.ok) {
+      console.error("openai-response-failed", {
+        status: response.status,
+        feature,
+        model
+      });
+
+      const message =
+        response.status === 401 || response.status === 403
+          ? "OpenAI-Zugang wurde abgelehnt. Bitte serverseitigen OPENAI_API_KEY pruefen."
+          : response.status === 429
+            ? "OpenAI-Limit erreicht. Bitte spaeter erneut versuchen oder OpenAI-Abrechnung pruefen."
+            : "KI-Anfrage konnte nicht verarbeitet werden. Bitte spaeter erneut versuchen.";
+
       return {
         ok: false,
         disabled: false,
         model,
         inputTokens,
         outputTokens,
-        message: payload.error?.message ?? "OpenAI-Anfrage fehlgeschlagen."
+        message
       };
     }
 

@@ -5,7 +5,9 @@ import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { requireAppContext } from "@/lib/auth";
+import { calendarOrderSelect, calendarTimeEntrySelect, jobsiteFormSelect } from "@/lib/data/selects";
 import { customerDisplayName, orderStatusLabels } from "@/lib/order-labels";
+import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, searchParamMessage } from "@/lib/utils";
 import type { Jobsite, Order, TimeEntry } from "@/types/app";
@@ -34,40 +36,63 @@ export default async function CalendarPage({
   const { error, success } = searchParamMessage(await searchParams);
   const today = isoToday();
   const dateTo = isoInDays(21);
+  const jobsitesPromise = (
+    context.canManage
+      ? supabase.from("jobsites").select(jobsiteFormSelect).eq("company_id", context.companyId)
+      : supabase
+          .from("jobsites")
+          .select(jobsiteFormSelect)
+          .eq("company_id", context.companyId)
+          .contains("assigned_employee_ids", [context.userId])
+  )
+    .in("status", ["geplant", "aktiv"])
+    .order("start_date", { ascending: true, nullsFirst: false })
+    .limit(30);
+  const timeEntriesPromise = (
+    context.canManage
+      ? supabase.from("time_entries").select(calendarTimeEntrySelect).eq("company_id", context.companyId)
+      : supabase
+          .from("time_entries")
+          .select(calendarTimeEntrySelect)
+          .eq("company_id", context.companyId)
+          .eq("employee_id", context.userId)
+  )
+    .gte("date", today)
+    .lte("date", dateTo)
+    .order("date", { ascending: true })
+    .limit(30);
 
   const [ordersResult, jobsitesResult, timeResult] = await Promise.all([
     context.canManage
       ? supabase
           .from("orders")
-          .select("*, customers(id, company, first_name, last_name, contact_person)")
+          .select(calendarOrderSelect)
+          .eq("company_id", context.companyId)
           .gte("start_date", today)
           .lte("start_date", dateTo)
           .order("start_date", { ascending: true })
       : Promise.resolve({ data: [], error: null }),
-    supabase
-      .from("jobsites")
-      .select("*")
-      .in("status", ["geplant", "aktiv"])
-      .order("start_date", { ascending: true, nullsFirst: false })
-      .limit(30),
-    supabase
-      .from("time_entries")
-      .select("*, jobsites(id, name, address, customer), profiles!time_entries_employee_id_fkey(id, full_name, email)")
-      .gte("date", today)
-      .lte("date", dateTo)
-      .order("date", { ascending: true })
-      .limit(30)
+    jobsitesPromise,
+    timeEntriesPromise
   ]);
 
-  const orders = (ordersResult.data ?? []) as Order[];
+  const orders = (ordersResult.data ?? []) as unknown as Order[];
   const jobsites = (jobsitesResult.data ?? []) as Jobsite[];
-  const timeEntries = (timeResult.data ?? []) as TimeEntry[];
+  const timeEntries = (timeResult.data ?? []) as unknown as TimeEntry[];
   const hasContent = orders.length + jobsites.length + timeEntries.length > 0;
 
   return (
     <>
       <PageHeader title="Kalender" description="Die nächsten Einsätze, Starttermine und Zeitfreigaben im Überblick." />
-      <MessageBox error={error || ordersResult.error?.message || jobsitesResult.error?.message || timeResult.error?.message} success={success} />
+      <MessageBox
+        error={
+          error ||
+          safeQueryErrorMessage(ordersResult.error) ||
+          safeQueryErrorMessage(jobsitesResult.error) ||
+          safeQueryErrorMessage(timeResult.error)
+        }
+        success={success}
+      />
 
       {!hasContent ? (
         <EmptyState

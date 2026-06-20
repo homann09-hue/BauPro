@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Building2, ClipboardCheck, CloudSun, ShieldCheck } from "lucide-react";
+import { Building2, Clock3, Coins, ShieldCheck, Sparkles, type LucideIcon } from "lucide-react";
+import { whyBauProSalesHighlights } from "@/lib/why-baupro";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-fog px-4 pb-80 pt-6 sm:px-6 sm:py-6 lg:px-8">
+    <main className="min-h-dvh bg-fog px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-[calc(1.5rem+env(safe-area-inset-top))] sm:px-6 sm:py-6 lg:px-8">
       <div className="mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-6xl items-center gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <section className="hidden lg:block">
           <div className="max-w-xl">
@@ -13,19 +14,26 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               </div>
               <div>
                 <p className="text-2xl font-black">BauPro</p>
-                <p className="text-sm text-white/70">Betriebszentrale fuer Dachdecker</p>
+                <p className="text-sm text-white/70">Betriebszentrale für Dachdecker</p>
               </div>
             </div>
             <h1 className="text-4xl font-black tracking-normal text-ink">
               Baustellen, Berichte und Material an einem Ort.
             </h1>
             <p className="mt-4 text-base leading-7 text-slate-600">
-              Ein ruhiges, schnelles Werkzeug fuer kleine Handwerksbetriebe: mobil auf der Baustelle und klar im Büro.
+              Ein ruhiges, schnelles Werkzeug für kleine Handwerksbetriebe: mobil auf der Baustelle und klar im Büro.
             </p>
             <div className="mt-8 grid gap-3">
-              <AuthFeature icon={ClipboardCheck} title="Tagesberichte" text="Zeiten, Tätigkeiten und Fotos direkt dokumentieren." />
-              <AuthFeature icon={CloudSun} title="Baustellenfokus" text="Status, Team und Aufgaben bleiben sichtbar." />
-              <AuthFeature icon={ShieldCheck} title="Rollen sauber getrennt" text="Admin, Chef, Vorarbeiter und Mitarbeiter mit klaren Rechten." />
+              {whyBauProSalesHighlights.map((highlight, index) => (
+                <AuthFeature key={highlight.label} icon={salesIcons[index] ?? Sparkles} title={highlight.label} text={highlight.value} />
+              ))}
+            </div>
+            <div className="mt-5 rounded-lg border border-primary/15 bg-mint p-4">
+              <p className="text-sm font-black text-primary-dark">Demo-Gespraech</p>
+              <p className="mt-1 text-sm leading-6 text-primary-dark/80">
+                Zeige erst Dashboard, Materialwarnungen, Tagesstunden und Mitbringlisten. Danach oeffne einen Auftrag mit Maßen und
+                erklaere, wo Zeit, Geld, Fehler und Automatisierung zusammenkommen.
+              </p>
             </div>
           </div>
         </section>
@@ -37,10 +45,24 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             </div>
             <div>
               <p className="text-2xl font-black text-ink">BauPro</p>
-              <p className="text-sm text-slate-500">Handwerker-App fuer Dachdecker</p>
+              <p className="text-sm text-slate-500">Handwerker-App für Dachdecker</p>
             </div>
           </div>
           {children}
+          <div className="mt-5 rounded-lg border border-line bg-white p-4 shadow-sm lg:hidden">
+            <h2 className="text-lg font-black text-ink">Warum BauPro?</h2>
+            <div className="grid gap-2">
+              {whyBauProSalesHighlights.slice(0, 3).map((highlight) => (
+                <div key={highlight.label} className="rounded-md bg-fog p-3">
+                  <p className="text-sm font-black text-ink">{highlight.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">{highlight.value}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 rounded-md bg-mint px-3 py-2 text-xs font-bold leading-5 text-primary-dark">
+              Demo-Tipp: Dashboard zeigen, dann Auftrag mit Maßen, Mitbringliste und Tagesstunden öffnen.
+            </p>
+          </div>
           <div className="mt-5 flex flex-wrap justify-center gap-3 text-xs font-semibold text-slate-500">
             <Link href="/legal/impressum" className="hover:text-primary">
               Impressum
@@ -58,12 +80,14 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   );
 }
 
+const salesIcons: LucideIcon[] = [Clock3, Coins, ShieldCheck, Sparkles];
+
 function AuthFeature({
   icon: Icon,
   title,
   text
 }: {
-  icon: typeof ClipboardCheck;
+  icon: LucideIcon;
   title: string;
   text: string;
 }) {
