@@ -39,6 +39,8 @@ describe("Redis rate limiter facade", () => {
     delete process.env.BAUPRO_RATE_LIMIT_TEST_MODE;
     delete process.env.UPSTASH_REDIS_REST_URL;
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    delete process.env.KV_REST_API_URL;
+    delete process.env.KV_REST_API_TOKEN;
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const { assertRateLimit } = await loadRateLimiter();
 
@@ -49,5 +51,19 @@ describe("Redis rate limiter facade", () => {
     }).not.toThrow();
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0]?.[0]).toContain("UPSTASH_REDIS_REST_URL");
+    expect(warn.mock.calls[0]?.[0]).toContain("KV_REST_API_URL");
+  });
+
+  it("nutzt Vercel-KV-Variablen als Upstash-Fallback", async () => {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    process.env.KV_REST_API_URL = "https://example.upstash.io";
+    process.env.KV_REST_API_TOKEN = "test-token";
+    const { getRateLimitRedisConfig } = await loadRateLimiter();
+
+    expect(getRateLimitRedisConfig()).toEqual({
+      url: "https://example.upstash.io",
+      token: "test-token"
+    });
   });
 });

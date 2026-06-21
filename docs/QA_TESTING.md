@@ -87,4 +87,4 @@ npm run test:e2e:demo
 - E2E-Tests brauchen eine laufende Supabase-Test-/Dev-Datenbank mit aktuellem Schema.
 - Keine echten Kundendaten verwenden. Die Demo-Daten sind bewusst synthetisch.
 - Externe Dienste wie OpenAI, Stripe und Sentry werden in den Playwright-Fixtures gemockt.
-- In Production muessen `UPSTASH_REDIS_REST_URL` und `UPSTASH_REDIS_REST_TOKEN` gesetzt sein, damit Rate Limits nicht nur im Fallback laufen.
+- In Production muessen Redis-Variablen gesetzt sein, damit Rate Limits nicht nur im Fallback laufen. Der Code akzeptiert entweder `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` oder die von Vercel Marketplace gesetzten `KV_REST_API_URL`/`KV_REST_API_TOKEN`.

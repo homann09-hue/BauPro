@@ -16,14 +16,32 @@ const RATE_LIMIT_TIMEOUT_MS = 4_000;
 const RATE_LIMIT_ERROR = "Zu viele Anfragen in kurzer Zeit. Bitte versuche es gleich erneut.";
 const RATE_LIMIT_UNAVAILABLE_ERROR = "Rate Limit konnte nicht geprueft werden. Bitte versuche es gleich erneut.";
 
+export function getRateLimitRedisConfig() {
+  const upstashUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+  const vercelKvUrl = process.env.KV_REST_API_URL?.trim();
+  const vercelKvToken = process.env.KV_REST_API_TOKEN?.trim();
+  const url = upstashUrl || vercelKvUrl;
+  const token = upstashToken || vercelKvToken;
+
+  if (!url || !token) return null;
+
+  return {
+    url,
+    token
+  };
+}
+
 function warnMissingRedisOnce() {
   if (missingRedisWarningShown) return;
   missingRedisWarningShown = true;
-  console.warn("Rate Limiting laeuft ohne Redis. UPSTASH_REDIS_REST_URL oder UPSTASH_REDIS_REST_TOKEN fehlt.");
+  console.warn(
+    "Rate Limiting laeuft ohne Redis. UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN oder KV_REST_API_URL/KV_REST_API_TOKEN fehlt."
+  );
 }
 
 function redisConfigured() {
-  return Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+  return Boolean(getRateLimitRedisConfig());
 }
 
 function testModeEnabled() {
@@ -57,9 +75,12 @@ function getAsyncLimiter(limit: number, windowMs: number) {
   const cached = asyncLimiters.get(key);
   if (cached) return cached;
 
+  const config = getRateLimitRedisConfig();
+  if (!config) throw new SafeActionError(RATE_LIMIT_UNAVAILABLE_ERROR);
+
   const redis = new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL!,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN!
+    url: config.url,
+    token: config.token
   });
   const limiter = new Ratelimit({
     redis,
@@ -90,6 +111,9 @@ export async function checkRateLimit(key: string, limit: number, windowMs: numbe
 }
 
 function assertRedisLimitSynchronously(key: string, limit: number, windowMs: number) {
+  const config = getRateLimitRedisConfig();
+  if (!config) throw new SafeActionError(RATE_LIMIT_UNAVAILABLE_ERROR);
+
   const shared = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT);
   const state = new Int32Array(shared);
   const worker = new Worker(
@@ -126,8 +150,8 @@ function assertRedisLimitSynchronously(key: string, limit: number, windowMs: num
         key,
         limit,
         duration: duration(windowMs),
-        url: process.env.UPSTASH_REDIS_REST_URL,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN
+        url: config.url,
+        token: config.token
       }
     }
   );
