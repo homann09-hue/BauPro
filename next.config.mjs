@@ -68,19 +68,24 @@ const nextConfig = {
 };
 
 const configWithPWA = withPWA(nextConfig);
+const sentryReleaseUploadConfigured = Boolean(
+  process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT
+);
 
-export default withSentryConfig(configWithPWA, {
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-  authToken: process.env.SENTRY_AUTH_TOKEN,
-  silent: !process.env.CI,
-  telemetry: false,
-  sourcemaps: {
-    disable: !process.env.SENTRY_AUTH_TOKEN
-  },
-  webpack: {
-    treeshake: {
-      removeDebugLogging: true
-    }
-  }
-});
+export default sentryReleaseUploadConfigured
+  ? withSentryConfig(configWithPWA, {
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      silent: !process.env.CI,
+      telemetry: false,
+      sourcemaps: {
+        disable: false
+      },
+      webpack: {
+        treeshake: {
+          removeDebugLogging: true
+        }
+      }
+    })
+  : configWithPWA;
