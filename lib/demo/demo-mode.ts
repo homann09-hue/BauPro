@@ -162,6 +162,7 @@ async function insertRows(admin: AdminClient, table: string, rows: Array<Record<
     if (isMissingSchemaError(error)) {
       throw new SafeActionError("Datenbank-Update fehlt. Bitte die aktuellen Supabase-Migrationen ausfuehren.");
     }
+    console.error(`Demo-Seed Insert fehlgeschlagen: ${table}`, error);
     throw new Error(`demo_insert_${table}_failed`);
   }
 
@@ -173,6 +174,7 @@ async function insertOptionalRows(admin: AdminClient, table: string, rows: Array
   const { data, error } = await admin.from(table).insert(rows as never).select(select);
   if (error) {
     if (isMissingSchemaError(error)) return [];
+    console.error(`Demo-Seed optionaler Insert fehlgeschlagen: ${table}`, error);
     throw new Error(`demo_insert_${table}_failed`);
   }
 
@@ -343,10 +345,10 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
     .select("id")
     .eq("company_id", companyId)
     .eq("name", "Demo: Steildach Schmidt")
-    .maybeSingle();
+    .limit(1);
 
   if (existingError) throw new Error("demo_existing_lookup_failed");
-  if (existingJobsite) {
+  if ((existingJobsite ?? []).length > 0) {
     await cleanupDemoData(admin, companyId);
   }
 

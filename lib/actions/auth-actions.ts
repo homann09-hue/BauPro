@@ -105,6 +105,7 @@ export async function startDemoModeAction(formData: FormData) {
   try {
     demo = await ensureDemoModeData();
   } catch (error) {
+    console.error("Demo-Modus konnte nicht vorbereitet werden", error);
     redirect(`${errorPath}?error=${toQuery(safeErrorMessage(error, "Demo-Modus konnte nicht vorbereitet werden."))}`);
   }
 

@@ -338,6 +338,7 @@ async function cleanupCompany(companyId) {
     "resource_documents",
     "planning_resources",
     "orders",
+    "jobsites",
     "vehicle_materials",
     "vehicles",
     "inventory_items",
