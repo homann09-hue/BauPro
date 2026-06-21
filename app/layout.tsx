@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
+import { Analytics } from "@vercel/analytics/next";
 import { ConsentBanner } from "@/components/consent-banner";
 import "./globals.css";
 
@@ -56,6 +57,7 @@ export default async function RootLayout({
       <body data-nonce-present={nonce ? "true" : undefined}>
         {children}
         <ConsentBanner />
+        <Analytics />
       </body>
     </html>
   );
