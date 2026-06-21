@@ -51,6 +51,12 @@ npm run test
 npm run build
 ```
 
+Mobiler Smoke-Test fuer die wichtigsten Seiten und Browser-Console-Fehler:
+
+```bash
+npm run test:e2e:smoke
+```
+
 E2E-Tests gegen die vorbereitete Demo-Firma:
 
 ```bash
@@ -81,3 +87,4 @@ npm run test:e2e:demo
 - E2E-Tests brauchen eine laufende Supabase-Test-/Dev-Datenbank mit aktuellem Schema.
 - Keine echten Kundendaten verwenden. Die Demo-Daten sind bewusst synthetisch.
 - Externe Dienste wie OpenAI, Stripe und Sentry werden in den Playwright-Fixtures gemockt.
+- In Production muessen `UPSTASH_REDIS_REST_URL` und `UPSTASH_REDIS_REST_TOKEN` gesetzt sein, damit Rate Limits nicht nur im Fallback laufen.

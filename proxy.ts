@@ -36,7 +36,7 @@ function applySecurityHeaders(response: NextResponse, csp: string, nonce: string
   return response;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const nonce = crypto.randomUUID();
   const csp = buildContentSecurityPolicy(nonce);
 
