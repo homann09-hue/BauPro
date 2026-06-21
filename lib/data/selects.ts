@@ -179,7 +179,7 @@ export const aiSettingsSelect =
   "id, company_id, enabled, default_model, allow_employee_ai, allow_ai_daily_reports, allow_ai_time_tracking, allow_ai_material_matching, created_at, updated_at";
 
 export const calculationSettingsSelect =
-  "id, company_id, default_waste_percent, default_vat_rate, default_labor_rate_net, default_internal_hourly_cost, default_profit_markup_percent, default_overhead_percent, default_travel_flat_rate, allow_ai_job_creation, require_admin_confirmation, created_at, updated_at";
+  "id, company_id, default_waste_percent, default_vat_rate, default_labor_rate_net, default_internal_hourly_cost, default_profit_markup_percent, default_overhead_percent, default_travel_rate_per_km, default_travel_flat_rate, allow_ai_job_creation, require_admin_confirmation, created_at, updated_at";
 
 export const jobMaterialCalculationSelect =
   "id, company_id, jobsite_id, roof_type, roof_form, material_type, length_m, width_m, area_m2, roof_pitch, eaves_length_m, ridge_length_m, verge_length_m, valley_length_m, wall_connection_length_m, penetrations_count, roof_windows_count, dormers_count, chimneys_count, waste_percent, ai_enabled, ai_model, ai_confidence, ai_notes, review_notice, notes, created_by, created_at";

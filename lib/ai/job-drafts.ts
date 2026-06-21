@@ -26,6 +26,7 @@ const DEFAULT_CALCULATION_SETTINGS: Omit<CalculationSettings, "company_id"> = {
   default_internal_hourly_cost: 38,
   default_profit_markup_percent: 10,
   default_overhead_percent: 12,
+  default_travel_rate_per_km: 0.75,
   default_travel_flat_rate: 0,
   allow_ai_job_creation: true,
   require_admin_confirmation: true

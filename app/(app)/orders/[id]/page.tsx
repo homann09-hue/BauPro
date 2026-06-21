@@ -95,6 +95,39 @@ type WorkOrderListItem = Pick<
   | "created_at"
   | "updated_at"
 >;
+type OrderCostEstimateRow = {
+  id: string;
+  company_id: string;
+  job_id: string;
+  material_ek_total: number;
+  material_vk_total: number;
+  labor_hours_estimated: number;
+  labor_rate_net: number;
+  labor_total_net: number;
+  overhead_percent: number;
+  overhead_total: number;
+  profit_markup_percent: number;
+  profit_total: number;
+  subtotal_net: number;
+  vat_rate: number;
+  vat_total: number;
+  total_gross: number;
+  price_source_summary: Record<string, unknown> | null;
+  created_at: string;
+  job_estimate_items?: OrderCostEstimateItemRow[];
+};
+type OrderCostEstimateItemRow = {
+  id: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  ek_unit_price: number | null;
+  vk_unit_price: number | null;
+  ek_total: number | null;
+  vk_total: number | null;
+  price_source: string;
+  notes: string | null;
+};
 
 function Info({ label, value }: { label: string; value?: string | number | null }) {
   return (
@@ -119,6 +152,139 @@ function requirementTotals(items: JobMaterialRequirement[]) {
       margin: totals.margin + Number(item.margin_total ?? 0)
     }),
     { purchase: 0, sales: 0, margin: 0 }
+  );
+}
+
+function estimateNumber(value: number | string | null | undefined) {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function estimateSummaryNumber(estimate: OrderCostEstimateRow, key: string) {
+  const rawValue = estimate.price_source_summary?.[key];
+  if (typeof rawValue === "number" || typeof rawValue === "string") return estimateNumber(rawValue);
+  return 0;
+}
+
+function estimateSummaryWarnings(estimate: OrderCostEstimateRow) {
+  const rawValue = estimate.price_source_summary?.roofing_material_warnings;
+  return Array.isArray(rawValue) ? rawValue.filter((item): item is string => typeof item === "string") : [];
+}
+
+function OrderCostEstimatePanel({ estimate }: { estimate: OrderCostEstimateRow | null }) {
+  if (!estimate) {
+    return null;
+  }
+
+  const areaM2 = estimateSummaryNumber(estimate, "area_m2");
+  const materialCostPerM2 = estimateSummaryNumber(estimate, "material_cost_per_m2");
+  const travelKm = estimateSummaryNumber(estimate, "travel_km");
+  const travelTripCount = estimateSummaryNumber(estimate, "travel_trip_count") || 1;
+  const travelBillableKm = estimateSummaryNumber(estimate, "travel_billable_km");
+  const travelRatePerKm = estimateSummaryNumber(estimate, "travel_rate_per_km");
+  const travelFlatRate = estimateSummaryNumber(estimate, "travel_flat_rate");
+  const travelTotal = estimateSummaryNumber(estimate, "travel_total_net");
+  const machineExtraTotal = estimateSummaryNumber(estimate, "machine_extra_total_net");
+  const laborEmployeeCount = estimateSummaryNumber(estimate, "labor_employee_count") || 1;
+  const laborPersonHours = estimateSummaryNumber(estimate, "labor_person_hours") || estimateNumber(estimate.labor_hours_estimated);
+  const internalLaborRate = estimateSummaryNumber(estimate, "internal_labor_rate_net");
+  const laborInternalTotal = estimateSummaryNumber(estimate, "labor_internal_total_net");
+  const laborSalesTotal = estimateSummaryNumber(estimate, "labor_sales_total_net") || estimateNumber(estimate.labor_total_net);
+  const laborMarginTotal = estimateSummaryNumber(estimate, "labor_margin_total");
+  const estimateItems = estimate.job_estimate_items ?? [];
+  const warnings = estimateSummaryWarnings(estimate);
+
+  return (
+    <section className="surface mb-5 p-4 sm:p-5">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="meta-label">Chef-Kalkulation</p>
+          <h2 className="section-title">Direkte Kostenkalkulation</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-600">
+            Gespeichert am {formatDateTime(estimate.created_at)}. Diese Werte sind nur für Chef/Admin sichtbar.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 sm:items-end">
+          <div className="rounded-lg bg-mint px-4 py-3 text-right">
+            <p className="meta-label text-primary-dark">Brutto</p>
+            <p className="text-2xl font-black text-primary-dark">{formatMoney(estimateNumber(estimate.total_gross))}</p>
+          </div>
+          <a href={`/orders/${estimate.job_id}/quote.pdf`} className="btn-secondary">
+            <FileDown className="h-4 w-4" aria-hidden="true" />
+            Angebots-PDF herunterladen
+          </a>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Info
+          label="Material netto"
+          value={`${formatMoney(estimateNumber(estimate.material_ek_total))}${areaM2 ? ` · ${formatQuantity(areaM2)} m² à ${formatMoney(materialCostPerM2)}` : ""}`}
+        />
+        <Info
+          label="Arbeitsleistung VK"
+          value={`${formatMoney(laborSalesTotal)} · ${formatQuantity(laborPersonHours)} Personenstunden · ${formatMoney(estimateNumber(estimate.labor_rate_net))}/h`}
+        />
+        <Info
+          label="Interne Lohnkosten"
+          value={`${formatMoney(laborInternalTotal)} · ${formatQuantity(laborEmployeeCount)} Mitarbeiter · ${formatMoney(internalLaborRate)}/h`}
+        />
+        <Info label="Arbeitsmarge" value={formatMoney(laborMarginTotal)} />
+        <Info
+          label="Fahrtkosten netto"
+          value={`${formatMoney(travelTotal)}${travelKm ? ` · ${formatQuantity(travelKm)} km einfach · 2 x ${formatQuantity(travelTripCount)} Fahrten · ${formatQuantity(travelBillableKm)} km à ${formatMoney(travelRatePerKm)}` : ""}${travelFlatRate ? ` · Pauschale ${formatMoney(travelFlatRate)}` : ""}`}
+        />
+        <Info label="Maschinen/Extras netto" value={formatMoney(machineExtraTotal)} />
+        <Info label="Netto gesamt" value={formatMoney(estimateNumber(estimate.subtotal_net))} />
+        <Info label={`MwSt ${formatQuantity(estimateNumber(estimate.vat_rate))} %`} value={formatMoney(estimateNumber(estimate.vat_total))} />
+        <Info label="Brutto gesamt" value={formatMoney(estimateNumber(estimate.total_gross))} />
+        <Info label="Quelle" value="Manuelle Chef-Kalkulation beim Auftrag" />
+      </div>
+
+      {estimateItems.length > 0 ? (
+        <div className="mt-4 rounded-lg border border-line bg-fog p-3">
+          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="meta-label">Dachdecker-Material</p>
+              <h3 className="text-base font-black text-ink">Berechnete Materialpositionen</h3>
+            </div>
+            <p className="text-sm font-black text-primary-dark">{estimateItems.length} Positionen</p>
+          </div>
+          <div className="grid gap-2">
+            {estimateItems.map((item) => (
+              <div key={item.id} className="rounded-md border border-line bg-white p-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="font-black text-ink">{item.description}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      {formatQuantity(estimateNumber(item.quantity))} {item.unit} · {item.price_source}
+                    </p>
+                    {item.notes ? <p className="mt-1 text-xs font-semibold text-slate-500">{item.notes}</p> : null}
+                  </div>
+                  <div className="text-left sm:text-right">
+                    <p className="text-sm font-black text-ink">{item.ek_total === null ? "Preis fehlt" : formatMoney(item.ek_total)}</p>
+                    {item.ek_unit_price !== null ? (
+                      <p className="text-xs font-semibold text-slate-500">{formatMoney(item.ek_unit_price)} / {item.unit}</p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {warnings.length > 0 ? (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <p className="text-sm font-black text-amber-900">Preiswarnungen</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm font-semibold text-amber-800">
+            {warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -716,6 +882,8 @@ export default async function OrderDetailPage({
   const requirementSelect = context.canManage
     ? "id, company_id, order_id, dimension_id, jobsite_id, rule_id, catalog_item_id, inventory_item_id, material_name, unit, base_quantity, waste_percent, waste_quantity, total_quantity, purchase_price, sales_price, purchase_total, sales_total, margin_total, location_name, stock, minimum_stock, archived_at, created_at"
     : "id, company_id, order_id, dimension_id, jobsite_id, rule_id, catalog_item_id, inventory_item_id, material_name, unit, base_quantity, waste_percent, waste_quantity, total_quantity, location_name, stock, minimum_stock, archived_at, created_at";
+  const estimateSelect =
+    "id, company_id, job_id, material_ek_total, material_vk_total, labor_hours_estimated, labor_rate_net, labor_total_net, overhead_percent, overhead_total, profit_markup_percent, profit_total, subtotal_net, vat_rate, vat_total, total_gross, price_source_summary, created_at, job_estimate_items(id, description, quantity, unit, ek_unit_price, vk_unit_price, ek_total, vk_total, price_source, notes)";
   const measurementQuery = context.canManage
     ? supabase
         .from("order_measurement_items")
@@ -724,8 +892,18 @@ export default async function OrderDetailPage({
         .is("archived_at", null)
         .order("created_at", { ascending: true })
     : Promise.resolve({ data: [], error: null });
+  const estimateQuery = context.canManage
+    ? supabase
+        .from("job_estimates")
+        .select(estimateSelect)
+        .eq("company_id", context.companyId)
+        .eq("job_id", id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : Promise.resolve({ data: null, error: null });
 
-  const [orderResult, dimensionResult, requirementResult, measurementResult] = await Promise.all([
+  const [orderResult, dimensionResult, requirementResult, measurementResult, estimateResult] = await Promise.all([
     context.canManage
       ? supabase
           .from("orders")
@@ -735,7 +913,8 @@ export default async function OrderDetailPage({
       : supabase.from("orders_public").select(publicOrderSelect).eq("id", id).single(),
     supabase.from("job_dimensions").select(dimensionSelect).eq("order_id", id).is("archived_at", null).maybeSingle(),
     supabase.from(materialSource).select(requirementSelect).eq("order_id", id).is("archived_at", null).order("created_at", { ascending: true }),
-    measurementQuery
+    measurementQuery,
+    estimateQuery
   ]);
 
   if (!orderResult.data) {
@@ -746,6 +925,7 @@ export default async function OrderDetailPage({
   const dimension = dimensionResult.data as unknown as JobDimension | null;
   const requirements = (requirementResult.data ?? []) as unknown as Array<JobMaterialRequirement | PublicJobMaterialRequirement>;
   const measurementItems = (measurementResult.data ?? []) as unknown as OrderMeasurementItem[];
+  const costEstimate = (estimateResult.data ?? null) as unknown as OrderCostEstimateRow | null;
   const pricedRequirements = requirements as JobMaterialRequirement[];
   const totals = context.canManage ? requirementTotals(pricedRequirements) : null;
   let portalTokens: PortalTokenListItem[] = [];
@@ -884,6 +1064,8 @@ export default async function OrderDetailPage({
           </form>
         ) : null}
       </section>
+
+      {context.canManage ? <OrderCostEstimatePanel estimate={costEstimate} /> : null}
 
       {context.canManage ? (
         <CommercialDocumentPanel

@@ -92,9 +92,12 @@ supabase/migrations/20260617_bring_list_direct_update_hardening.sql
 supabase/migrations/20260619_stripe_billing.sql
 supabase/migrations/20260619_dashboard_rpc.sql
 supabase/migrations/20260620_soft_delete_columns.sql
+supabase/migrations/20260621_role_escalation_guard.sql
 supabase/migrations/20260621_schema_gap_fix.sql
+supabase/migrations/20260622_rls_consolidation.sql
 supabase/migrations/20260622_commercial_documents.sql
 supabase/migrations/20260623_roof_measurements.sql
+supabase/migrations/20260623_session_timeout_setting.sql
 supabase/migrations/20260624_jobsite_file_documents.sql
 supabase/migrations/20260625_digital_signatures.sql
 supabase/migrations/20260626_construction_daily_reports.sql
@@ -111,6 +114,7 @@ supabase/migrations/20260706_defect_management.sql
 supabase/migrations/20260707_performance_followup_indexes.sql
 supabase/migrations/20260708_privacy_security_hardening.sql
 supabase/migrations/20260709_fix_material_usage_confirmation_rpc.sql
+supabase/migrations/20260710_calculation_travel_rate.sql
 ```
 
 `20260615_material_alerts_repair.sql` bleibt idempotent, damit aeltere Testdatenbanken mit fehlender Mitbringlisten-Kette repariert werden koennen. Fuer neue Projekte ist der vollstaendige Stand bereits in `supabase/schema.sql` enthalten.
@@ -467,7 +471,9 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 - `supabase/migrations/20260619_stripe_billing.sql`: Delta fuer Stripe Billing, Tariflimits und Webhook-Idempotenz
 - `supabase/migrations/20260619_dashboard_rpc.sql`: Delta fuer gebuendelte Dashboard-RPC, Cache-Tags und mandantensichere Summary-Daten
 - `supabase/migrations/20260620_soft_delete_columns.sql`: Delta fuer Soft-Delete-Schutz und gesperrte Hard-Deletes bei Geschaeftsdaten
+- `supabase/migrations/20260622_rls_consolidation.sql`: Delta fuer dokumentierte RLS-Policy-Matrix und Entfernung exakt redundanter Redteam-Fallback-Policies
 - `supabase/migrations/20260622_commercial_documents.sql`: Delta fuer Angebote/Rechnungen, Positionen, Summen-Trigger und Manager-only RLS
+- `supabase/migrations/20260623_session_timeout_setting.sql`: Delta fuer firmenweite Inaktivitaets-Abmeldung auf geteilten Geraeten
 - `supabase/migrations/20260628_planning_board.sql`: Delta fuer Plantafel, Ressourcenplanung, Konflikt-Erkennung und rollenbasierte RLS
 - `supabase/migrations/20260629_planning_weather_risks.sql`: Delta fuer Plantafel-Wetterrisiken, Cache und Chef-Bestaetigung/Ignorieren
 - `supabase/migrations/20260630_inventory_jobsite_flow.sql`: Delta fuer Baustellen-Verbrauch, Rueckgabe, Verlust/Bruch, Reservierung und unveraenderbare Materialbewegungen

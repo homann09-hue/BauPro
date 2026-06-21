@@ -2,8 +2,15 @@ import { OrderWizardForm } from "@/components/forms/order-wizard-form";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { requireManager } from "@/lib/auth";
-import { companyPricingSettingsSelect, customerFormSelect, profileOptionSelect } from "@/lib/data/selects";
+import {
+  calculationSettingsSelect,
+  companyPricingSettingsSelect,
+  customerFormSelect,
+  inventoryItemCalculationSelect,
+  profileOptionSelect
+} from "@/lib/data/selects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { RoofingMaterialPriceRow } from "@/lib/roofing-material-estimate";
 import { searchParamMessage } from "@/lib/utils";
 import type { CompanyPricingSettings, Customer, Profile } from "@/types/app";
 
@@ -22,7 +29,7 @@ export default async function NewOrderPage({
   const params = (await searchParams) ?? {};
   const { error, success } = searchParamMessage(params);
 
-  const [customersResult, employeesResult, settingsResult] = await Promise.all([
+  const [customersResult, employeesResult, settingsResult, calculationSettingsResult, inventoryResult] = await Promise.all([
     supabase
       .from("customers")
       .select(customerFormSelect)
@@ -40,7 +47,17 @@ export default async function NewOrderPage({
       .from("company_pricing_settings")
       .select(companyPricingSettingsSelect)
       .eq("company_id", context.companyId)
-      .maybeSingle()
+      .maybeSingle(),
+    supabase
+      .from("calculation_settings")
+      .select(calculationSettingsSelect)
+      .eq("company_id", context.companyId)
+      .maybeSingle(),
+    supabase
+      .from("inventory_items")
+      .select(inventoryItemCalculationSelect)
+      .eq("company_id", context.companyId)
+      .order("name", { ascending: true })
   ]);
 
   const settings = (settingsResult.data ?? {
@@ -49,6 +66,16 @@ export default async function NewOrderPage({
     default_markup_percent: 35,
     auto_calculate_sales_price: true
   }) as CompanyPricingSettings;
+  const materialPriceOptions = ((inventoryResult.data ?? []) as unknown as Array<
+    Omit<RoofingMaterialPriceRow, "inventory_locations"> & {
+      inventory_locations?: RoofingMaterialPriceRow["inventory_locations"] | RoofingMaterialPriceRow["inventory_locations"][];
+    }
+  >).map((item) => ({
+    ...item,
+    inventory_locations: Array.isArray(item.inventory_locations)
+      ? item.inventory_locations[0] ?? null
+      : item.inventory_locations ?? null
+  }));
 
   return (
     <>
@@ -62,6 +89,14 @@ export default async function NewOrderPage({
         employees={(employeesResult.data ?? []) as Profile[]}
         defaultCustomerId={defaultCustomerId(params)}
         defaultWastePercent={Number(settings.waste_percent ?? 20)}
+        materialPriceOptions={materialPriceOptions}
+        calculationDefaults={{
+          vatRate: Number(calculationSettingsResult.data?.default_vat_rate ?? 19),
+          internalLaborRateNet: Number(calculationSettingsResult.data?.default_internal_hourly_cost ?? 38),
+          laborRateNet: Number(calculationSettingsResult.data?.default_labor_rate_net ?? 65),
+          travelRatePerKm: Number(calculationSettingsResult.data?.default_travel_rate_per_km ?? 0.75),
+          travelFlatRate: Number(calculationSettingsResult.data?.default_travel_flat_rate ?? 0)
+        }}
       />
     </>
   );

@@ -630,6 +630,7 @@ export async function updateCalculationSettingsAction(formData: FormData) {
       current.default_profit_markup_percent
     ),
     default_overhead_percent: positiveSetting(optionalNumber(formData, "default_overhead_percent"), current.default_overhead_percent),
+    default_travel_rate_per_km: positiveSetting(optionalNumber(formData, "default_travel_rate_per_km"), current.default_travel_rate_per_km),
     default_travel_flat_rate: positiveSetting(optionalNumber(formData, "default_travel_flat_rate"), current.default_travel_flat_rate),
     allow_ai_job_creation: toBoolean(formData, "allow_ai_job_creation"),
     require_admin_confirmation: toBoolean(formData, "require_admin_confirmation")

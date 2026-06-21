@@ -241,6 +241,7 @@ export type CalculationSettings = {
   default_internal_hourly_cost: number;
   default_profit_markup_percent: number;
   default_overhead_percent: number;
+  default_travel_rate_per_km: number;
   default_travel_flat_rate: number;
   allow_ai_job_creation: boolean;
   require_admin_confirmation: boolean;

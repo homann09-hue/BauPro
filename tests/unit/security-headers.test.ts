@@ -28,10 +28,10 @@ describe("security headers", () => {
   });
 
   it("uses per-request script nonces instead of unsafe script execution", () => {
-    expect(proxy).toContain("crypto.randomUUID()");
+    expect(proxy).toContain("randomBytes(16)");
     expect(proxy).toContain("nonce-${nonce}");
-    expect(proxy).toContain('process.env.NODE_ENV === "development"');
-    expect(proxy).toContain("unsafe-eval verboten");
+    expect(proxy).not.toContain("scriptSources.push");
+    expect(proxy).not.toContain("\"'unsafe-eval'\"");
     expect(proxy).not.toContain("script-src 'self' 'unsafe-inline'");
   });
 });

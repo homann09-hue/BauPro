@@ -4,160 +4,164 @@ import type { Duration } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { SafeActionError } from "@/lib/security/errors";
 
-type TestBucket = {
-  hits: number[];
+type RedisConfig = {
+  url: string;
+  token: string;
 };
 
-const testBuckets = new Map<string, TestBucket>();
-const asyncLimiters = new Map<string, Ratelimit>();
-let missingRedisWarningShown = false;
+type RateLimitResult = {
+  success: boolean;
+};
+
+type MaybePromise<T> = T | Promise<T>;
 
 const RATE_LIMIT_TIMEOUT_MS = 4_000;
 const RATE_LIMIT_ERROR = "Zu viele Anfragen in kurzer Zeit. Bitte versuche es gleich erneut.";
 const RATE_LIMIT_UNAVAILABLE_ERROR = "Rate Limit konnte nicht geprueft werden. Bitte versuche es gleich erneut.";
 
-export function getRateLimitRedisConfig() {
-  const upstashUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
-  const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
-  const vercelKvUrl = process.env.KV_REST_API_URL?.trim();
-  const vercelKvToken = process.env.KV_REST_API_TOKEN?.trim();
-  const url = upstashUrl || vercelKvUrl;
-  const token = upstashToken || vercelKvToken;
+const limiters = new Map<string, Ratelimit>();
+let redisClient: Redis | null = null;
+let redisConfigKey: string | null = null;
+let missingRedisWarningShown = false;
+let syncWorker: Worker | null = null;
+let syncWorkerConfigKey: string | null = null;
+
+export function getRateLimitRedisConfig(): RedisConfig | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
 
   if (!url || !token) return null;
 
-  return {
-    url,
-    token
-  };
+  return { url, token };
 }
 
 function warnMissingRedisOnce() {
   if (missingRedisWarningShown) return;
   missingRedisWarningShown = true;
-  console.warn(
-    "Rate Limiting laeuft ohne Redis. UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN oder KV_REST_API_URL/KV_REST_API_TOKEN fehlt."
-  );
-}
-
-function redisConfigured() {
-  return Boolean(getRateLimitRedisConfig());
-}
-
-function testModeEnabled() {
-  return process.env.BAUPRO_RATE_LIMIT_TEST_MODE === "memory";
-}
-
-function assertTestSlidingWindowLimit(key: string, limit: number, windowMs: number) {
-  const now = Date.now();
-  const bucket = testBuckets.get(key) ?? { hits: [] };
-  bucket.hits = bucket.hits.filter((hitAt) => now - hitAt < windowMs);
-
-  if (bucket.hits.length >= limit) {
-    testBuckets.set(key, bucket);
-    throw new SafeActionError(RATE_LIMIT_ERROR);
-  }
-
-  bucket.hits.push(now);
-  testBuckets.set(key, bucket);
+  console.warn("Rate Limiting laeuft ohne Redis. UPSTASH_REDIS_REST_URL oder UPSTASH_REDIS_REST_TOKEN fehlt.");
 }
 
 function duration(windowMs: number): Duration {
   return `${Math.max(1, Math.ceil(windowMs / 1000))} s`;
 }
 
-function limiterCacheKey(limit: number, windowMs: number) {
-  return `${limit}:${windowMs}`;
+function limiterCacheKey(config: RedisConfig, limit: number, windowMs: number) {
+  return `${config.url}:${limit}:${windowMs}`;
 }
 
-function getAsyncLimiter(limit: number, windowMs: number) {
-  const key = limiterCacheKey(limit, windowMs);
-  const cached = asyncLimiters.get(key);
+function resetRedisIfConfigChanged(config: RedisConfig) {
+  const nextConfigKey = `${config.url}:${config.token}`;
+  if (redisConfigKey === nextConfigKey) return;
+
+  redisClient = null;
+  redisConfigKey = nextConfigKey;
+  limiters.clear();
+}
+
+function getRedis(config: RedisConfig) {
+  resetRedisIfConfigChanged(config);
+
+  if (!redisClient) {
+    // Redis wird lazy initialisiert, damit Serverless-Starts ohne Rate-Limit-Aufruf schlank bleiben.
+    redisClient = new Redis({
+      url: config.url,
+      token: config.token
+    });
+  }
+
+  return redisClient;
+}
+
+function getLimiter(limit: number, windowMs: number) {
+  const config = getRateLimitRedisConfig();
+  if (!config) return null;
+
+  const key = limiterCacheKey(config, limit, windowMs);
+  const cached = limiters.get(key);
   if (cached) return cached;
 
-  const config = getRateLimitRedisConfig();
-  if (!config) throw new SafeActionError(RATE_LIMIT_UNAVAILABLE_ERROR);
-
-  const redis = new Redis({
-    url: config.url,
-    token: config.token
-  });
   const limiter = new Ratelimit({
-    redis,
+    redis: getRedis(config),
     limiter: Ratelimit.slidingWindow(limit, duration(windowMs)),
     prefix: "baupro:ratelimit"
   });
 
-  asyncLimiters.set(key, limiter);
+  limiters.set(key, limiter);
   return limiter;
 }
 
-// Async-Variante fuer neue Call-Sites. Bestehende Aufrufe nutzen weiter assertRateLimit().
-export async function checkRateLimit(key: string, limit: number, windowMs: number) {
-  if (limit <= 0) throw new SafeActionError(RATE_LIMIT_ERROR);
+function getSyncWorker(config: RedisConfig) {
+  const nextConfigKey = `${config.url}:${config.token}`;
+  if (syncWorker && syncWorkerConfigKey === nextConfigKey) return syncWorker;
 
-  if (testModeEnabled()) {
-    assertTestSlidingWindowLimit(key, limit, windowMs);
-    return;
-  }
+  void syncWorker?.terminate();
+  syncWorkerConfigKey = nextConfigKey;
 
-  if (!redisConfigured()) {
-    warnMissingRedisOnce();
-    return;
-  }
-
-  const { success } = await getAsyncLimiter(limit, windowMs).limit(key);
-  if (!success) throw new SafeActionError(RATE_LIMIT_ERROR);
-}
-
-function assertRedisLimitSynchronously(key: string, limit: number, windowMs: number) {
-  const config = getRateLimitRedisConfig();
-  if (!config) throw new SafeActionError(RATE_LIMIT_UNAVAILABLE_ERROR);
-
-  const shared = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT);
-  const state = new Int32Array(shared);
-  const worker = new Worker(
+  syncWorker = new Worker(
     `
-      const { workerData } = require("node:worker_threads");
-      const state = new Int32Array(workerData.shared);
+      const { parentPort, workerData } = require("node:worker_threads");
+      const { Ratelimit } = require("@upstash/ratelimit");
+      const { Redis } = require("@upstash/redis");
 
-      function finish(code) {
+      const redis = new Redis({ url: workerData.url, token: workerData.token });
+      const limiters = new Map();
+
+      function duration(windowMs) {
+        return String(Math.max(1, Math.ceil(windowMs / 1000))) + " s";
+      }
+
+      function finish(shared, code) {
+        const state = new Int32Array(shared);
         Atomics.store(state, 0, code);
         Atomics.notify(state, 0, 1);
       }
 
-      (async () => {
+      parentPort.on("message", async (message) => {
         try {
-          const { Ratelimit } = await import("@upstash/ratelimit");
-          const { Redis } = await import("@upstash/redis");
-          const redis = new Redis({ url: workerData.url, token: workerData.token });
-          const ratelimit = new Ratelimit({
-            redis,
-            limiter: Ratelimit.slidingWindow(workerData.limit, workerData.duration),
-            prefix: "baupro:ratelimit"
-          });
-          const result = await ratelimit.limit(workerData.key);
-          finish(result.success ? 1 : 2);
+          const cacheKey = String(message.limit) + ":" + String(message.windowMs);
+          let limiter = limiters.get(cacheKey);
+
+          if (!limiter) {
+            limiter = new Ratelimit({
+              redis,
+              limiter: Ratelimit.slidingWindow(message.limit, duration(message.windowMs)),
+              prefix: "baupro:ratelimit"
+            });
+            limiters.set(cacheKey, limiter);
+          }
+
+          const result = await limiter.limit(message.key);
+          finish(message.shared, result.success ? 1 : 2);
         } catch {
-          finish(3);
+          finish(message.shared, 3);
         }
-      })();
+      });
     `,
     {
       eval: true,
       workerData: {
-        shared,
-        key,
-        limit,
-        duration: duration(windowMs),
         url: config.url,
         token: config.token
       }
     }
   );
 
+  return syncWorker;
+}
+
+function assertWithSyncWorker(key: string, limit: number, windowMs: number, config: RedisConfig) {
+  const shared = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT);
+  const state = new Int32Array(shared);
+  const worker = getSyncWorker(config);
+
+  worker.postMessage({
+    shared,
+    key,
+    limit,
+    windowMs
+  });
+
   const result = Atomics.wait(state, 0, 0, RATE_LIMIT_TIMEOUT_MS);
-  void worker.terminate();
 
   if (result === "timed-out") {
     throw new SafeActionError(RATE_LIMIT_UNAVAILABLE_ERROR);
@@ -168,18 +172,43 @@ function assertRedisLimitSynchronously(key: string, limit: number, windowMs: num
   if (code !== 1) throw new SafeActionError(RATE_LIMIT_UNAVAILABLE_ERROR);
 }
 
-export function assertRateLimit(key: string, limit: number, windowMs: number) {
+function isPromiseLike<T>(value: MaybePromise<T>): value is Promise<T> {
+  return typeof (value as Promise<T>).then === "function";
+}
+
+export async function checkRateLimit(key: string, limit: number, windowMs: number) {
   if (limit <= 0) throw new SafeActionError(RATE_LIMIT_ERROR);
 
-  if (testModeEnabled()) {
-    assertTestSlidingWindowLimit(key, limit, windowMs);
-    return;
-  }
-
-  if (!redisConfigured()) {
+  const limiter = getLimiter(limit, windowMs);
+  if (!limiter) {
     warnMissingRedisOnce();
     return;
   }
 
-  assertRedisLimitSynchronously(key, limit, windowMs);
+  const { success } = await limiter.limit(key);
+  if (!success) throw new SafeActionError(RATE_LIMIT_ERROR);
+}
+
+export function assertRateLimit(key: string, limit: number, windowMs: number) {
+  if (limit <= 0) throw new SafeActionError(RATE_LIMIT_ERROR);
+
+  const config = getRateLimitRedisConfig();
+  if (!config) {
+    warnMissingRedisOnce();
+    return;
+  }
+
+  if (process.env.NODE_ENV === "test") {
+    const limiter = getLimiter(limit, windowMs);
+    const result = limiter?.limit(key) as MaybePromise<RateLimitResult> | undefined;
+
+    if (!result || isPromiseLike(result)) {
+      throw new SafeActionError(RATE_LIMIT_UNAVAILABLE_ERROR);
+    }
+
+    if (!result.success) throw new SafeActionError(RATE_LIMIT_ERROR);
+    return;
+  }
+
+  assertWithSyncWorker(key, limit, windowMs, config);
 }

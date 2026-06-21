@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
+import { headers } from "next/headers";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import {
   AlertTriangle,
@@ -36,6 +36,9 @@ import {
 } from "@/lib/customer-portal/tokens";
 import { customerDisplayName } from "@/lib/order-labels";
 import { defectPriorityLabels, defectStatusLabels } from "@/lib/defects";
+import { SafeActionError } from "@/lib/security/errors";
+import { getClientIp } from "@/lib/security/origin";
+import { assertRateLimit } from "@/lib/security/rate-limit";
 import { formatDate, formatDateTime, formatMoney, searchParamMessage } from "@/lib/utils";
 
 const workOrderStatusLabels = {
@@ -69,7 +72,15 @@ export default async function CustomerPortalPage({
 }) {
   const { token } = await params;
   const { error, success } = searchParamMessage(await searchParams);
+  const clientIp = getClientIp(await headers());
   let portal = null;
+
+  try {
+    assertRateLimit(`portal-view:${clientIp}`, 30, 60_000);
+  } catch (rateLimitError) {
+    if (rateLimitError instanceof SafeActionError) return <PortalAccessUnavailable />;
+    throw rateLimitError;
+  }
 
   try {
     portal = await loadCustomerPortalData(token);
@@ -77,7 +88,7 @@ export default async function CustomerPortalPage({
     console.error("customer-portal-load-failed", loadError);
   }
 
-  if (!portal) notFound();
+  if (!portal) return <PortalAccessUnavailable />;
 
   const customerName = customerDisplayName(portal.customer);
   const prefetchAssetUrls = [
@@ -370,6 +381,23 @@ export default async function CustomerPortalPage({
           </aside>
         </div>
       </div>
+    </main>
+  );
+}
+
+function PortalAccessUnavailable() {
+  return (
+    <main className="min-h-screen bg-fog px-4 py-10 text-ink">
+      <section className="mx-auto max-w-xl rounded-lg border border-line bg-white p-6 shadow-soft">
+        <p className="section-kicker">Kundenportal</p>
+        <h1 className="mt-2 text-2xl font-black">Portal-Link ist abgelaufen oder ungültig.</h1>
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          Bitte warte einen Moment und versuche es erneut. Wenn das Problem bleibt, fordere beim Handwerksbetrieb einen neuen Link an.
+        </p>
+        <Link href="/login" className="btn-secondary mt-5">
+          Zur Anmeldung
+        </Link>
+      </section>
     </main>
   );
 }

@@ -150,6 +150,7 @@ export type Company = {
   subscription_status?: string | null;
   trial_ends_at?: string | null;
   current_period_end?: string | null;
+  session_timeout_minutes?: number | null;
   contact_email?: string | null;
   phone?: string | null;
   address?: string | null;

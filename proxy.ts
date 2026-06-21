@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
@@ -6,14 +7,11 @@ function isUnsafeMethod(method: string) {
   return method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE";
 }
 
+function createNonce() {
+  return randomBytes(16).toString("base64");
+}
+
 function buildContentSecurityPolicy(nonce: string) {
-  const scriptSources = [`'self'`, `'nonce-${nonce}'`];
-
-  if (process.env.NODE_ENV === "development") {
-    // Next/React Fast Refresh braucht im lokalen Dev-Server eval. In Production bleibt unsafe-eval verboten.
-    scriptSources.push("'unsafe-eval'");
-  }
-
   return [
     "default-src 'self'",
     "base-uri 'self'",
@@ -24,8 +22,8 @@ function buildContentSecurityPolicy(nonce: string) {
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
     "style-src 'self' 'unsafe-inline'",
-    `script-src ${scriptSources.join(" ")}`,
-    "connect-src 'self' https://*.supabase.co https://*.sentry.io https://api.openai.com https://api.open-meteo.com https://geocoding-api.open-meteo.com https://nominatim.openstreetmap.org",
+    `script-src 'self' 'nonce-${nonce}'`,
+    "connect-src 'self' https://*.supabase.co https://*.sentry.io https://api.openai.com https://api.open-meteo.com https://geocoding-api.open-meteo.com https://nominatim.openstreetmap.org https://vitals.vercel-insights.com",
     "worker-src 'self' blob:"
   ].join("; ");
 }
@@ -37,7 +35,7 @@ function applySecurityHeaders(response: NextResponse, csp: string, nonce: string
 }
 
 export async function proxy(request: NextRequest) {
-  const nonce = crypto.randomUUID();
+  const nonce = createNonce();
   const csp = buildContentSecurityPolicy(nonce);
 
   if (isUnsafeMethod(request.method)) {
@@ -50,6 +48,8 @@ export async function proxy(request: NextRequest) {
   }
 
   const requestHeaders = new Headers(request.headers);
+  // Next.js liest den Nonce aus dem CSP-Request-Header und versieht eigene Runtime-Skripte damit.
+  // App-eigene Inline-Skripte muessen zusaetzlich den `x-nonce` Header aus `headers()` verwenden.
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", csp);
 

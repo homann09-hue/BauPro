@@ -68,6 +68,7 @@ create table if not exists public.companies (
   ),
   trial_ends_at timestamptz,
   current_period_end timestamptz,
+  session_timeout_minutes integer not null default 30 constraint companies_session_timeout_minutes_check check (session_timeout_minutes between 0 and 1440),
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -4104,6 +4105,7 @@ create table if not exists public.calculation_settings (
   default_internal_hourly_cost numeric(12, 2) not null default 38,
   default_profit_markup_percent numeric(7, 2) not null default 10,
   default_overhead_percent numeric(7, 2) not null default 12,
+  default_travel_rate_per_km numeric(12, 2) not null default 0.75,
   default_travel_flat_rate numeric(12, 2) not null default 0,
   allow_ai_job_creation boolean not null default true,
   require_admin_confirmation boolean not null default true,
@@ -4470,6 +4472,9 @@ alter table public.companies add column if not exists website text;
 alter table public.companies add column if not exists tax_id text;
 alter table public.companies add column if not exists payment_terms text;
 alter table public.companies add column if not exists onboarding_completed_at timestamptz;
+alter table public.companies add column if not exists session_timeout_minutes integer not null default 30;
+alter table public.companies drop constraint if exists companies_session_timeout_minutes_check;
+alter table public.companies add constraint companies_session_timeout_minutes_check check (session_timeout_minutes between 0 and 1440);
 
 alter table public.customers add column if not exists archived_at timestamptz;
 alter table public.jobsites add column if not exists archived_at timestamptz;
@@ -5511,6 +5516,142 @@ begin
   end loop;
 end $$;
 
+-- RLS consolidation: exact duplicate redteam fallback policies removed.
+-- Generated from: node scripts/audit-rls-policies.mjs --redundant-drops
+drop policy if exists "redteam managers select fallback" on public.ai_job_drafts; -- select, gedeckt durch "managers read ai job drafts"
+drop policy if exists "redteam managers update fallback" on public.ai_job_drafts; -- update, gedeckt durch "managers update ai job drafts"
+drop policy if exists "redteam managers insert fallback" on public.ai_settings; -- insert, gedeckt durch "managers insert ai settings"
+drop policy if exists "redteam managers update fallback" on public.ai_settings; -- update, gedeckt durch "managers update ai settings"
+drop policy if exists "redteam managers select fallback" on public.ai_usage_logs; -- select, gedeckt durch "managers read ai usage logs"
+drop policy if exists "redteam managers delete fallback" on public.bring_list_availability_snapshots; -- delete, gedeckt durch "managers delete availability snapshots"
+drop policy if exists "redteam managers update fallback" on public.bring_list_availability_snapshots; -- update, gedeckt durch "managers maintain availability snapshots"
+drop policy if exists "redteam managers delete fallback" on public.bring_lists; -- delete, gedeckt durch "managers delete bring lists"
+drop policy if exists "redteam managers select fallback" on public.calculation_settings; -- select, gedeckt durch "managers read calculation settings"
+drop policy if exists "redteam managers delete fallback" on public.commercial_document_items; -- delete, gedeckt durch "managers delete commercial document items"
+drop policy if exists "redteam managers insert fallback" on public.commercial_document_items; -- insert, gedeckt durch "managers insert commercial document items"
+drop policy if exists "redteam managers select fallback" on public.commercial_document_items; -- select, gedeckt durch "managers read commercial document items"
+drop policy if exists "redteam managers update fallback" on public.commercial_document_items; -- update, gedeckt durch "managers update commercial document items"
+drop policy if exists "redteam managers insert fallback" on public.commercial_documents; -- insert, gedeckt durch "managers insert commercial documents"
+drop policy if exists "redteam managers select fallback" on public.commercial_documents; -- select, gedeckt durch "managers read commercial documents"
+drop policy if exists "redteam managers update fallback" on public.commercial_documents; -- update, gedeckt durch "managers update commercial documents"
+drop policy if exists "redteam managers insert fallback" on public.company_audit_log; -- insert, gedeckt durch "managers create company audit log"
+drop policy if exists "redteam managers select fallback" on public.company_audit_log; -- select, gedeckt durch "managers read company audit log"
+drop policy if exists "redteam managers insert fallback" on public.company_pricing_settings; -- insert, gedeckt durch "managers can insert pricing settings"
+drop policy if exists "redteam managers select fallback" on public.company_pricing_settings; -- select, gedeckt durch "managers can read pricing settings"
+drop policy if exists "redteam managers update fallback" on public.company_pricing_settings; -- update, gedeckt durch "managers can update pricing settings"
+drop policy if exists "redteam managers select fallback" on public.customer_documents; -- select, gedeckt durch "managers read customer documents"
+drop policy if exists "redteam managers select fallback" on public.customer_portal_events; -- select, gedeckt durch "managers read customer portal events"
+drop policy if exists "redteam managers delete fallback" on public.customer_portal_messages; -- delete, gedeckt durch "managers delete customer portal messages"
+drop policy if exists "redteam managers insert fallback" on public.customer_portal_messages; -- insert, gedeckt durch "managers insert customer portal messages"
+drop policy if exists "redteam managers select fallback" on public.customer_portal_messages; -- select, gedeckt durch "managers read customer portal messages"
+drop policy if exists "redteam managers update fallback" on public.customer_portal_messages; -- update, gedeckt durch "managers update customer portal messages"
+drop policy if exists "redteam managers delete fallback" on public.customer_portal_tokens; -- delete, gedeckt durch "managers delete customer portal tokens"
+drop policy if exists "redteam managers insert fallback" on public.customer_portal_tokens; -- insert, gedeckt durch "managers insert customer portal tokens"
+drop policy if exists "redteam managers select fallback" on public.customer_portal_tokens; -- select, gedeckt durch "managers read customer portal tokens"
+drop policy if exists "redteam managers update fallback" on public.customer_portal_tokens; -- update, gedeckt durch "managers update customer portal tokens"
+drop policy if exists "redteam managers insert fallback" on public.customers; -- insert, gedeckt durch "managers can insert customers"
+drop policy if exists "redteam managers select fallback" on public.customers; -- select, gedeckt durch "managers can read customers"
+drop policy if exists "redteam managers update fallback" on public.customers; -- update, gedeckt durch "managers can update customers"
+drop policy if exists "redteam managers insert fallback" on public.inventory_items; -- insert, gedeckt durch "managers can insert inventory items"
+drop policy if exists "redteam managers select fallback" on public.inventory_items; -- select, gedeckt durch "managers can read inventory items with prices"
+drop policy if exists "redteam managers update fallback" on public.inventory_items; -- update, gedeckt durch "managers can update inventory items"
+drop policy if exists "redteam managers delete fallback" on public.inventory_locations; -- delete, gedeckt durch "managers can delete inventory locations"
+drop policy if exists "redteam managers insert fallback" on public.inventory_locations; -- insert, gedeckt durch "managers can insert inventory locations"
+drop policy if exists "redteam managers select fallback" on public.inventory_locations; -- select, gedeckt durch "read own company inventory locations"
+drop policy if exists "redteam managers update fallback" on public.inventory_locations; -- update, gedeckt durch "managers can update inventory locations"
+drop policy if exists "redteam managers insert fallback" on public.job_dimensions; -- insert, gedeckt durch "managers can insert job dimensions"
+drop policy if exists "redteam managers update fallback" on public.job_dimensions; -- update, gedeckt durch "managers can update job dimensions"
+drop policy if exists "redteam managers insert fallback" on public.job_estimates; -- insert, gedeckt durch "managers create job estimates"
+drop policy if exists "redteam managers select fallback" on public.job_estimates; -- select, gedeckt durch "managers read job estimates"
+drop policy if exists "redteam managers delete fallback" on public.job_material_calculation_items; -- delete, gedeckt durch "managers can delete calculation items"
+drop policy if exists "redteam managers insert fallback" on public.job_material_calculation_items; -- insert, gedeckt durch "managers can insert calculation items"
+drop policy if exists "redteam managers select fallback" on public.job_material_calculation_items; -- select, gedeckt durch "managers can read priced calculation items"
+drop policy if exists "redteam managers update fallback" on public.job_material_calculation_items; -- update, gedeckt durch "managers can update calculation items"
+drop policy if exists "redteam managers delete fallback" on public.job_material_calculations; -- delete, gedeckt durch "managers can delete job material calculations"
+drop policy if exists "redteam managers insert fallback" on public.job_material_calculations; -- insert, gedeckt durch "managers can insert job material calculations"
+drop policy if exists "redteam managers update fallback" on public.job_material_calculations; -- update, gedeckt durch "managers can update job material calculations"
+drop policy if exists "redteam managers insert fallback" on public.job_material_requirements; -- insert, gedeckt durch "managers can insert order requirements"
+drop policy if exists "redteam managers select fallback" on public.job_material_requirements; -- select, gedeckt durch "managers can read priced order requirements"
+drop policy if exists "redteam managers update fallback" on public.job_material_requirements; -- update, gedeckt durch "managers can update order requirements"
+drop policy if exists "redteam managers update fallback" on public.jobsite_activity_events; -- update, gedeckt durch "managers archive jobsite activity"
+drop policy if exists "redteam managers update fallback" on public.jobsite_documents; -- update, gedeckt durch "managers update jobsite documents"
+drop policy if exists "redteam managers insert fallback" on public.jobsites; -- insert, gedeckt durch "managers can insert jobsites"
+drop policy if exists "redteam managers update fallback" on public.jobsites; -- update, gedeckt durch "managers can update jobsites"
+drop policy if exists "redteam managers update fallback" on public.material_alerts; -- update, gedeckt durch "managers update material alerts"
+drop policy if exists "redteam managers delete fallback" on public.material_calculation_rules; -- delete, gedeckt durch "managers can delete calculation rules"
+drop policy if exists "redteam managers insert fallback" on public.material_calculation_rules; -- insert, gedeckt durch "managers can insert calculation rules"
+drop policy if exists "redteam managers update fallback" on public.material_calculation_rules; -- update, gedeckt durch "managers can update calculation rules"
+drop policy if exists "redteam managers insert fallback" on public.material_movements; -- insert, gedeckt durch "managers create material movements"
+drop policy if exists "redteam managers update fallback" on public.material_movements; -- update, gedeckt durch "managers update material movements"
+drop policy if exists "redteam managers insert fallback" on public.material_reservations; -- insert, gedeckt durch "managers create material reservations"
+drop policy if exists "redteam managers update fallback" on public.material_reservations; -- update, gedeckt durch "managers update material reservations"
+drop policy if exists "redteam managers insert fallback" on public.materials; -- insert, gedeckt durch "managers can insert materials"
+drop policy if exists "redteam managers select fallback" on public.materials; -- select, gedeckt durch "managers can read materials with prices"
+drop policy if exists "redteam managers update fallback" on public.materials; -- update, gedeckt durch "managers can update materials"
+drop policy if exists "redteam managers delete fallback" on public.online_price_discoveries; -- delete, gedeckt durch "managers can delete online price discoveries"
+drop policy if exists "redteam managers insert fallback" on public.online_price_discoveries; -- insert, gedeckt durch "managers can insert online price discoveries"
+drop policy if exists "redteam managers select fallback" on public.online_price_discoveries; -- select, gedeckt durch "managers can read online price discoveries"
+drop policy if exists "redteam managers delete fallback" on public.online_price_offers; -- delete, gedeckt durch "managers can delete online price offers"
+drop policy if exists "redteam managers insert fallback" on public.online_price_offers; -- insert, gedeckt durch "managers can insert online price offers"
+drop policy if exists "redteam managers select fallback" on public.online_price_offers; -- select, gedeckt durch "managers can read online price offers"
+drop policy if exists "redteam managers insert fallback" on public.order_measurement_items; -- insert, gedeckt durch "managers insert order measurement items"
+drop policy if exists "redteam managers select fallback" on public.order_measurement_items; -- select, gedeckt durch "managers read order measurement items"
+drop policy if exists "redteam managers update fallback" on public.order_measurement_items; -- update, gedeckt durch "managers update order measurement items"
+drop policy if exists "redteam managers insert fallback" on public.orders; -- insert, gedeckt durch "managers can insert orders"
+drop policy if exists "redteam managers select fallback" on public.orders; -- select, gedeckt durch "managers can read orders"
+drop policy if exists "redteam managers update fallback" on public.orders; -- update, gedeckt durch "managers can update orders"
+drop policy if exists "redteam managers insert fallback" on public.planning_assignments; -- insert, gedeckt durch "managers insert planning assignments"
+drop policy if exists "redteam managers update fallback" on public.planning_assignments; -- update, gedeckt durch "managers update planning assignments"
+drop policy if exists "redteam managers insert fallback" on public.planning_resources; -- insert, gedeckt durch "managers insert planning resources"
+drop policy if exists "redteam managers update fallback" on public.planning_resources; -- update, gedeckt durch "managers update planning resources"
+drop policy if exists "redteam managers insert fallback" on public.planning_weather_checks; -- insert, gedeckt durch "managers insert planning weather checks"
+drop policy if exists "redteam managers update fallback" on public.planning_weather_checks; -- update, gedeckt durch "managers update planning weather checks"
+drop policy if exists "redteam managers update fallback" on public.privacy_requests; -- update, gedeckt durch "managers update privacy requests"
+drop policy if exists "redteam managers delete fallback" on public.profiles; -- delete, gedeckt durch "managers can delete profiles"
+drop policy if exists "redteam managers insert fallback" on public.profiles; -- insert, gedeckt durch "managers can insert profiles"
+drop policy if exists "redteam managers update fallback" on public.profiles; -- update, gedeckt durch "managers can update profiles"
+drop policy if exists "redteam managers select fallback" on public.purchase_suggestions; -- select, gedeckt durch "managers read purchase suggestions"
+drop policy if exists "redteam managers update fallback" on public.purchase_suggestions; -- update, gedeckt durch "managers update purchase suggestions"
+drop policy if exists "redteam managers update fallback" on public.report_photos; -- update, gedeckt durch "managers update report photo release"
+drop policy if exists "redteam managers insert fallback" on public.resource_documents; -- insert, gedeckt durch "managers insert resource documents"
+drop policy if exists "redteam managers update fallback" on public.resource_documents; -- update, gedeckt durch "managers update resource documents"
+drop policy if exists "redteam managers delete fallback" on public.supplier_integrations; -- delete, gedeckt durch "managers can delete supplier integrations"
+drop policy if exists "redteam managers insert fallback" on public.supplier_integrations; -- insert, gedeckt durch "managers can insert supplier integrations"
+drop policy if exists "redteam managers select fallback" on public.supplier_integrations; -- select, gedeckt durch "managers can read supplier integrations"
+drop policy if exists "redteam managers update fallback" on public.supplier_integrations; -- update, gedeckt durch "managers can update supplier integrations"
+drop policy if exists "redteam managers delete fallback" on public.supplier_offer_matches; -- delete, gedeckt durch "managers can delete supplier offer matches"
+drop policy if exists "redteam managers insert fallback" on public.supplier_offer_matches; -- insert, gedeckt durch "managers can insert supplier offer matches"
+drop policy if exists "redteam managers select fallback" on public.supplier_offer_matches; -- select, gedeckt durch "managers can read supplier offer matches"
+drop policy if exists "redteam managers update fallback" on public.supplier_offer_matches; -- update, gedeckt durch "managers can update supplier offer matches"
+drop policy if exists "redteam managers delete fallback" on public.supplier_offers; -- delete, gedeckt durch "managers can delete supplier offers"
+drop policy if exists "redteam managers insert fallback" on public.supplier_offers; -- insert, gedeckt durch "managers can insert supplier offers"
+drop policy if exists "redteam managers select fallback" on public.supplier_offers; -- select, gedeckt durch "managers can read supplier offers"
+drop policy if exists "redteam managers update fallback" on public.supplier_offers; -- update, gedeckt durch "managers can update supplier offers"
+drop policy if exists "redteam managers delete fallback" on public.supplier_price_history; -- delete, gedeckt durch "managers can delete supplier price history"
+drop policy if exists "redteam managers insert fallback" on public.supplier_price_history; -- insert, gedeckt durch "managers can insert supplier price history"
+drop policy if exists "redteam managers select fallback" on public.supplier_price_history; -- select, gedeckt durch "managers can read supplier price history"
+drop policy if exists "redteam managers delete fallback" on public.suppliers; -- delete, gedeckt durch "managers can delete suppliers"
+drop policy if exists "redteam managers insert fallback" on public.suppliers; -- insert, gedeckt durch "managers can insert suppliers"
+drop policy if exists "redteam managers select fallback" on public.suppliers; -- select, gedeckt durch "read own company suppliers"
+drop policy if exists "redteam managers update fallback" on public.suppliers; -- update, gedeckt durch "managers can update suppliers"
+drop policy if exists "redteam managers insert fallback" on public.tasks; -- insert, gedeckt durch "managers can insert tasks"
+drop policy if exists "redteam managers delete fallback" on public.time_reports; -- delete, gedeckt durch "managers can delete time reports"
+drop policy if exists "redteam managers insert fallback" on public.time_reports; -- insert, gedeckt durch "managers can insert time reports"
+drop policy if exists "redteam managers select fallback" on public.time_reports; -- select, gedeckt durch "managers can read time reports"
+drop policy if exists "redteam managers update fallback" on public.time_reports; -- update, gedeckt durch "managers can update time reports"
+drop policy if exists "redteam managers insert fallback" on public.vehicle_materials; -- insert, gedeckt durch "managers can insert vehicle materials"
+drop policy if exists "redteam managers update fallback" on public.vehicle_materials; -- update, gedeckt durch "managers can update vehicle materials"
+drop policy if exists "redteam managers insert fallback" on public.vehicles; -- insert, gedeckt durch "managers can insert vehicles"
+drop policy if exists "redteam managers update fallback" on public.vehicles; -- update, gedeckt durch "managers can update vehicles"
+drop policy if exists "redteam managers delete fallback" on public.weather_snapshots; -- delete, gedeckt durch "managers can delete weather snapshots"
+drop policy if exists "redteam managers insert fallback" on public.weather_snapshots; -- insert, gedeckt durch "managers can insert weather snapshots"
+drop policy if exists "redteam managers select fallback" on public.weather_snapshots; -- select, gedeckt durch "managers can read weather snapshots"
+drop policy if exists "redteam managers update fallback" on public.weather_snapshots; -- update, gedeckt durch "managers can update weather snapshots"
+drop policy if exists "redteam managers insert fallback" on public.work_order_versions; -- insert, gedeckt durch "managers insert work order versions"
+drop policy if exists "redteam managers select fallback" on public.work_order_versions; -- select, gedeckt durch "managers read work order versions"
+drop policy if exists "redteam managers insert fallback" on public.work_orders; -- insert, gedeckt durch "managers insert work orders"
+drop policy if exists "redteam managers select fallback" on public.work_orders; -- select, gedeckt durch "managers read work orders"
+drop policy if exists "redteam managers update fallback" on public.work_orders; -- update, gedeckt durch "managers update work orders"
 drop policy if exists "read own company inventory items" on public.inventory_items;
 drop policy if exists "managers can read inventory items with prices" on public.inventory_items;
 create policy "managers can read inventory items with prices"
@@ -6823,6 +6964,57 @@ drop trigger if exists validate_vehicle_material_tenant on public.vehicle_materi
 create trigger validate_vehicle_material_tenant
 before insert or update on public.vehicle_materials
 for each row execute function public.validate_vehicle_material_tenant();
+
+create or replace function public.assert_role_change_allowed()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_role text;
+  other_admin_exists boolean;
+begin
+  if old.role is not distinct from new.role then
+    return new;
+  end if;
+
+  select p.role
+    into actor_role
+  from public.profiles p
+  where p.id = auth.uid()
+    and p.company_id = old.company_id
+    and p.active = true
+  limit 1;
+
+  if new.role = 'admin' and coalesce(actor_role, '') <> 'admin' then
+    raise exception 'Keine Berechtigung fuer diese Rollenaenderung.';
+  end if;
+
+  if old.role = 'admin' and new.role <> 'admin' then
+    select exists (
+      select 1
+      from public.profiles p
+      where p.company_id = old.company_id
+        and p.id <> old.id
+        and p.role = 'admin'
+        and p.active = true
+    )
+      into other_admin_exists;
+
+    if not coalesce(other_admin_exists, false) then
+      raise exception 'Keine Berechtigung fuer diese Rollenaenderung.';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists guard_profile_role_change_before_audit on public.profiles;
+create trigger guard_profile_role_change_before_audit
+before update of role on public.profiles
+for each row execute function public.assert_role_change_allowed();
 
 create or replace function public.audit_profile_role_change()
 returns trigger

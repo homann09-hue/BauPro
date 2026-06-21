@@ -140,6 +140,18 @@ export function hashCustomerPortalToken(token: string) {
   return crypto.createHash("sha256").update(token, "utf8").digest("hex");
 }
 
+// Fallback-Helfer fuer kuenftige Refactors: Nur verwenden, wenn ein Token-Hash
+// ausnahmsweise in Anwendungscode verglichen werden muss. Der normale
+// Kundenportal-Pfad unten nutzt bewusst den Datenbank-Index statt JS-Vergleich.
+export function timingSafeTokenCompare(a: string, b: string): boolean {
+  const left = Buffer.from(a, "utf8");
+  const right = Buffer.from(b, "utf8");
+
+  if (left.length !== right.length) return false;
+
+  return crypto.timingSafeEqual(left, right);
+}
+
 export function customerPortalPath(token: string) {
   return `/portal/${encodeURIComponent(token)}`;
 }
@@ -229,6 +241,29 @@ function deriveWeatherDelays(events: CustomerPortalEvent[], reports: PortalRepor
   return [...eventDelays, ...reportDelays].slice(0, 6);
 }
 
+/*
+ * Sicherheitsnotiz zum Kundenportal-Token:
+ *
+ * Der Portal-Link enthaelt ein zufaelliges Token. Dieses Token wird niemals im
+ * Klartext gesucht, sondern zuerst per SHA-256 gehasht. Der eigentliche
+ * Vergleich passiert anschliessend ueber Supabase/PostgREST:
+ *
+ *   .eq("token_hash", tokenHash)
+ *
+ * Damit fuehrt Postgres den Lookup ueber die indizierte token_hash-Spalte aus
+ * (B-Tree-Index) und der Anwendungscode macht keinen variablen String-Vergleich
+ * wie `===`, `!==` oder `.includes()`. Das ist fuer diesen Pfad ein angemessener
+ * Schutz gegen Timing-Angriffe, weil Node.js selbst keine Schritt-fuer-Schritt-
+ * Vergleichsdauer fuer Token-Hashes nach aussen preisgibt.
+ *
+ * WARNUNG: Falls dieser Vergleich jemals in Anwendungscode verlagert wird
+ * (z.B. durch Laden aller Tokens und manuellen Abgleich), MUSS
+ * crypto.timingSafeEqual() aus dem node:crypto Modul verwendet werden, niemals
+ * ===, !==, .includes() oder andere zeitvariable String-Vergleiche.
+ *
+ * Fuer solche Ausnahmefaelle steht timingSafeTokenCompare() bereit. Der aktuelle
+ * Hauptpfad soll weiterhin den DB-basierten Hash-Lookup verwenden.
+ */
 export async function loadCustomerPortalData(token: string): Promise<CustomerPortalData | null> {
   if (!token || token.length < 24) return null;
 

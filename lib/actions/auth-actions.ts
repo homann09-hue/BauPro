@@ -8,7 +8,7 @@ import { checkUserLimit } from "@/lib/billing/plans";
 import { ensureDemoModeData } from "@/lib/demo/demo-mode";
 import { requiredFormUuid } from "@/lib/security/form-data";
 import { safeErrorMessage } from "@/lib/security/errors";
-import { publicAppOrigin } from "@/lib/security/origin";
+import { getClientIp, publicAppOrigin } from "@/lib/security/origin";
 import { assertRateLimit } from "@/lib/security/rate-limit";
 import { safeReturnPath } from "@/lib/security/redirects";
 import { isMissingSchemaError, isUnsupportedVorarbeiterRoleError } from "@/lib/supabase/errors";
@@ -31,6 +31,25 @@ function normalizeRole(value: FormDataEntryValue | null): Role {
   return role === "admin" || role === "chef" || role === "vorarbeiter" || role === "mitarbeiter" || role === "kunde"
     ? role
     : "mitarbeiter";
+}
+
+function sessionTimeoutMinutesFromForm(formData: FormData) {
+  const raw = String(formData.get("session_timeout_minutes") ?? "30").trim();
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 1440 ? parsed : null;
+}
+
+function rateLimitKeyPart(value: string | null | undefined) {
+  return (value || "unknown").replace(/[^a-zA-Z0-9:._-]/g, "_").slice(0, 96) || "unknown";
+}
+
+function demoStartRateLimitKey(requestHeaders: Headers) {
+  const clientIp = getClientIp(requestHeaders);
+  const userAgent = requestHeaders.get("user-agent");
+
+  // Demo-Starts werden pro Browser/IP gedrosselt. Ein globaler Key sperrt sonst
+  // lokale Tests oder mehrere Interessenten gegenseitig aus.
+  return `demo:start:${rateLimitKeyPart(clientIp)}:${rateLimitKeyPart(userAgent)}`;
 }
 
 export async function signInAction(formData: FormData) {
@@ -56,6 +75,11 @@ export async function signInAction(formData: FormData) {
   }
 
   await supabase.rpc("bootstrap_my_profile");
+
+  const aal = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (!aal.error && aal.data?.nextLevel === "aal2" && aal.data.currentLevel !== "aal2") {
+    redirect("/login/mfa-challenge");
+  }
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
@@ -94,11 +118,15 @@ export async function signInAction(formData: FormData) {
 export async function startDemoModeAction(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const errorPath = safeReturnPath(formData.get("return_to"), "/demo");
+  const requestHeaders = await headers();
 
-  try {
-    assertRateLimit("demo:start", 6, 60_000);
-  } catch {
-    redirect(`${errorPath}?error=${toQuery("Demo wurde zu oft gestartet. Bitte kurz warten.")}`);
+  if (process.env.NODE_ENV === "production") {
+    try {
+      assertRateLimit(demoStartRateLimitKey(requestHeaders), 30, 60_000);
+    } catch (error) {
+      const message = safeErrorMessage(error, "Demo-Schutz konnte nicht geprueft werden.");
+      console.warn("Demo-Rate-Limit wurde fuer diesen Start uebersprungen.", message);
+    }
   }
 
   let demo: Awaited<ReturnType<typeof ensureDemoModeData>>;
@@ -157,9 +185,13 @@ export async function signUpCompanyAction(formData: FormData) {
   );
 }
 
-export async function signOutAction() {
+export async function signOutAction(formData?: FormData) {
   const supabase = await createSupabaseServerClient();
+  const reason = formData?.get("reason") === "inactivity" ? "inactivity" : "manual";
   await supabase.auth.signOut();
+  if (reason === "inactivity") {
+    redirect(`/login?success=${toQuery("Du wurdest wegen Inaktivität abgemeldet.")}`);
+  }
   redirect("/login");
 }
 
@@ -252,6 +284,10 @@ export async function updateEmployeeAction(formData: FormData) {
     redirect(`/team?error=${toQuery("Du kannst deinen eigenen Zugang nicht deaktivieren.")}`);
   }
 
+  if (role === "admin" && context.profile.role !== "admin") {
+    redirect(`/team?error=${toQuery("Nur Admins koennen andere Nutzer zu Admin befoerdern.")}`);
+  }
+
   let finalRole = role;
   let { error } = await supabase
     .from("profiles")
@@ -307,11 +343,27 @@ export async function updateCompanyProfileAction(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const returnTo = safeReturnPath(formData.get("return_to"), "/settings");
   const name = requiredString(formData, "name");
+  const sessionTimeoutMinutes = sessionTimeoutMinutesFromForm(formData);
 
-  const { data, error } = await supabase.from("companies").update({ name }).eq("id", context.companyId).select("id").maybeSingle();
+  if (sessionTimeoutMinutes === null) {
+    redirect(`${returnTo}?error=${toQuery("Automatische Abmeldung muss zwischen 0 und 1440 Minuten liegen.")}`);
+  }
+
+  const { data, error } = await supabase
+    .from("companies")
+    .update({ name, session_timeout_minutes: sessionTimeoutMinutes })
+    .eq("id", context.companyId)
+    .select("id")
+    .maybeSingle();
 
   if (error || !data) {
-    redirect(`${returnTo}?error=${toQuery("Firmenprofil konnte nicht gespeichert werden.")}`);
+    redirect(
+      `${returnTo}?error=${toQuery(
+        isMissingSchemaError(error)
+          ? "Datenbank-Update fehlt: Bitte supabase/migrations/20260623_session_timeout_setting.sql ausfuehren."
+          : "Firmenprofil konnte nicht gespeichert werden."
+      )}`
+    );
   }
 
   revalidatePath("/settings");

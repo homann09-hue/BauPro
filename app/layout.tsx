@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ConsentBanner } from "@/components/consent-banner";
 import "./globals.css";
 
@@ -53,9 +55,12 @@ export default async function RootLayout({
 
   return (
     <html lang="de">
+      {/* Aktuell gibt es keine app-eigenen Inline-Skripte. Falls spaeter eines hinzukommt, muss es `nonce={nonce}` nutzen. */}
       <body data-nonce-present={nonce ? "true" : undefined}>
         {children}
         <ConsentBanner />
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

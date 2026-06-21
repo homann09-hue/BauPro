@@ -27,6 +27,7 @@ import {
   TodayJobsiteFocus
 } from "@/components/construction-ui";
 import { MessageBox } from "@/components/message-box";
+import { MfaRecommendationBanner } from "@/components/mfa-recommendation-banner";
 import { StatusBadge } from "@/components/status-badge";
 import { SubmitButton } from "@/components/submit-button";
 import { VoiceQuickAction } from "@/components/voice/VoiceQuickAction";
@@ -90,6 +91,7 @@ export default async function DashboardPage({
   return (
     <div className="baupro-screen">
       <MessageBox error={dashboardError} success={success} />
+      <MfaRecommendationBanner canManage={context.canManage} mfaEnabled={context.mfaEnabled} />
 
       <section className="command-panel overflow-hidden">
         <div className="grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">

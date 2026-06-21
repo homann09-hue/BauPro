@@ -38,7 +38,10 @@ describe("Demo-Modus", () => {
     expect(authActions).toContain("ensureDemoModeData");
     expect(authActions).toContain("signInWithPassword");
     expect(authActions).toContain('redirect("/demo-tour?success=');
-    expect(authActions).toContain('assertRateLimit("demo:start"');
+    expect(authActions).toContain("demoStartRateLimitKey");
+    expect(authActions).toContain('process.env.NODE_ENV === "production"');
+    expect(authActions).toContain("assertRateLimit(demoStartRateLimitKey");
+    expect(authActions).not.toContain("Demo wurde zu oft gestartet");
   });
 
   it("keeps the tour reachable and prefetched for managers", () => {
