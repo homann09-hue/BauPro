@@ -1,5 +1,6 @@
 import { ShieldCheck, Users } from "lucide-react";
 import { FormSection, ResponsiveTableCard, StatCard } from "@/components/construction-ui";
+import { PasswordInputWithStrength } from "@/components/forms/password-strength-indicator";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { SubmitButton } from "@/components/submit-button";
@@ -119,12 +120,11 @@ export default async function TeamPage({
                 <input className="field-input" id="email" name="email" type="email" required />
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="field-label" htmlFor="password">
-                    Startpasswort
-                  </label>
-                  <input className="field-input" id="password" name="password" type="password" minLength={8} required />
-                </div>
+                <PasswordInputWithStrength
+                  id="password"
+                  label="Startpasswort"
+                  helpText="Mindestens 8 Zeichen. Wird vor dem Anlegen auf bekannte Datenlecks geprüft."
+                />
                 <div>
                   <label className="field-label" htmlFor="role">
                     Rolle

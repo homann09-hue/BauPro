@@ -97,9 +97,12 @@ supabase/migrations/20260621_schema_gap_fix.sql
 supabase/migrations/20260622_employee_permissions.sql
 supabase/migrations/20260622_rls_consolidation.sql
 supabase/migrations/20260622_commercial_documents.sql
+supabase/migrations/20260622_redteam_hardening.sql
 supabase/migrations/20260623_roof_measurements.sql
 supabase/migrations/20260623_session_timeout_setting.sql
+supabase/migrations/20260624_onboarding.sql
 supabase/migrations/20260624_jobsite_file_documents.sql
+supabase/migrations/20260625_invoices.sql
 supabase/migrations/20260625_digital_signatures.sql
 supabase/migrations/20260626_construction_daily_reports.sql
 supabase/migrations/20260627_customer_portal_jobsites.sql
@@ -116,6 +119,7 @@ supabase/migrations/20260707_performance_followup_indexes.sql
 supabase/migrations/20260708_privacy_security_hardening.sql
 supabase/migrations/20260709_fix_material_usage_confirmation_rpc.sql
 supabase/migrations/20260710_calculation_travel_rate.sql
+supabase/migrations/20260711_invoice_atomic_stats.sql
 ```
 
 `20260615_material_alerts_repair.sql` bleibt idempotent, damit aeltere Testdatenbanken mit fehlender Mitbringlisten-Kette repariert werden koennen. Fuer neue Projekte ist der vollstaendige Stand bereits in `supabase/schema.sql` enthalten.
@@ -442,7 +446,7 @@ Die App enthaelt technische Grundlagen fuer Datenschutz und B2B-SaaS-Betrieb. Di
 
 - Datenschutz-Center unter `/privacy` mit eigenem Datenexport, Firmenexport fuer Chef/Admin und Datenschutzanfragen.
 - Billing unter `/billing` mit Stripe Checkout, Stripe Customer Portal, Tariflimits und KI-Kontingent.
-- Angebote/Rechnungen unter `/angebote-rechnungen` mit Belegstatus, PDF-Export, DATEV-CSV, XRechnung-XML-Entwurf und Auftrag-Uebernahme.
+- Angebote/Rechnungen unter `/invoices` mit Belegstatus, PDF-Export und Auftrag-Uebernahme. Das aeltere Modul `/angebote-rechnungen` bleibt fuer bestehende DATEV-/XRechnung-Exporte erreichbar.
 - Rechtliche Entwurfsseiten unter `/legal`.
 - Consent-Banner fuer notwendige Login-Cookies und optionale Analyse/Marketing-Verarbeitung.
 - Datenlandkarte und Subprozessoren in `DATA_PROCESSING.md` und `SUBPROCESSORS.md`.
@@ -475,7 +479,9 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 - `supabase/migrations/20260622_rls_consolidation.sql`: Delta fuer dokumentierte RLS-Policy-Matrix und Entfernung exakt redundanter Redteam-Fallback-Policies
 - `supabase/migrations/20260622_employee_permissions.sql`: Delta fuer feingranulare Mitarbeiterrechte mit RLS, Manager-Bypass und Audit-Log
 - `supabase/migrations/20260622_commercial_documents.sql`: Delta fuer Angebote/Rechnungen, Positionen, Summen-Trigger und Manager-only RLS
+- `supabase/migrations/20260622_redteam_hardening.sql`: Delta fuer RedTeam-Fixes gegen Lieferanten-Dubletten und doppelte Stundenzettel
 - `supabase/migrations/20260623_session_timeout_setting.sql`: Delta fuer firmenweite Inaktivitaets-Abmeldung auf geteilten Geraeten
+- `supabase/migrations/20260624_onboarding.sql`: Delta fuer gefuehrten Firmen-Start, Onboarding-Abschluss, Gewerk, Firmenlogo und Logo-Storage-RLS
 - `supabase/migrations/20260628_planning_board.sql`: Delta fuer Plantafel, Ressourcenplanung, Konflikt-Erkennung und rollenbasierte RLS
 - `supabase/migrations/20260629_planning_weather_risks.sql`: Delta fuer Plantafel-Wetterrisiken, Cache und Chef-Bestaetigung/Ignorieren
 - `supabase/migrations/20260630_inventory_jobsite_flow.sql`: Delta fuer Baustellen-Verbrauch, Rueckgabe, Verlust/Bruch, Reservierung und unveraenderbare Materialbewegungen

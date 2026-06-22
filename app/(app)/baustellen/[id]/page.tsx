@@ -1143,7 +1143,7 @@ export default async function JobsiteDetailPage({
                       Lager prüfen
                     </Link>
                     {context.canManage ? (
-                      <Link href="/angebote-rechnungen" className="btn-secondary">
+                      <Link href="/invoices" className="btn-secondary">
                         <ReceiptText className="h-4 w-4" aria-hidden="true" />
                         Angebot/Rechnung
                       </Link>

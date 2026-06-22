@@ -103,6 +103,8 @@ export type CustomerPortalEventType = "update" | "status" | "photo" | "document"
 export type WorkOrderStatus = "draft" | "sent" | "viewed" | "signed" | "rejected";
 export type CommercialDocumentType = "quote" | "invoice";
 export type CommercialDocumentStatus = "draft" | "sent" | "accepted" | "rejected" | "paid" | "cancelled";
+export type InvoiceType = "angebot" | "rechnung" | "gutschrift";
+export type InvoiceStatus = "entwurf" | "gesendet" | "bezahlt" | "storniert";
 export type DigitalDocumentType = "work_order" | "report" | "commercial_document" | "jobsite_document" | "acceptance";
 export type DigitalSignatureStatus = "draft" | "signed" | "rejected";
 export type JobsiteDocumentCategory =
@@ -151,6 +153,8 @@ export type Company = {
   trial_ends_at?: string | null;
   current_period_end?: string | null;
   session_timeout_minutes?: number | null;
+  trade?: string | null;
+  logo_path?: string | null;
   contact_email?: string | null;
   phone?: string | null;
   address?: string | null;
@@ -576,6 +580,41 @@ export type CommercialDocumentItem = {
   line_total_net: number;
   created_at: string;
   updated_at: string;
+};
+
+export type Invoice = {
+  id: string;
+  company_id: string;
+  customer_id: string;
+  order_id: string | null;
+  type: InvoiceType;
+  status: InvoiceStatus;
+  invoice_number: string;
+  issue_date: string;
+  due_date: string | null;
+  subtotal_eur: number;
+  tax_rate_percent: number;
+  tax_eur: number;
+  total_eur: number;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at?: string | null;
+  archived_at: string | null;
+  customers?: Pick<Customer, "id" | "company" | "first_name" | "last_name" | "contact_person" | "email" | "phone" | "billing_address" | "jobsite_address" | "payment_terms"> | null;
+  orders?: Pick<Order, "id" | "order_number" | "title" | "status" | "jobsite_address"> | null;
+};
+
+export type InvoiceItem = {
+  id: string;
+  invoice_id: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price_eur: number;
+  total_eur: number;
+  position: number;
+  created_at: string;
 };
 
 export type Material = {

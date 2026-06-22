@@ -6,7 +6,7 @@ import { requireManager } from "@/lib/auth";
 import { discoverOnlinePrices } from "@/lib/online-price-discovery/service";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { optionalFormUuid } from "@/lib/security/form-data";
-import { assertRateLimit } from "@/lib/security/rate-limit";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { safeReturnPath } from "@/lib/security/redirects";
 import { assertInventoryItemInCompany } from "@/lib/security/tenant-guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -35,7 +35,7 @@ export async function runOnlinePriceDiscoveryAction(formData: FormData) {
 
   try {
     materialId = optionalFormUuid(formData, "material_id", "Material");
-    assertRateLimit(`online-price:${context.companyId}:${context.userId}`, 20, 60_000);
+    await checkRateLimit(`online-price:${context.companyId}:${context.userId}`, 20, 60_000);
     await assertInventoryItemInCompany({ supabase, companyId: context.companyId, itemId: materialId });
 
     if (materialId && !query) {

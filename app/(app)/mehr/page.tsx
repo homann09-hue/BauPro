@@ -142,7 +142,7 @@ const managerGroups: Group[] = [
       { href: "/customers", title: "Kundenkartei", description: "Kunden suchen und anlegen", icon: Users },
       { href: "/customers/new", title: "Neuer Kunde", description: "Adresse und Kontakt erfassen", icon: Users },
       { href: "/orders", title: "Aufträge", description: "Angebote, Maße und Baustellen", icon: BriefcaseBusiness },
-      { href: "/angebote-rechnungen", title: "Angebote und Rechnungen", description: "Kundenunterlagen vorbereiten", icon: ReceiptText }
+      { href: "/invoices", title: "Angebote und Rechnungen", description: "Kundenunterlagen vorbereiten", icon: ReceiptText }
     ]
   },
   {
@@ -219,7 +219,7 @@ const permissionActions: PermissionAction[] = [
   { href: "/orders", title: "Aufträge", description: "Freigegebene Aufträge ansehen", icon: BriefcaseBusiness, permission: "orders.view" },
   { href: "/orders/new", title: "Neuer Auftrag", description: "Auftrag erfassen", icon: BriefcaseBusiness, permission: "orders.create" },
   { href: "/customers", title: "Kunden", description: "Kundenkartei öffnen", icon: Users, permission: "customers.view" },
-  { href: "/angebote-rechnungen", title: "Angebote", description: "Kalkulationen und Angebote", icon: ReceiptText, permission: "quotes.view" },
+  { href: "/invoices", title: "Angebote", description: "Kalkulationen und Angebote", icon: ReceiptText, permission: "quotes.view" },
   { href: "/materials/inventory", title: "Lagerbestand", description: "Material und Lagerorte", icon: Warehouse, permission: "inventory.view" },
   { href: "/time-tracking/daily", title: "Tagesstunden", description: "Teamzeiten prüfen", icon: Clock3, permission: "time.team.view" },
   { href: "/fahrzeuge", title: "Fahrzeuge und Geräte", description: "Ressourcen verwalten", icon: Truck, permission: "vehicles.manage" },

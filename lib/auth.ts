@@ -6,7 +6,7 @@ import { canOperate, isManager } from "@/lib/utils";
 import type { Company, Profile } from "@/types/app";
 
 const PROFILE_SELECT_WITH_SESSION_TIMEOUT =
-  "id, company_id, email, full_name, role, active, companies(id, name, session_timeout_minutes)";
+  "id, company_id, email, full_name, role, active, companies(id, name, session_timeout_minutes, onboarding_completed_at)";
 const PROFILE_SELECT_FALLBACK = "id, company_id, email, full_name, role, active, companies(id, name)";
 
 type ProfileWithCompany = Profile & {
@@ -21,6 +21,7 @@ export type AppContext = {
     id: string;
     name: string;
     session_timeout_minutes: number;
+    onboarding_completed_at: string | null;
   };
   companyId: string;
   companyName: string;
@@ -106,7 +107,8 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
     company: {
       id: typedProfile.company_id,
       name: companyName,
-      session_timeout_minutes: Number.isFinite(sessionTimeoutMinutes) ? sessionTimeoutMinutes : 30
+      session_timeout_minutes: Number.isFinite(sessionTimeoutMinutes) ? sessionTimeoutMinutes : 30,
+      onboarding_completed_at: company?.onboarding_completed_at ?? null
     },
     companyId: typedProfile.company_id,
     companyName,

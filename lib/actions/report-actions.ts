@@ -11,7 +11,7 @@ import { revalidateDashboardCache } from "@/lib/data/dashboard";
 import { hasAppPermission } from "@/lib/permissions";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { formUuidList, optionalFormString, optionalFormUuid, requiredFormString, requiredFormUuid } from "@/lib/security/form-data";
-import { assertRateLimit } from "@/lib/security/rate-limit";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { assertJobsiteInCompany, assertProfilesInCompany } from "@/lib/security/tenant-guards";
 import { sanitizeUploadFileName, validateReportPhoto } from "@/lib/security/uploads";
 import { signerRole, validateSignatureDataUrl } from "@/lib/signatures/signature";
@@ -143,7 +143,7 @@ async function uploadReportPhotos({
     throw new SafeActionError("Bitte maximal 12 Fotos pro Bericht hochladen.");
   }
 
-  assertRateLimit(`report-upload:${companyId}:${userId}`, 25, 60_000);
+  await checkRateLimit(`report-upload:${companyId}:${userId}`, 25, 60_000);
 
   for (const [index, file] of files.entries()) {
     await validateReportPhoto(file);
@@ -388,7 +388,7 @@ export async function signReportAction(formData: FormData) {
   let result: { success?: string; error?: string } = {};
 
   try {
-    assertRateLimit(`report-sign:${context.companyId}:${context.userId}`, 20, 60_000);
+    await checkRateLimit(`report-sign:${context.companyId}:${context.userId}`, 20, 60_000);
     const status = reportSignatureDecision(requiredFormString(formData, "decision", "Entscheidung"));
     const signerName = requiredFormString(formData, "signer_name", "Name");
     if (signerName.length > 120) throw new SafeActionError("Name ist zu lang.");

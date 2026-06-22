@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { signUpCompanyAction } from "@/lib/actions/auth-actions";
 import { MessageBox } from "@/components/message-box";
+import { PasswordInputWithStrength } from "@/components/forms/password-strength-indicator";
 import { SubmitButton } from "@/components/submit-button";
 import { searchParamMessage } from "@/lib/utils";
 
@@ -43,21 +44,10 @@ export default async function RegisterPage({
             </label>
             <input className="field-input" id="email" name="email" type="email" autoComplete="email" required />
           </div>
-          <div>
-            <label className="field-label" htmlFor="password">
-              Passwort
-            </label>
-            <input
-              className="field-input"
-              id="password"
-              name="password"
-              type="password"
-              minLength={8}
-              autoComplete="new-password"
-              required
-            />
-            <p className="field-help">Mindestens 8 Zeichen.</p>
-          </div>
+          <PasswordInputWithStrength
+            id="password"
+            helpText="Mindestens 8 Zeichen. Vermeide Namen, Firmenname und einfache Muster."
+          />
           <SubmitButton className="w-full">Account erstellen</SubmitButton>
         </form>
 

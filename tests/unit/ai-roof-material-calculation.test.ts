@@ -72,7 +72,7 @@ describe("AI-assisted roof material calculation", () => {
 
     expect(action).toContain("suggestRoofMaterialCalculation");
     expect(action).toContain("checkAiLimit");
-    expect(action).toContain("assertRateLimit(`ai:material-calculation");
+    expect(action).toContain("await checkRateLimit(`ai:material-calculation");
     expect(action).toContain("missing_quantity");
     expect(action).toContain('source: "ai"');
     expect(action).toContain("review_notice");

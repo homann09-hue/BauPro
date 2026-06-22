@@ -223,6 +223,12 @@ export const commercialDocumentListSelect =
 export const commercialDocumentItemSelect =
   "id, company_id, document_id, source_requirement_id, position, title, description, quantity, unit, unit_price_net, discount_percent, line_total_net, created_at, updated_at";
 
+export const invoiceListSelect =
+  "id, company_id, customer_id, order_id, type, status, invoice_number, issue_date, due_date, subtotal_eur, tax_rate_percent, tax_eur, total_eur, notes, created_by, created_at, updated_at, archived_at, customers(id, company, first_name, last_name, contact_person, email, phone, billing_address, jobsite_address, payment_terms), orders(id, order_number, title, status, jobsite_address)";
+
+export const invoiceItemSelect =
+  "id, invoice_id, description, quantity, unit, unit_price_eur, total_eur, position, created_at";
+
 export const timeEntryFormSelect =
   "id, company_id, employee_id, job_id, customer_id, date, work_location, work_address, start_time, end_time, break_minutes, gross_minutes, net_minutes, activity, weather, weather_summary, weather_temperature_c, weather_precipitation_mm, weather_wind_kmh, weather_source, weather_fetched_at, weather_lat, weather_lng, kilometers, notes, status, approved_by, approved_at, created_by, created_at, updated_at";
 

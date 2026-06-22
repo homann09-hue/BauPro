@@ -2,7 +2,7 @@ import { loadCustomerPortalData } from "@/lib/customer-portal/tokens";
 import { downloadHeaders } from "@/lib/security/downloads";
 import { SafeActionError } from "@/lib/security/errors";
 import { getClientIp } from "@/lib/security/origin";
-import { assertRateLimit } from "@/lib/security/rate-limit";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { buildWorkOrderPdf, workOrderFilename } from "@/lib/work-order-export";
 
 function portalPdfUnavailableResponse() {
@@ -19,7 +19,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   const clientIp = getClientIp(request.headers);
 
   try {
-    assertRateLimit(`portal-pdf:${clientIp}`, 30, 60_000);
+    await checkRateLimit(`portal-pdf:${clientIp}`, 30, 60_000);
   } catch (rateLimitError) {
     if (rateLimitError instanceof SafeActionError) return portalPdfUnavailableResponse();
     throw rateLimitError;

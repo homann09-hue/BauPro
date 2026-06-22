@@ -31,7 +31,7 @@ describe("session timeout guard", () => {
     const schema = source("supabase/schema.sql");
     const actions = source("lib/actions/auth-actions.ts");
 
-    expect(auth).toContain("companies(id, name, session_timeout_minutes)");
+    expect(auth).toContain("companies(id, name, session_timeout_minutes, onboarding_completed_at)");
     expect(auth).toContain("session_timeout_minutes: Number.isFinite(sessionTimeoutMinutes)");
     expect(layout).toContain("<SessionTimeoutGuard sessionTimeoutMinutes={context.company.session_timeout_minutes} />");
     expect(settings).toContain('name="session_timeout_minutes"');

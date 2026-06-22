@@ -38,7 +38,7 @@ import { customerDisplayName } from "@/lib/order-labels";
 import { defectPriorityLabels, defectStatusLabels } from "@/lib/defects";
 import { SafeActionError } from "@/lib/security/errors";
 import { getClientIp } from "@/lib/security/origin";
-import { assertRateLimit } from "@/lib/security/rate-limit";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { formatDate, formatDateTime, formatMoney, searchParamMessage } from "@/lib/utils";
 
 const workOrderStatusLabels = {
@@ -76,7 +76,7 @@ export default async function CustomerPortalPage({
   let portal = null;
 
   try {
-    assertRateLimit(`portal-view:${clientIp}`, 30, 60_000);
+    await checkRateLimit(`portal-view:${clientIp}`, 30, 60_000);
   } catch (rateLimitError) {
     if (rateLimitError instanceof SafeActionError) return <PortalAccessUnavailable />;
     throw rateLimitError;

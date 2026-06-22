@@ -20,9 +20,10 @@ test("mobile smoke: zentrale Seiten laden ohne Browser-Fehler", async ({ page })
     expect(response?.status(), route).toBeLessThan(400);
   }
 
-  await login(page);
+  const landing = await login(page);
+  const protectedRoutes = landing === "onboarding" ? ["/onboarding"] : appRoutes;
 
-  for (const route of appRoutes) {
+  for (const route of protectedRoutes) {
     const response = await page.goto(route, { waitUntil: "networkidle" });
     expect(response?.status(), route).toBeLessThan(400);
   }

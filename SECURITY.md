@@ -41,7 +41,7 @@ Wichtige Policies stehen in `supabase/schema.sql` und Delta-Migrationen:
 - Supabase Storage Bucket `report-photos` privat halten.
 - Service Role Key nur serverseitig speichern.
 - OpenAI-Key rotieren, wenn er jemals in Chat/Logs geteilt wurde.
-- Rate Limiting fuer Login/API auf Hosting-/Edge-Ebene final konfigurieren.
+- Redis/KV Rate Limiting in Production verpflichtend konfigurieren (`UPSTASH_REDIS_REST_*` oder `KV_REST_API_*`); ohne Redis blockt die App rate-limitierte Aktionen.
 - Security Header/CSP fuer Production ergaenzen und mit Uploads/PDFs testen.
 - Backup-/Restore-Konzept und Incident-Prozess dokumentieren.
 

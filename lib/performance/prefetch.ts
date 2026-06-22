@@ -7,7 +7,7 @@ const managerRoutes = [
   "/baustellen",
   "/plantafel",
   "/orders",
-  "/angebote-rechnungen",
+  "/invoices",
   "/customers",
   "/materials/inventory",
   "/materials/control-center",
@@ -52,10 +52,10 @@ export function prefetchRoutesForRole(role: Role, canManage: boolean) {
 }
 
 export function prefetchScopesForRole(role: Role, canManage: boolean) {
-  if (canManage) return ["dashboard", "jobsites", "tasks", "planning", "team", "materials", "bring-lists", "time", "weather"] as const;
-  if (role === "vorarbeiter") return ["dashboard", "jobsites", "tasks", "planning", "bring-lists", "time"] as const;
+  if (canManage) return ["dashboard", "jobsites", "tasks", "materials"] as const;
+  if (role === "vorarbeiter") return ["dashboard", "jobsites", "tasks", "bring-lists"] as const;
   if (role === "kunde") return [] as const;
-  return ["dashboard", "jobsites", "tasks", "bring-lists", "time"] as const;
+  return ["dashboard", "jobsites", "time"] as const;
 }
 
 export const PREFETCH_CACHE_TTL_MS = 120_000;

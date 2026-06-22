@@ -7,7 +7,7 @@ import { requireAppContext, requireManager, type AppContext } from "@/lib/auth";
 import { revalidateDashboardCache } from "@/lib/data/dashboard";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { enumFormValue, optionalFormString, requiredFormString, requiredFormUuid } from "@/lib/security/form-data";
-import { assertRateLimit } from "@/lib/security/rate-limit";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { sanitizeUploadFileName, validateReportPhoto } from "@/lib/security/uploads";
 import { signerRole, validateSignatureDataUrl } from "@/lib/signatures/signature";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -161,7 +161,7 @@ export async function createChecklistTemplateAction(formData: FormData) {
   const returnTo = safeReturnTo(formData, "/checklists/templates/new");
 
   try {
-    assertRateLimit(`checklist-template:${context.userId}`, 20, 60_000);
+    await checkRateLimit(`checklist-template:${context.userId}`, 20, 60_000);
     const name = requiredFormString(formData, "name", "Vorlagenname");
     if (name.length > 140) throw new SafeActionError("Vorlagenname ist zu lang.");
     const category = enumFormValue(formData, "category", checklistCategories, "baustart") as ChecklistCategory;
@@ -212,7 +212,7 @@ export async function createJobsiteChecklistFromTemplateAction(formData: FormDat
   let createdChecklistId: string | null = null;
 
   try {
-    assertRateLimit(`jobsite-checklist:${context.userId}`, 40, 60_000);
+    await checkRateLimit(`jobsite-checklist:${context.userId}`, 40, 60_000);
     const jobsiteId = requiredFormUuid(formData, "jobsite_id", "Baustelle");
     const templateId = requiredFormUuid(formData, "template_id", "Vorlage");
     const jobsite = await loadAccessibleJobsite(supabase, context, jobsiteId);
@@ -352,7 +352,7 @@ export async function uploadChecklistItemPhotoAction(formData: FormData) {
   const returnTo = safeReturnTo(formData, `/checklists/${itemId}`);
 
   try {
-    assertRateLimit(`checklist-photo:${context.userId}`, 30, 60_000);
+    await checkRateLimit(`checklist-photo:${context.userId}`, 30, 60_000);
     const { item, checklist } = await loadChecklistItemForAction(supabase, context, itemId);
     const file = formData.get("photo");
     if (!(file instanceof File) || file.size === 0) throw new SafeActionError("Bitte ein Foto auswaehlen.");

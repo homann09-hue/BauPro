@@ -34,6 +34,25 @@ function warningMessage(entry: Pick<TimeEntry, "gross_minutes" | "net_minutes" |
   return warnings.length ? ` ${warnings.join(" ")}` : "";
 }
 
+function assertTimeEntryDateAllowed(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new SafeActionError("Datum muss im Format JJJJ-MM-TT angegeben werden.");
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) {
+    throw new SafeActionError("Datum ist ungueltig.");
+  }
+
+  const maxDate = new Date();
+  maxDate.setUTCHours(0, 0, 0, 0);
+  maxDate.setUTCDate(maxDate.getUTCDate() + 7);
+
+  if (date > maxDate) {
+    throw new SafeActionError("Zeiteinträge dürfen maximal 7 Tage in der Zukunft liegen.");
+  }
+}
+
 async function resolveJobsite(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   jobId: string,
@@ -95,13 +114,15 @@ async function buildTimeEntryPayload({
   const breakMinutes = positiveInteger(formData, "break_minutes");
   const calculated = calculateTimeMinutes({ startTime, endTime, breakMinutes });
   const status = statusValue(formData.get("status"), canManage);
+  const date = requiredString(formData, "date");
+  assertTimeEntryDateAllowed(date);
 
   return {
     company_id: companyId,
     employee_id: employeeId,
     job_id: jobId,
     customer_id: optionalString(formData, "customer_id"),
-    date: requiredString(formData, "date"),
+    date,
     work_location: optionalString(formData, "work_location") ?? jobsite.name,
     work_address: optionalString(formData, "work_address") ?? jobsite.address,
     start_time: startTime,
@@ -340,6 +361,20 @@ export async function createTimeReportAction(formData: FormData) {
 
     await assertEmployee(supabase, employeeId, context.companyId);
     const { dateFrom, dateTo } = monthRange(year, month);
+    const { data: existingReport } = await supabase
+      .from("time_reports")
+      .select("id")
+      .eq("company_id", context.companyId)
+      .eq("employee_id", employeeId)
+      .eq("month", month)
+      .eq("year", year)
+      .neq("status", "archived")
+      .limit(1)
+      .maybeSingle();
+
+    if (existingReport?.id) {
+      throw new SafeActionError("Für diesen Mitarbeiter und Monat existiert bereits ein Stundenzettel.");
+    }
 
     const { data: entries, error: entriesError } = await supabase
       .from("time_entries")

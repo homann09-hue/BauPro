@@ -21,7 +21,7 @@ import { EmptyState } from "@/components/empty-state";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
-import { createCommercialDocumentFromOrderAction } from "@/lib/actions/commercial-document-actions";
+import { createInvoiceFromOrderAction } from "@/lib/actions/invoice-actions";
 import { createBringListFromOrderAction } from "@/lib/actions/bring-list-actions";
 import {
   createCustomerPortalEventAction,
@@ -306,14 +306,14 @@ function CommercialDocumentPanel({
             BauPro übernimmt Materialpositionen, Mengen und VK-Preise aus der Auftragsberechnung. Preise bleiben nur für Chef/Admin sichtbar.
           </p>
         </div>
-        <Link href="/angebote-rechnungen" className="btn-secondary">
+        <Link href="/invoices" className="btn-secondary">
           <ReceiptText className="h-4 w-4" aria-hidden="true" />
           Belege öffnen
         </Link>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr_260px]">
-        <form action={createCommercialDocumentFromOrderAction} className="rounded-lg border border-line bg-fog p-4">
+        <form action={createInvoiceFromOrderAction} className="rounded-lg border border-line bg-fog p-4">
           <input type="hidden" name="order_id" value={order.id} />
           <input type="hidden" name="document_type" value="quote" />
           <p className="font-black text-ink">Angebot vorbereiten</p>
@@ -328,7 +328,7 @@ function CommercialDocumentPanel({
           </button>
         </form>
 
-        <form action={createCommercialDocumentFromOrderAction} className="rounded-lg border border-line bg-fog p-4">
+        <form action={createInvoiceFromOrderAction} className="rounded-lg border border-line bg-fog p-4">
           <input type="hidden" name="order_id" value={order.id} />
           <input type="hidden" name="document_type" value="invoice" />
           <p className="font-black text-ink">Rechnung vorbereiten</p>

@@ -16,8 +16,30 @@ import { parseVoiceInput } from "@/lib/voice/voice-router";
 import type { ClassifiedBusinessInput } from "@/lib/ai/types";
 import type { ParsedMaterialEntity } from "@/lib/voice/entity-parser";
 
+const VOICE_RAW_TEXT_MAX_LENGTH = 5_000;
+const VOICE_SEARCH_TEXT_MAX_LENGTH = 100;
+
 function returnTo(formData: FormData) {
   return safeReturnPath(formData.get("return_to"), "/dashboard");
+}
+
+function boundedVoiceText(value: string) {
+  const text = value.trim();
+  if (text.length > VOICE_RAW_TEXT_MAX_LENGTH) {
+    throw new SafeActionError(`Diktat ist zu lang. Bitte auf maximal ${VOICE_RAW_TEXT_MAX_LENGTH} Zeichen kürzen.`);
+  }
+
+  return text;
+}
+
+function voiceSearchTerm(value: string | null) {
+  const cleaned = String(value ?? "")
+    .replace(/[%_\\,()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, VOICE_SEARCH_TEXT_MAX_LENGTH);
+
+  return cleaned || null;
 }
 
 function aiIntentToVoiceIntent(intent: ClassifiedBusinessInput["intent"]) {
@@ -63,7 +85,7 @@ async function parseConfirmedInput(formData: FormData, rawText: string) {
 async function findJobsite(companyId: string, targetName: string | null) {
   const supabase = await createSupabaseServerClient();
   if (!targetName) return null;
-  const searchTerm = targetName.replace(/[(),%]/g, " ").replace(/\s+/g, " ").trim();
+  const searchTerm = voiceSearchTerm(targetName);
   if (!searchTerm) return null;
 
   const { data } = await supabase
@@ -79,11 +101,14 @@ async function findJobsite(companyId: string, targetName: string | null) {
 
 async function findInventoryItem(companyId: string, material: ParsedMaterialEntity) {
   const supabase = await createSupabaseServerClient();
+  const searchTerm = voiceSearchTerm(material.name);
+  if (!searchTerm) return null;
+
   const { data } = await supabase
     .from("inventory_items")
     .select("id, name, unit, inventory_locations(id, name, location_type)")
     .eq("company_id", companyId)
-    .or(searchOrFilter(["name"], material.name))
+    .or(searchOrFilter(["name"], searchTerm))
     .order("stock", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -130,13 +155,18 @@ async function createVoiceNote({
 export async function confirmVoiceNoteAction(formData: FormData) {
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
-  const rawText = String(formData.get("raw_text") ?? "").trim();
   const target = returnTo(formData);
+  let rawText: string;
+
+  try {
+    rawText = boundedVoiceText(String(formData.get("raw_text") ?? ""));
+  } catch (error) {
+    redirect(`${target}?error=${toQuery(safeErrorMessage(error, "Diktat konnte nicht gelesen werden."))}`);
+  }
 
   if (!rawText) {
     redirect(`${target}?error=${toQuery("Kein Diktat vorhanden.")}`);
   }
-
   let redirectTo = target;
 
   try {

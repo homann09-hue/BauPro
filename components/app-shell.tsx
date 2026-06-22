@@ -47,8 +47,7 @@ const managerQuickLinks: NavItem[] = [
   { href: "/time-tracking/daily", label: "Tagesstunden", icon: "zeiten" },
   { href: "/time-tracking/reports", label: "Stundenzettel", icon: "stundenzettel" },
   { href: "/materials/live-offers", label: "Lieferantenpreise", icon: "lieferanten" },
-  { href: "/angebote-rechnungen", label: "Angebote/Rechnungen", icon: "angebote" },
-  { href: "/billing", label: "Tarif & Rechnung", icon: "angebote" },
+  { href: "/invoices", label: "Angebote/Rechnungen", icon: "angebote" },
   { href: "/ai/job-wizard", label: "Auftrag per KI", icon: "ki" },
   { href: "/privacy", label: "Datenschutz", icon: "datenschutz" },
   { href: "/hilfe", label: "Hilfe", icon: "datenschutz" }
@@ -85,7 +84,7 @@ const employeeQuickLinks: NavItem[] = [
 const permissionQuickLinks: Array<NavItem & { permission: PermissionKey }> = [
   { href: "/orders", label: "Aufträge", icon: "auftraege", permission: "orders.view" },
   { href: "/customers", label: "Kunden", icon: "kunden", permission: "customers.view" },
-  { href: "/angebote-rechnungen", label: "Angebote", icon: "angebote", permission: "quotes.view" },
+  { href: "/invoices", label: "Angebote", icon: "angebote", permission: "quotes.view" },
   { href: "/materials/inventory", label: "Lager", icon: "material", permission: "inventory.view" },
   { href: "/time-tracking/daily", label: "Tagesstunden", icon: "zeiten", permission: "time.team.view" },
   { href: "/fahrzeuge", label: "Fahrzeuge/Geräte", icon: "fahrzeuge", permission: "vehicles.manage" },

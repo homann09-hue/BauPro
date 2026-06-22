@@ -42,6 +42,7 @@ const routeTitles: Array<{ prefix: string; title: string; fallback: string }> = 
   { prefix: "/fahrzeuge", title: "Fahrzeuge und Geräte", fallback: "/dashboard" },
   { prefix: "/checklists", title: "Checklisten", fallback: "/dashboard" },
   { prefix: "/maengel", title: "Mängel", fallback: "/dashboard" },
+  { prefix: "/invoices", title: "Angebote & Rechnungen", fallback: "/dashboard" },
   { prefix: "/angebote-rechnungen", title: "Angebote", fallback: "/dashboard" },
   { prefix: "/ai/job-wizard", title: "KI-Auftrag", fallback: "/ai-assistant" },
   { prefix: "/ai-assistant", title: "KI-Assistent", fallback: "/dashboard" },

@@ -74,12 +74,12 @@ describe("Redis rate limiter", () => {
     process.env.UPSTASH_REDIS_REST_URL = "https://redis.example.test";
     process.env.UPSTASH_REDIS_REST_TOKEN = "test-token";
 
-    const { assertRateLimit } = await loadRateLimiter();
+    const { checkRateLimit } = await loadRateLimiter();
 
-    assertRateLimit("login:user@example.test", 2, 60_000);
-    assertRateLimit("login:user@example.test", 2, 60_000);
+    await checkRateLimit("login:user@example.test", 2, 60_000);
+    await checkRateLimit("login:user@example.test", 2, 60_000);
 
-    expect(() => assertRateLimit("login:user@example.test", 2, 60_000)).toThrow("Zu viele Anfragen");
+    await expect(checkRateLimit("login:user@example.test", 2, 60_000)).rejects.toThrow("Zu viele Anfragen");
     expect(redisInstances).toHaveLength(1);
   });
 
@@ -88,30 +88,63 @@ describe("Redis rate limiter", () => {
     process.env.UPSTASH_REDIS_REST_URL = "https://redis.example.test";
     process.env.UPSTASH_REDIS_REST_TOKEN = "test-token";
 
-    const { assertRateLimit } = await loadRateLimiter();
+    const { checkRateLimit } = await loadRateLimiter();
 
-    assertRateLimit("ai:company-a", 1, 60_000);
-    assertRateLimit("ai:company-b", 1, 60_000);
+    await checkRateLimit("ai:company-a", 1, 60_000);
+    await checkRateLimit("ai:company-b", 1, 60_000);
 
-    expect(() => assertRateLimit("ai:company-a", 1, 60_000)).toThrow("Zu viele Anfragen");
-    expect(() => assertRateLimit("ai:company-b", 1, 60_000)).toThrow("Zu viele Anfragen");
+    await expect(checkRateLimit("ai:company-a", 1, 60_000)).rejects.toThrow("Zu viele Anfragen");
+    await expect(checkRateLimit("ai:company-b", 1, 60_000)).rejects.toThrow("Zu viele Anfragen");
   });
 
-  it("laesst bei fehlenden Env-Variablen bewusst durch und warnt nur einmal", async () => {
+  it("akzeptiert Vercel-KV Env-Aliasse fuer Redis", async () => {
+    const { redisInstances } = mockUpstash();
     delete process.env.UPSTASH_REDIS_REST_URL;
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    process.env.KV_REST_API_URL = "https://kv.example.test";
+    process.env.KV_REST_API_TOKEN = "kv-token";
+
+    const { checkRateLimit } = await loadRateLimiter();
+
+    await checkRateLimit("kv-alias", 1, 60_000);
+
+    expect(redisInstances).toEqual([{ url: "https://kv.example.test", token: "kv-token" }]);
+  });
+
+  it("laesst bei fehlenden Env-Variablen in Entwicklung bewusst durch und warnt nur einmal", async () => {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    process.env.NODE_ENV = "development";
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-    const { assertRateLimit } = await loadRateLimiter();
+    const { checkRateLimit } = await loadRateLimiter();
 
-    expect(() => {
-      assertRateLimit("missing-redis", 1, 60_000);
-      assertRateLimit("missing-redis", 1, 60_000);
-      assertRateLimit("missing-redis", 1, 60_000);
-    }).not.toThrow();
+    await expect(checkRateLimit("missing-redis", 1, 60_000)).resolves.toBeUndefined();
+    await expect(checkRateLimit("missing-redis", 1, 60_000)).resolves.toBeUndefined();
+    await expect(checkRateLimit("missing-redis", 1, 60_000)).resolves.toBeUndefined();
 
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0]?.[0]).toContain("UPSTASH_REDIS_REST_URL");
     expect(warn.mock.calls[0]?.[0]).toContain("UPSTASH_REDIS_REST_TOKEN");
+  });
+
+  it("blockiert in Production hart, wenn Redis fehlt", async () => {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    process.env.NODE_ENV = "production";
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const { checkRateLimit } = await loadRateLimiter();
+
+    await expect(checkRateLimit("production-without-redis", 1, 60_000)).rejects.toThrow("Rate Limit konnte nicht geprüft werden");
+  });
+
+  it("enthaelt keinen synchronen Worker-Pfad mehr", async () => {
+    const source = await import("node:fs/promises").then((fs) => fs.readFile("lib/security/rate-limit.ts", "utf8"));
+
+    expect(source).not.toContain("node:worker_threads");
+    expect(source).not.toContain("SharedArrayBuffer");
+    expect(source).not.toContain("Atomics.wait");
+    expect(source).not.toContain("eval: true");
   });
 });

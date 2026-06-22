@@ -69,6 +69,9 @@ create table if not exists public.companies (
   trial_ends_at timestamptz,
   current_period_end timestamptz,
   session_timeout_minutes integer not null default 30 constraint companies_session_timeout_minutes_check check (session_timeout_minutes between 0 and 1440),
+  trade text not null default 'dachdecker',
+  logo_path text,
+  onboarding_completed_at timestamptz,
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -4473,6 +4476,8 @@ alter table public.companies add column if not exists tax_id text;
 alter table public.companies add column if not exists payment_terms text;
 alter table public.companies add column if not exists onboarding_completed_at timestamptz;
 alter table public.companies add column if not exists session_timeout_minutes integer not null default 30;
+alter table public.companies add column if not exists trade text not null default 'dachdecker';
+alter table public.companies add column if not exists logo_path text;
 alter table public.companies drop constraint if exists companies_session_timeout_minutes_check;
 alter table public.companies add constraint companies_session_timeout_minutes_check check (session_timeout_minutes between 0 and 1440);
 
@@ -4513,6 +4518,65 @@ create table if not exists public.privacy_requests (
 );
 
 create index if not exists companies_onboarding_idx on public.companies(onboarding_completed_at);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'company-logos',
+  'company-logos',
+  false,
+  1048576,
+  array['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
+)
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "company members read company logos" on storage.objects;
+create policy "company members read company logos"
+on storage.objects for select
+to authenticated
+using (
+  bucket_id = 'company-logos'
+  and (storage.foldername(name))[1] = public.current_company_id()::text
+);
+
+drop policy if exists "managers upload company logos" on storage.objects;
+create policy "managers upload company logos"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'company-logos'
+  and (storage.foldername(name))[1] = public.current_company_id()::text
+  and (storage.foldername(name))[2] = 'logos'
+  and public.can_manage_company()
+);
+
+drop policy if exists "managers update company logos" on storage.objects;
+create policy "managers update company logos"
+on storage.objects for update
+to authenticated
+using (
+  bucket_id = 'company-logos'
+  and (storage.foldername(name))[1] = public.current_company_id()::text
+  and public.can_manage_company()
+)
+with check (
+  bucket_id = 'company-logos'
+  and (storage.foldername(name))[1] = public.current_company_id()::text
+  and public.can_manage_company()
+);
+
+drop policy if exists "managers delete company logos" on storage.objects;
+create policy "managers delete company logos"
+on storage.objects for delete
+to authenticated
+using (
+  bucket_id = 'company-logos'
+  and (storage.foldername(name))[1] = public.current_company_id()::text
+  and public.can_manage_company()
+);
+
 create index if not exists customers_archived_idx on public.customers(company_id, archived_at);
 create index if not exists jobsites_archived_idx on public.jobsites(company_id, archived_at);
 create index if not exists orders_archived_idx on public.orders(company_id, archived_at);
@@ -9025,5 +9089,502 @@ comment on column public.inventory_items.sales_price is
   'VK-Preis: darf niemals an Mitarbeiter-, Vorarbeiter- oder Kundenportal-Responses ausgeliefert werden.';
 comment on column public.inventory_items.markup_percent is
   'Marge/Aufschlag: nur fuer Chef/Admin, nicht fuer Mitarbeiter/Vorarbeiter/Kundenportal.';
+
+create table if not exists public.invoices (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  customer_id uuid not null references public.customers(id) on delete restrict,
+  order_id uuid references public.orders(id) on delete set null,
+  type text not null check (type in ('angebot', 'rechnung', 'gutschrift')),
+  status text not null default 'entwurf' check (status in ('entwurf', 'gesendet', 'bezahlt', 'storniert')),
+  invoice_number text not null,
+  issue_date date not null default current_date,
+  due_date date,
+  subtotal_eur numeric(12, 2) not null default 0,
+  tax_rate_percent numeric(7, 2) not null default 19 check (tax_rate_percent in (0, 7, 19)),
+  tax_eur numeric(12, 2) not null default 0,
+  total_eur numeric(12, 2) not null default 0,
+  notes text,
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  archived_at timestamptz,
+  unique (company_id, invoice_number)
+);
+
+create table if not exists public.invoice_items (
+  id uuid primary key default gen_random_uuid(),
+  invoice_id uuid not null references public.invoices(id) on delete cascade,
+  description text not null,
+  quantity numeric(12, 2) not null default 1 check (quantity > 0),
+  unit text not null default 'Stueck',
+  unit_price_eur numeric(12, 2) not null default 0 check (unit_price_eur >= 0),
+  total_eur numeric(12, 2) generated always as (
+    round(coalesce(quantity, 0) * coalesce(unit_price_eur, 0), 2)
+  ) stored,
+  position integer not null default 1,
+  created_at timestamptz not null default now(),
+  archived_at timestamptz
+);
+
+create index if not exists invoices_company_type_status_idx
+  on public.invoices(company_id, type, status, issue_date desc)
+  where archived_at is null;
+create index if not exists invoices_company_customer_idx
+  on public.invoices(company_id, customer_id, created_at desc)
+  where archived_at is null;
+create index if not exists invoices_company_order_idx
+  on public.invoices(company_id, order_id, created_at desc)
+  where archived_at is null;
+create index if not exists invoice_items_invoice_position_idx
+  on public.invoice_items(invoice_id, position)
+  where archived_at is null;
+
+alter table public.invoices enable row level security;
+alter table public.invoice_items enable row level security;
+alter table public.invoices force row level security;
+alter table public.invoice_items force row level security;
+
+grant select, insert, update on public.invoices to authenticated;
+grant select, insert, update, delete on public.invoice_items to authenticated;
+
+drop policy if exists "managers read invoices" on public.invoices;
+create policy "managers read invoices"
+on public.invoices for select
+to authenticated
+using (company_id = public.current_company_id() and public.can_manage_company());
+
+drop policy if exists "creators read own invoices" on public.invoices;
+create policy "creators read own invoices"
+on public.invoices for select
+to authenticated
+using (company_id = public.current_company_id() and created_by = auth.uid());
+
+drop policy if exists "managers insert invoices" on public.invoices;
+create policy "managers insert invoices"
+on public.invoices for insert
+to authenticated
+with check (company_id = public.current_company_id() and public.can_manage_company());
+
+drop policy if exists "managers update invoices" on public.invoices;
+create policy "managers update invoices"
+on public.invoices for update
+to authenticated
+using (company_id = public.current_company_id() and public.can_manage_company())
+with check (company_id = public.current_company_id() and public.can_manage_company());
+
+drop policy if exists "managers read invoice items" on public.invoice_items;
+create policy "managers read invoice items"
+on public.invoice_items for select
+to authenticated
+using (
+  exists (
+    select 1 from public.invoices i
+    where i.id = invoice_items.invoice_id
+      and i.company_id = public.current_company_id()
+      and public.can_manage_company()
+  )
+);
+
+drop policy if exists "creators read own invoice items" on public.invoice_items;
+create policy "creators read own invoice items"
+on public.invoice_items for select
+to authenticated
+using (
+  exists (
+    select 1 from public.invoices i
+    where i.id = invoice_items.invoice_id
+      and i.company_id = public.current_company_id()
+      and i.created_by = auth.uid()
+  )
+);
+
+drop policy if exists "managers insert invoice items" on public.invoice_items;
+create policy "managers insert invoice items"
+on public.invoice_items for insert
+to authenticated
+with check (
+  exists (
+    select 1 from public.invoices i
+    where i.id = invoice_items.invoice_id
+      and i.company_id = public.current_company_id()
+      and public.can_manage_company()
+  )
+);
+
+drop policy if exists "managers update invoice items" on public.invoice_items;
+create policy "managers update invoice items"
+on public.invoice_items for update
+to authenticated
+using (
+  exists (
+    select 1 from public.invoices i
+    where i.id = invoice_items.invoice_id
+      and i.company_id = public.current_company_id()
+      and public.can_manage_company()
+  )
+)
+with check (
+  exists (
+    select 1 from public.invoices i
+    where i.id = invoice_items.invoice_id
+      and i.company_id = public.current_company_id()
+      and public.can_manage_company()
+  )
+);
+
+drop policy if exists "managers delete invoice items" on public.invoice_items;
+create policy "managers delete invoice items"
+on public.invoice_items for delete
+to authenticated
+using (
+  exists (
+    select 1 from public.invoices i
+    where i.id = invoice_items.invoice_id
+      and i.company_id = public.current_company_id()
+      and public.can_manage_company()
+  )
+);
+
+drop trigger if exists set_invoices_updated_at on public.invoices;
+create trigger set_invoices_updated_at
+before update on public.invoices
+for each row execute function public.set_updated_at();
+
+create or replace function public.generate_invoice_number(p_company_id uuid, p_type text default 'rechnung')
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_year text := to_char(current_date, 'YYYY');
+  prefix text;
+  last_number int;
+begin
+  if p_type = 'angebot' then
+    prefix := 'AN-' || current_year || '-';
+  elsif p_type = 'gutschrift' then
+    prefix := 'GS-' || current_year || '-';
+  else
+    prefix := 'RE-' || current_year || '-';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext(p_company_id::text || ':' || prefix));
+
+  select coalesce(max(nullif(regexp_replace(invoice_number, '^.*-', ''), '')::int), 0)
+  into last_number
+  from public.invoices
+  where company_id = p_company_id
+    and invoice_number like prefix || '%';
+
+  return prefix || lpad((last_number + 1)::text, 4, '0');
+end;
+$$;
+
+create or replace function public.recalculate_invoice_totals(p_invoice_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  subtotal numeric(12, 2);
+  tax_rate numeric(7, 2);
+begin
+  select coalesce(sum(total_eur), 0)
+  into subtotal
+  from public.invoice_items
+  where invoice_id = p_invoice_id
+    and archived_at is null;
+
+  select tax_rate_percent
+  into tax_rate
+  from public.invoices
+  where id = p_invoice_id;
+
+  update public.invoices
+  set
+    subtotal_eur = subtotal,
+    tax_eur = round(subtotal * coalesce(tax_rate, 19) / 100, 2),
+    total_eur = round(subtotal * (1 + coalesce(tax_rate, 19) / 100), 2)
+  where id = p_invoice_id;
+end;
+$$;
+
+create or replace function public.recalculate_invoice_totals_trigger()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform public.recalculate_invoice_totals(coalesce(new.invoice_id, old.invoice_id));
+  return coalesce(new, old);
+end;
+$$;
+
+drop trigger if exists recalculate_invoice_totals_on_items on public.invoice_items;
+create trigger recalculate_invoice_totals_on_items
+after insert or update or delete on public.invoice_items
+for each row execute function public.recalculate_invoice_totals_trigger();
+
+grant execute on function public.generate_invoice_number(uuid, text) to authenticated;
+grant execute on function public.recalculate_invoice_totals(uuid) to authenticated;
+
+create or replace function public.insert_invoice_items_from_json(p_invoice_id uuid, p_items jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if jsonb_typeof(p_items) is distinct from 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'Bitte mindestens eine Position erfassen.';
+  end if;
+
+  if exists (
+    select 1
+    from jsonb_array_elements(p_items) as parsed(item)
+    where btrim(coalesce(item->>'description', '')) = ''
+      or coalesce(nullif(item->>'quantity', '')::numeric, 0) <= 0
+      or coalesce(nullif(item->>'unit_price_eur', '')::numeric, 0) < 0
+  ) then
+    raise exception 'Belegpositionen sind ungueltig.';
+  end if;
+
+  insert into public.invoice_items (
+    invoice_id,
+    description,
+    quantity,
+    unit,
+    unit_price_eur,
+    position
+  )
+  select
+    p_invoice_id,
+    left(btrim(item->>'description'), 1000),
+    (item->>'quantity')::numeric,
+    left(coalesce(nullif(btrim(item->>'unit'), ''), 'Stueck'), 40),
+    coalesce(nullif(item->>'unit_price_eur', '')::numeric, 0),
+    coalesce(nullif(item->>'position', '')::int, ordinality::int)
+  from jsonb_array_elements(p_items) with ordinality as parsed(item, ordinality);
+end;
+$$;
+
+create or replace function public.create_invoice_with_items(
+  p_company_id uuid,
+  p_customer_id uuid,
+  p_order_id uuid,
+  p_type text,
+  p_issue_date date,
+  p_due_date date,
+  p_tax_rate_percent numeric,
+  p_notes text,
+  p_created_by uuid,
+  p_items jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  created_invoice_id uuid;
+  invoice_number text;
+begin
+  if p_company_id is distinct from public.current_company_id() or not public.can_manage_company() then
+    raise exception 'Keine Berechtigung fuer diesen Beleg.';
+  end if;
+
+  if p_type not in ('angebot', 'rechnung', 'gutschrift') then
+    raise exception 'Ungueltiger Belegtyp.';
+  end if;
+
+  if p_tax_rate_percent not in (0, 7, 19) then
+    raise exception 'Ungueltiger MwSt.-Satz.';
+  end if;
+
+  if not exists (
+    select 1 from public.customers
+    where id = p_customer_id
+      and company_id = p_company_id
+      and archived_at is null
+  ) then
+    raise exception 'Kunde wurde nicht gefunden.';
+  end if;
+
+  if p_order_id is not null and not exists (
+    select 1 from public.orders
+    where id = p_order_id
+      and company_id = p_company_id
+      and customer_id = p_customer_id
+      and archived_at is null
+  ) then
+    raise exception 'Auftrag wurde nicht gefunden.';
+  end if;
+
+  invoice_number := public.generate_invoice_number(p_company_id, p_type);
+
+  insert into public.invoices (
+    company_id,
+    customer_id,
+    order_id,
+    type,
+    status,
+    invoice_number,
+    issue_date,
+    due_date,
+    tax_rate_percent,
+    notes,
+    created_by
+  )
+  values (
+    p_company_id,
+    p_customer_id,
+    p_order_id,
+    p_type,
+    'entwurf',
+    invoice_number,
+    p_issue_date,
+    p_due_date,
+    p_tax_rate_percent,
+    nullif(btrim(coalesce(p_notes, '')), ''),
+    p_created_by
+  )
+  returning id into created_invoice_id;
+
+  perform public.insert_invoice_items_from_json(created_invoice_id, p_items);
+  perform public.recalculate_invoice_totals(created_invoice_id);
+
+  return created_invoice_id;
+end;
+$$;
+
+create or replace function public.update_invoice_with_items(
+  p_invoice_id uuid,
+  p_company_id uuid,
+  p_customer_id uuid,
+  p_order_id uuid,
+  p_type text,
+  p_issue_date date,
+  p_due_date date,
+  p_tax_rate_percent numeric,
+  p_notes text,
+  p_items jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_status text;
+begin
+  if p_company_id is distinct from public.current_company_id() or not public.can_manage_company() then
+    raise exception 'Keine Berechtigung fuer diesen Beleg.';
+  end if;
+
+  select status
+  into current_status
+  from public.invoices
+  where id = p_invoice_id
+    and company_id = p_company_id
+    and archived_at is null
+  for update;
+
+  if current_status is null then
+    raise exception 'Beleg wurde nicht gefunden.';
+  end if;
+
+  if current_status <> 'entwurf' then
+    raise exception 'Nur Entwuerfe koennen bearbeitet werden.';
+  end if;
+
+  if p_type not in ('angebot', 'rechnung', 'gutschrift') then
+    raise exception 'Ungueltiger Belegtyp.';
+  end if;
+
+  if p_tax_rate_percent not in (0, 7, 19) then
+    raise exception 'Ungueltiger MwSt.-Satz.';
+  end if;
+
+  if not exists (
+    select 1 from public.customers
+    where id = p_customer_id
+      and company_id = p_company_id
+      and archived_at is null
+  ) then
+    raise exception 'Kunde wurde nicht gefunden.';
+  end if;
+
+  if p_order_id is not null and not exists (
+    select 1 from public.orders
+    where id = p_order_id
+      and company_id = p_company_id
+      and customer_id = p_customer_id
+      and archived_at is null
+  ) then
+    raise exception 'Auftrag wurde nicht gefunden.';
+  end if;
+
+  update public.invoices
+  set
+    customer_id = p_customer_id,
+    order_id = p_order_id,
+    type = p_type,
+    issue_date = p_issue_date,
+    due_date = p_due_date,
+    tax_rate_percent = p_tax_rate_percent,
+    notes = nullif(btrim(coalesce(p_notes, '')), '')
+  where id = p_invoice_id
+    and company_id = p_company_id;
+
+  update public.invoice_items
+  set archived_at = now()
+  where invoice_id = p_invoice_id
+    and archived_at is null;
+
+  perform public.insert_invoice_items_from_json(p_invoice_id, p_items);
+  perform public.recalculate_invoice_totals(p_invoice_id);
+
+  return p_invoice_id;
+end;
+$$;
+
+create or replace function public.get_invoice_stats(p_company_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select case
+    when p_company_id = public.current_company_id() and public.can_manage_company() then (
+      select jsonb_build_object(
+        'open_count', count(*) filter (where status in ('entwurf', 'gesendet')),
+        'paid_count', count(*) filter (where status = 'bezahlt'),
+        'total_gross', coalesce(sum(total_eur), 0)
+      )
+      from public.invoices
+      where company_id = p_company_id
+        and archived_at is null
+    )
+    else jsonb_build_object('open_count', 0, 'paid_count', 0, 'total_gross', 0)
+  end
+$$;
+
+revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from public;
+grant execute on function public.create_invoice_with_items(uuid, uuid, uuid, text, date, date, numeric, text, uuid, jsonb) to authenticated;
+grant execute on function public.update_invoice_with_items(uuid, uuid, uuid, uuid, text, date, date, numeric, text, jsonb) to authenticated;
+grant execute on function public.get_invoice_stats(uuid) to authenticated;
+
+create unique index if not exists suppliers_company_lower_name_unique_idx
+on public.suppliers (company_id, lower(trim(name)))
+where active is true;
+
+create unique index if not exists time_reports_company_employee_period_unique_idx
+on public.time_reports (company_id, coalesce(employee_id, '00000000-0000-0000-0000-000000000000'::uuid), year, month)
+where status <> 'archived';
 
 select pg_notify('pgrst', 'reload schema');

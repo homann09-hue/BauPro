@@ -107,13 +107,11 @@ async function assertCompanyLocation(
   return Boolean(data);
 }
 
-async function findOrCreateSupplier(
+async function findSupplierIdByName(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   companyId: string,
-  supplierName: string | null
+  supplierName: string
 ) {
-  if (!supplierName) return null;
-
   const { data: existing } = await supabase
     .from("suppliers")
     .select("id")
@@ -122,9 +120,20 @@ async function findOrCreateSupplier(
     .limit(1)
     .maybeSingle();
 
-  if (existing?.id) return existing.id as string;
+  return (existing?.id as string | undefined) ?? null;
+}
 
-  const { data: inserted } = await supabase
+async function findOrCreateSupplier(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  companyId: string,
+  supplierName: string | null
+) {
+  if (!supplierName) return null;
+
+  const existingId = await findSupplierIdByName(supabase, companyId, supplierName);
+  if (existingId) return existingId;
+
+  const { data: inserted, error: insertError } = await supabase
     .from("suppliers")
     .insert({
       company_id: companyId,
@@ -133,7 +142,15 @@ async function findOrCreateSupplier(
     .select("id")
     .single();
 
-  return (inserted?.id as string | undefined) ?? null;
+  if (inserted?.id) return inserted.id as string;
+
+  // Bei paralleler Anlage kann die DB-Unique-Constraint gewinnen. Danach den
+  // jetzt vorhandenen Lieferanten erneut laden statt die Verknuepfung zu verlieren.
+  if (insertError) {
+    return findSupplierIdByName(supabase, companyId, supplierName);
+  }
+
+  return null;
 }
 
 export async function addCatalogItemToInventoryAction(formData: FormData) {

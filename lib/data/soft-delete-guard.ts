@@ -5,6 +5,8 @@ export const PROTECTED_TABLES: string[] = [
   "orders",
   "order_measurement_items",
   "commercial_documents",
+  "invoices",
+  "invoice_items",
   "job_dimensions",
   "job_material_requirements",
   "reports",

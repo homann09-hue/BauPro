@@ -39,8 +39,9 @@ describe("predictive prefetching", () => {
       ])
     );
     expect(prefetchScopesForRole("chef", true)).toEqual(
-      expect.arrayContaining(["dashboard", "jobsites", "tasks", "planning", "team", "materials", "bring-lists", "time", "weather"])
+      expect.arrayContaining(["dashboard", "jobsites", "tasks", "materials"])
     );
+    expect(prefetchScopesForRole("chef", true)).not.toContain("weather");
   });
 
   it("keeps employee and customer prefetch conservative", () => {
@@ -191,17 +192,19 @@ describe("predictive prefetching", () => {
   it("keeps operational list pages tenant- and assignment-scoped for non-managers", () => {
     const jobsitesPage = source("app/(app)/baustellen/page.tsx");
     const calendarPage = source("app/(app)/calendar/page.tsx");
+    const calendarData = source("lib/data/calendar-events.ts");
     const bringListsPage = source("app/(app)/bring-lists/page.tsx");
     const timePage = source("app/(app)/time-tracking/page.tsx");
 
-    for (const code of [jobsitesPage, calendarPage, bringListsPage, timePage]) {
+    for (const code of [jobsitesPage, calendarData, bringListsPage, timePage]) {
       expect(code).toContain('.eq("company_id", context.companyId)');
     }
 
     expect(jobsitesPage).toContain('.contains("assigned_employee_ids", [context.userId])');
     expect(jobsitesPage).toContain("activeCountQuery = activeCountQuery.contains");
-    expect(calendarPage).toContain('.contains("assigned_employee_ids", [context.userId])');
-    expect(calendarPage).toContain('.eq("employee_id", context.userId)');
+    expect(calendarPage).toContain("loadCalendarEvents");
+    expect(calendarData).toContain('.contains("assigned_employee_ids", [context.userId])');
+    expect(calendarData).toContain('.eq("employee_id", context.userId)');
     expect(bringListsPage).toContain(`.or(\`assigned_to.eq.\${context.userId},created_by.eq.\${context.userId}\`)`);
     expect(timePage).toContain('.eq("employee_id", context.userId)');
   });

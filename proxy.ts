@@ -57,6 +57,7 @@ export async function proxy(request: NextRequest) {
   // Next.js liest den Nonce aus dem CSP-Request-Header und versieht eigene Runtime-Skripte damit.
   // App-eigene Inline-Skripte muessen zusaetzlich den `x-nonce` Header aus `headers()` verwenden.
   requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
   requestHeaders.set("Content-Security-Policy", csp);
 
   const response = await updateSession(request, requestHeaders);

@@ -10,6 +10,12 @@ import {
 } from "@/lib/performance/prefetch";
 import type { Role } from "@/types/app";
 
+const PREFETCH_ROUTE_LIMIT = 6;
+const PREFETCH_ROUTE_LIMIT_REDUCED = 3;
+const PREFETCH_SCOPE_LIMIT = 4;
+const PREFETCH_SCOPE_LIMIT_REDUCED = 2;
+const PREFETCH_SCOPE_GAP_MS = 450;
+
 function scheduleIdle(work: () => void) {
   if (typeof window === "undefined") return;
 
@@ -33,6 +39,10 @@ function markPrefetched(key: string) {
   } catch {
     // Browsers can block storage in strict privacy modes. Prefetching remains optional.
   }
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function shouldReduceBackgroundWork() {
@@ -60,7 +70,7 @@ async function prefetchDataScope(scope: string) {
   const response = await fetch(`/api/prefetch/route-data?scope=${encodeURIComponent(scope)}`, {
     method: "GET",
     credentials: "same-origin",
-    cache: "force-cache",
+    cache: "no-store",
     priority: "low" as RequestPriority
   }).catch(() => null);
 
@@ -70,9 +80,10 @@ async function prefetchDataScope(scope: string) {
 }
 
 async function prefetchDataScopes(scopes: readonly string[]) {
-  const scopesToWarm = shouldReduceBackgroundWork() ? scopes.slice(0, 3) : scopes;
+  const scopesToWarm = shouldReduceBackgroundWork() ? scopes.slice(0, PREFETCH_SCOPE_LIMIT_REDUCED) : scopes.slice(0, PREFETCH_SCOPE_LIMIT);
   for (const scope of scopesToWarm) {
     await prefetchDataScope(scope);
+    await wait(PREFETCH_SCOPE_GAP_MS);
   }
 }
 
@@ -85,7 +96,8 @@ export function PredictivePrefetch({ role, canManage }: { role: Role; canManage:
     const scopes = prefetchScopesForRole(role, canManage);
 
     scheduleIdle(() => {
-      for (const route of routes.slice(0, shouldReduceBackgroundWork() ? 5 : 12)) {
+      const routeLimit = shouldReduceBackgroundWork() ? PREFETCH_ROUTE_LIMIT_REDUCED : PREFETCH_ROUTE_LIMIT;
+      for (const route of routes.slice(0, routeLimit)) {
         const key = `baupro-prefetch:route:${route}`;
         if (recentlyPrefetched(key)) continue;
         markPrefetched(key);

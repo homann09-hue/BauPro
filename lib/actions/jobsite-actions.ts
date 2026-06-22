@@ -4,12 +4,18 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireManager } from "@/lib/auth";
 import { requiredFormUuid } from "@/lib/security/form-data";
+import { safeReturnPath } from "@/lib/security/redirects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formIds, optionalDate, optionalString, requiredString } from "@/lib/utils";
 import type { JobsiteStatus } from "@/types/app";
 
 function toQuery(value: string) {
   return encodeURIComponent(value);
+}
+
+function redirectWithMessage(path: string, key: "error" | "success", message: string): never {
+  const separator = path.includes("?") ? "&" : "?";
+  redirect(`${path}${separator}${key}=${toQuery(message)}`);
 }
 
 function statusValue(value: FormDataEntryValue | null): JobsiteStatus {
@@ -51,10 +57,11 @@ async function getAssignableEmployeeIds(
 export async function createJobsiteAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
+  const returnTo = safeReturnPath(formData.get("return_to"), "/baustellen");
   const assignedEmployees = await getAssignableEmployeeIds(supabase, formData, context.companyId);
 
   if (assignedEmployees.error) {
-    redirect(`/baustellen/neu?error=${toQuery(assignedEmployees.error)}`);
+    redirectWithMessage(returnTo === "/baustellen" ? "/baustellen/neu" : returnTo, "error", assignedEmployees.error);
   }
 
   const { data, error } = await supabase
@@ -74,11 +81,12 @@ export async function createJobsiteAction(formData: FormData) {
     .maybeSingle();
 
   if (error || !data) {
-    redirect(`/baustellen/neu?error=${toQuery("Baustelle konnte nicht angelegt werden.")}`);
+    redirectWithMessage(returnTo === "/baustellen" ? "/baustellen/neu" : returnTo, "error", "Baustelle konnte nicht angelegt werden.");
   }
 
   revalidatePath("/baustellen");
-  redirect(`/baustellen?success=${toQuery("Baustelle wurde angelegt.")}`);
+  revalidatePath("/onboarding");
+  redirectWithMessage(returnTo, "success", "Baustelle wurde angelegt.");
 }
 
 export async function updateJobsiteAction(formData: FormData) {

@@ -20,7 +20,7 @@ import {
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { optionalFormString, requiredFormString, requiredFormUuid } from "@/lib/security/form-data";
 import { publicAppOrigin } from "@/lib/security/origin";
-import { assertRateLimit } from "@/lib/security/rate-limit";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { sanitizeUploadFileName, validateCustomerDocument } from "@/lib/security/uploads";
 import { validateSignatureDataUrl } from "@/lib/signatures/signature";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
@@ -125,7 +125,7 @@ export async function createCustomerPortalLinkAction(formData: FormData) {
 
   try {
     const { context, supabase, order } = await loadManagedOrder(orderId);
-    assertRateLimit(`customer-portal-link:${context.companyId}:${context.userId}`, 10, 60_000);
+    await checkRateLimit(`customer-portal-link:${context.companyId}:${context.userId}`, 10, 60_000);
 
     const token = createCustomerPortalToken();
     const label = optionalFormString(formData, "label") ?? `Kundenlink ${order.order_number}`;
@@ -361,7 +361,7 @@ export async function createCustomerPortalEventAction(formData: FormData) {
 
   try {
     const { context, supabase, order } = await loadManagedOrder(orderId);
-    assertRateLimit(`customer-portal-event:${context.companyId}:${context.userId}`, 30, 60_000);
+    await checkRateLimit(`customer-portal-event:${context.companyId}:${context.userId}`, 30, 60_000);
     const title = requiredFormString(formData, "title", "Titel");
     const body = optionalFormString(formData, "body");
     const eventType = customerPortalEventType(optionalFormString(formData, "event_type"));
@@ -408,7 +408,7 @@ export async function uploadCustomerDocumentAction(formData: FormData) {
 
   try {
     const { context, supabase, order } = await loadManagedOrder(orderId);
-    assertRateLimit(`customer-document-upload:${context.companyId}:${context.userId}`, 12, 60_000);
+    await checkRateLimit(`customer-document-upload:${context.companyId}:${context.userId}`, 12, 60_000);
 
     const file = formData.get("document");
     if (!(file instanceof File) || file.size <= 0) throw new SafeActionError("Bitte ein Dokument auswaehlen.");
@@ -484,7 +484,7 @@ export async function signWorkOrderFromPortalAction(formData: FormData) {
   let result: { success?: string; error?: string };
 
   try {
-    assertRateLimit(`portal-sign:${hashCustomerPortalToken(token)}`, 8, 60_000);
+    await checkRateLimit(`portal-sign:${hashCustomerPortalToken(token)}`, 8, 60_000);
     const decisionValue = workOrderDecision(decision);
     const signerName = boundedText(requiredFormString(formData, "signer_name", "Name"), "Name", 120) as string;
     const signatureDataUrl = validateSignatureDataUrl(optionalFormString(formData, "signature_data_url"), {
@@ -637,7 +637,7 @@ export async function sendCustomerPortalMessageAction(formData: FormData) {
   let result: { success?: string; error?: string };
 
   try {
-    assertRateLimit(`portal-message:${hashCustomerPortalToken(token)}`, 6, 60_000);
+    await checkRateLimit(`portal-message:${hashCustomerPortalToken(token)}`, 6, 60_000);
     requiredFormString(formData, "privacy_ack", "Datenschutzhinweis");
     const senderName = boundedText(requiredFormString(formData, "sender_name", "Name"), "Name", 120) as string;
     const senderEmail = boundedEmail(optionalFormString(formData, "sender_email"));

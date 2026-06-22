@@ -41,7 +41,7 @@ describe("customer portal jobsite access", () => {
     const actions = read("lib/actions/customer-portal-actions.ts");
 
     expect(actions).toContain("sendCustomerPortalMessageAction");
-    expect(actions).toContain('assertRateLimit(`portal-message:${hashCustomerPortalToken(token)}`');
+    expect(actions).toContain('await checkRateLimit(`portal-message:${hashCustomerPortalToken(token)}`');
     expect(actions).toContain('.from("customer_portal_tokens")');
     expect(actions).toContain('.eq("token_hash", tokenHash)');
     expect(actions).toContain('.from("customer_portal_messages")');
