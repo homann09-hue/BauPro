@@ -17,7 +17,7 @@ type MaybePromise<T> = T | Promise<T>;
 
 const RATE_LIMIT_TIMEOUT_MS = 4_000;
 const RATE_LIMIT_ERROR = "Zu viele Anfragen in kurzer Zeit. Bitte versuche es gleich erneut.";
-const RATE_LIMIT_UNAVAILABLE_ERROR = "Rate Limit konnte nicht geprueft werden. Bitte versuche es gleich erneut.";
+const RATE_LIMIT_UNAVAILABLE_ERROR = "Rate Limit konnte nicht geprüft werden. Bitte versuche es gleich erneut.";
 
 const limiters = new Map<string, Ratelimit>();
 let redisClient: Redis | null = null;
@@ -38,7 +38,7 @@ export function getRateLimitRedisConfig(): RedisConfig | null {
 function warnMissingRedisOnce() {
   if (missingRedisWarningShown) return;
   missingRedisWarningShown = true;
-  console.warn("Rate Limiting laeuft ohne Redis. UPSTASH_REDIS_REST_URL oder UPSTASH_REDIS_REST_TOKEN fehlt.");
+  console.warn("Rate Limiting läuft ohne Redis. UPSTASH_REDIS_REST_URL oder UPSTASH_REDIS_REST_TOKEN fehlt.");
 }
 
 function duration(windowMs: number): Duration {

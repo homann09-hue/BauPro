@@ -41,7 +41,8 @@ describe("Demo-Modus", () => {
     expect(authActions).toContain("demoStartRateLimitKey");
     expect(authActions).toContain('process.env.NODE_ENV === "production"');
     expect(authActions).toContain("assertRateLimit(demoStartRateLimitKey");
-    expect(authActions).not.toContain("Demo wurde zu oft gestartet");
+    expect(authActions).toContain("Demo wurde zu oft gestartet");
+    expect(authActions).not.toContain("Demo-Rate-Limit wurde fuer diesen Start uebersprungen");
   });
 
   it("keeps the tour reachable and prefetched for managers", () => {

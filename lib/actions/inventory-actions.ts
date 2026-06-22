@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAppContext, requireManager, type AppContext } from "@/lib/auth";
+import { requireAppContext, requireManager, requirePermission, type AppContext } from "@/lib/auth";
 import { revalidateDashboardCache } from "@/lib/data/dashboard";
 import { searchOrFilter } from "@/lib/data/shared";
 import { materialCatalogItemSelect } from "@/lib/data/selects";
@@ -137,7 +137,7 @@ async function findOrCreateSupplier(
 }
 
 export async function addCatalogItemToInventoryAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("inventory.edit", "/materials/inventory");
   const supabase = await createSupabaseServerClient();
   await ensureDefaultInventoryLocations(supabase, context.companyId);
 
@@ -242,7 +242,7 @@ export async function addCatalogItemToInventoryAction(formData: FormData) {
 }
 
 export async function createCustomInventoryItemAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("inventory.edit", "/materials/inventory");
   const supabase = await createSupabaseServerClient();
   await ensureDefaultInventoryLocations(supabase, context.companyId);
 
@@ -282,7 +282,7 @@ export async function createCustomInventoryItemAction(formData: FormData) {
 }
 
 export async function adjustInventoryStockAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("inventory.edit", "/materials/inventory");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
 
@@ -308,7 +308,7 @@ export async function adjustInventoryStockAction(formData: FormData) {
 }
 
 export async function transferInventoryAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("inventory.edit", "/materials/inventory");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
 
@@ -424,7 +424,7 @@ export async function confirmMaterialUsageReportAction(formData: FormData) {
 }
 
 export async function reserveMaterialForJobsiteAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("inventory.edit", "/materials/inventory");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
   let jobsiteId: string | null = null;
@@ -461,7 +461,7 @@ export async function reserveMaterialForJobsiteAction(formData: FormData) {
 }
 
 export async function createInventoryLocationAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/materials/locations");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/materials/locations");
 
@@ -481,7 +481,7 @@ export async function createInventoryLocationAction(formData: FormData) {
 }
 
 export async function updateInventoryLocationAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/materials/locations");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/materials/locations");
   const id = requiredString(formData, "location_id");
@@ -506,7 +506,7 @@ export async function updateInventoryLocationAction(formData: FormData) {
 }
 
 export async function deactivateInventoryLocationAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/materials/locations");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/materials/locations");
   const id = requiredString(formData, "location_id");

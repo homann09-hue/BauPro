@@ -89,7 +89,7 @@ export default async function OnboardingPage({
     <>
       <PageHeader
         title="Startassistent"
-        description="In fuenf Minuten arbeitsfaehig: Firma einrichten, Team importieren, Baustellen anlegen und erste Demo-Abläufe verstehen."
+        description="In fünf Minuten arbeitsfähig: Firma einrichten, Team importieren, Baustellen anlegen und erste Demo-Abläufe verstehen."
       />
       <MessageBox error={error || queryError} success={success} />
 
@@ -104,7 +104,7 @@ export default async function OnboardingPage({
               Ein Chef soll BauPro ohne Schulung starten können.
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-white/70 sm:text-base">
-              Der Assistent fuehrt durch die wichtigsten ersten Schritte. Danach sind Dashboard, Team, Baustellen, Materialwarnungen
+              Der Assistent führt durch die wichtigsten ersten Schritte. Danach sind Dashboard, Team, Baustellen, Materialwarnungen
               und Tagesberichte sofort greifbar.
             </p>
             <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -122,7 +122,7 @@ export default async function OnboardingPage({
             </p>
             <div className="mt-5 grid gap-2">
               <Link href="/warum-baupro" className="btn-secondary border-white/20 bg-white/10 text-white hover:bg-white/15">
-                Warum BauPro? erklaeren
+                Warum BauPro? erklären
               </Link>
               <Link href="/dashboard" className="btn-primary bg-primary text-white hover:bg-primary-dark">
                 Zum Dashboard
@@ -192,14 +192,14 @@ export default async function OnboardingPage({
             step="3"
             icon={FileSpreadsheet}
             title="Mitarbeiter importieren"
-            description="Aus Excel/Numbers kopieren und einfuegen. Format: Name;E-Mail;Rolle."
+            description="Aus Excel/Numbers kopieren und einfügen. Format: Name;E-Mail;Rolle."
           >
             <form action={importOnboardingEmployeesAction} className="grid gap-3">
               <input type="hidden" name="return_to" value="/onboarding" />
               <label>
                 <span className="field-label">Gemeinsames Startpasswort</span>
                 <input className="field-input" name="start_password" type="password" minLength={8} placeholder="Mindestens 8 Zeichen" required />
-                <span className="field-help">Nur für den Import. Danach Passwoerter im echten Betrieb individuell ändern lassen.</span>
+                <span className="field-help">Nur für den Import. Danach Passwörter im echten Betrieb individuell ändern lassen.</span>
               </label>
               <label>
                 <span className="field-label">Mitarbeiter CSV</span>
@@ -233,14 +233,14 @@ export default async function OnboardingPage({
             <ListChecks className="h-5 w-5" aria-hidden="true" />
           </div>
           <div>
-            <p className="section-kicker">Schritt-für-Schritt Einfuehrung</p>
+            <p className="section-kicker">Schritt-für-Schritt Einführung</p>
             <h2 className="section-title">Was ein Chef nach 5 Minuten verstanden haben soll</h2>
           </div>
         </div>
 
         <div className="grid gap-3 lg:grid-cols-5">
           <IntroStep title="Dashboard" text="Heute, Materialwarnungen, offene Zeiten und Schnellaktionen lesen." href="/dashboard" />
-          <IntroStep title="Auftrag" text="Auftrag mit Maßen öffnen und Materialbedarf erklaeren." href="/orders/new" />
+          <IntroStep title="Auftrag" text="Auftrag mit Maßen öffnen und Materialbedarf erklären." href="/orders/new" />
           <IntroStep title="Team" text="Mitarbeiterrollen prüfen: Chef, Vorarbeiter, Mitarbeiter." href="/team" />
           <IntroStep title="Baustelle" text="Adresse, Aufgaben, Bericht und Material an einem Ort sehen." href="/baustellen" />
           <IntroStep title="Zeit" text="Tagesstunden prüfen und Stundenzettel als PDF vorbereiten." href="/time-tracking/daily" />
@@ -253,7 +253,7 @@ export default async function OnboardingPage({
           <form action={completeOnboardingAction}>
             <input type="hidden" name="return_to" value="/onboarding" />
             <button className="btn-primary w-full sm:w-auto" type="submit">
-              Startassistent abschliessen
+              Startassistent abschließen
             </button>
           </form>
         </div>

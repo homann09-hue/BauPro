@@ -46,7 +46,7 @@ export default async function ReportsPage({
         <StatCard icon={CloudSun} label="Freigegeben" value={counts.approved} tone="neutral" />
       </section>
 
-      <section className="surface mb-5 p-3 sm:p-4">
+      <section className="filter-bar mb-5">
         <form className="grid gap-3 lg:grid-cols-[1fr_auto]" action="/berichte">
           {selectedRange !== "alle" ? <input type="hidden" name="range" value={selectedRange} /> : null}
           <label className="sr-only" htmlFor="report-search">
@@ -73,10 +73,10 @@ export default async function ReportsPage({
               key={filter.value}
               href={reportHref({ q: search, range: filter.value })}
               className={cn(
-                "shrink-0 rounded-md border px-3 py-2 text-sm font-black",
+                "filter-chip",
                 selectedRange === filter.value
-                  ? "border-primary bg-primary text-white"
-                  : "border-line bg-white text-slate-700 hover:border-primary/40"
+                  ? "filter-chip-active"
+                  : ""
               )}
             >
               {filter.label}
@@ -104,7 +104,7 @@ export default async function ReportsPage({
               {totalCount} Einträge · Seite {page} von {totalPages}
             </p>
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="mobile-card-list lg:grid-cols-2">
             {reports.map((report) => (
               <Link href={`/berichte/${report.id}`} key={report.id} className="work-card construction-rail group block p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">

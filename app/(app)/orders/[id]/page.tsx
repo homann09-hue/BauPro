@@ -15,7 +15,6 @@ import {
   PackageCheck,
   ReceiptText,
   Send,
-  Warehouse,
   XCircle
 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
@@ -1287,20 +1286,30 @@ export default async function OrderDetailPage({
               ))}
             </div>
 
-            <div className="flex flex-col gap-2 border-t border-line bg-fog p-4 sm:flex-row sm:justify-end">
-              <button className="btn-secondary opacity-70" type="button" disabled title="Vorbereitet für die Angebotsstrecke">
-                <PackageCheck className="h-4 w-4" aria-hidden="true" />
-                Übernahme vorbereitet
-              </button>
-              <button className="btn-secondary opacity-70" type="button" disabled title="Reservierung läuft über Mitbringlisten und wird hier später direkt angebunden.">
-                <Warehouse className="h-4 w-4" aria-hidden="true" />
-                Reservierung vorbereitet
-              </button>
-              <button className="btn-secondary opacity-70" type="button" disabled title="PDF wird in der Angebots-/Rechnungsstrecke erzeugt.">
-                <FileDown className="h-4 w-4" aria-hidden="true" />
-                PDF vorbereitet
-              </button>
-            </div>
+            {context.canManage ? (
+              <div className="flex flex-col gap-3 border-t border-line bg-fog p-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm font-semibold text-slate-600">
+                  Materialbedarf kann direkt als Mitbringliste genutzt werden. Reservierung und Lagerabgleich laufen über die Mitbringliste.
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  {"jobsite_id" in order && order.jobsite_id ? (
+                    <form action={createBringListFromOrderAction}>
+                      <input type="hidden" name="order_id" value={order.id} />
+                      <button className="btn-secondary w-full sm:w-auto" type="submit">
+                        <ListChecks className="h-4 w-4" aria-hidden="true" />
+                        Mitbringliste erzeugen
+                      </button>
+                    </form>
+                  ) : null}
+                  {costEstimate ? (
+                    <a className="btn-secondary" href={`/orders/${order.id}/quote.pdf`}>
+                      <FileDown className="h-4 w-4" aria-hidden="true" />
+                      Angebots-PDF
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </article>
         )}
       </section>

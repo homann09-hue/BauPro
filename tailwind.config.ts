@@ -9,25 +9,30 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#1F2937",
-        moss: "#2E7D32",
-        fog: "#F8FAFC",
-        line: "#E2E8F0",
-        signal: "#F59E0B",
+        ink: "#F0EBE0",
+        moss: "#D4580A",
+        fog: "#111110",
+        line: "#2E2E2B",
+        signal: "#D4580A",
         clay: "#DC2626",
-        steel: "#2563EB",
-        mint: "#E8F5E9",
-        primary: "#2E7D32",
-        "primary-dark": "#1B5E20",
-        anthracite: "#1F2937",
-        warning: "#F59E0B",
+        steel: "#7C8EA4",
+        mint: "#1E1E1C",
+        primary: "#D4580A",
+        "primary-dark": "#B8490A",
+        anthracite: "#111110",
+        warning: "#D4580A",
         danger: "#DC2626",
-        info: "#2563EB",
-        surface: "#FFFFFF"
+        info: "#7C8EA4",
+        surface: "#1A1918",
+        cream: "#F0EBE0",
+        ash: "#9A9589",
+        ember: "#D4580A",
+        coal: "#111110",
+        basalt: "#1A1918"
       },
       boxShadow: {
-        soft: "0 12px 28px rgba(31, 41, 55, 0.08)",
-        lift: "0 18px 46px rgba(31, 41, 55, 0.14)"
+        soft: "0 14px 34px rgba(0, 0, 0, 0.28)",
+        lift: "0 22px 60px rgba(0, 0, 0, 0.42)"
       }
     }
   },

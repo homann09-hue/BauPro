@@ -3,9 +3,10 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireAppContext, requireManager } from "@/lib/auth";
+import { requireAppContext, requireManager, requirePermission } from "@/lib/auth";
 import { checkUserLimit } from "@/lib/billing/plans";
 import { ensureDemoModeData } from "@/lib/demo/demo-mode";
+import { allPermissionKeys, normalizePermissionKeys } from "@/lib/permissions";
 import { requiredFormUuid } from "@/lib/security/form-data";
 import { safeErrorMessage } from "@/lib/security/errors";
 import { getClientIp, publicAppOrigin } from "@/lib/security/origin";
@@ -67,10 +68,10 @@ export async function signInAction(formData: FormData) {
 
   if (error) {
     const message = error.message.includes("Email not confirmed")
-      ? "Bitte bestaetige zuerst deine E-Mail-Adresse."
+      ? "Bitte bestätige zuerst deine E-Mail-Adresse."
       : error.message.includes("Invalid login credentials")
         ? "E-Mail oder Passwort stimmt nicht."
-        : "Login fehlgeschlagen. Bitte pruefe E-Mail und Passwort.";
+        : "Login fehlgeschlagen. Bitte prüfe E-Mail und Passwort.";
     redirect(`/login?error=${toQuery(message)}`);
   }
 
@@ -89,7 +90,7 @@ export async function signInAction(formData: FormData) {
 
   if (profileError || !profile) {
     redirect(
-      `/login?error=${toQuery("Login war erfolgreich, aber das Firmenprofil fehlt. Bitte supabase/schema.sql in Supabase ausfuehren und erneut einloggen.")}`
+      `/login?error=${toQuery("Login war erfolgreich, aber das Firmenprofil fehlt. Bitte supabase/schema.sql in Supabase ausführen und erneut einloggen.")}`
     );
   }
 
@@ -124,8 +125,12 @@ export async function startDemoModeAction(formData: FormData) {
     try {
       assertRateLimit(demoStartRateLimitKey(requestHeaders), 30, 60_000);
     } catch (error) {
-      const message = safeErrorMessage(error, "Demo-Schutz konnte nicht geprueft werden.");
-      console.warn("Demo-Rate-Limit wurde fuer diesen Start uebersprungen.", message);
+      const message = safeErrorMessage(error, "Demo-Schutz konnte nicht geprüft werden.");
+      if (message.includes("Zu viele Anfragen")) {
+        redirect(`${errorPath}?error=${toQuery("Demo wurde zu oft gestartet. Bitte warte kurz und versuche es erneut.")}`);
+      }
+
+      console.warn("Demo-Rate-Limit konnte nicht geprüft werden. Demo-Start wird im Fallback-Modus fortgesetzt.", message);
     }
   }
 
@@ -202,7 +207,7 @@ export async function createEmployeeAction(formData: FormData) {
   try {
     admin = createSupabaseAdminClient();
   } catch {
-    redirect(`/team?error=${toQuery("SUPABASE_SERVICE_ROLE_KEY fehlt fuer das Anlegen von Mitarbeitern.")}`);
+    redirect(`/team?error=${toQuery("SUPABASE_SERVICE_ROLE_KEY fehlt für das Anlegen von Mitarbeitern.")}`);
   }
 
   const email = requiredString(formData, "email");
@@ -213,7 +218,7 @@ export async function createEmployeeAction(formData: FormData) {
   try {
     await checkUserLimit(supabase, context.companyId);
   } catch (error) {
-    redirect(`/team?error=${toQuery(safeErrorMessage(error, "Nutzerlimit konnte nicht geprueft werden."))}`);
+    redirect(`/team?error=${toQuery(safeErrorMessage(error, "Nutzerlimit konnte nicht geprüft werden."))}`);
   }
 
   const { data, error } = await admin.auth.admin.createUser({
@@ -317,6 +322,84 @@ export async function updateEmployeeAction(formData: FormData) {
   redirect(`/team?success=${toQuery(success)}`);
 }
 
+export async function updateEmployeePermissionsAction(formData: FormData) {
+  const context = await requireManager();
+  const supabase = await createSupabaseServerClient();
+  const id = requiredFormUuid(formData, "id", "Mitarbeiter");
+
+  if (id === context.userId) {
+    redirect(`/team?error=${toQuery("Du kannst deine eigenen Rechte nicht bearbeiten.")}`);
+  }
+
+  const { data: target, error: targetError } = await supabase
+    .from("profiles")
+    .select("id, company_id, role")
+    .eq("id", id)
+    .eq("company_id", context.companyId)
+    .maybeSingle();
+
+  if (targetError || !target) {
+    redirect(`/team?error=${toQuery("Mitarbeiter wurde nicht gefunden.")}`);
+  }
+
+  if (target.role === "admin" || target.role === "chef") {
+    redirect(`/team?error=${toQuery("Chef/Admin hat automatisch alle Rechte und kann hier nicht eingeschränkt werden.")}`);
+  }
+
+  const requestedPermissions = normalizePermissionKeys(formData.getAll("permission").map(String));
+  const { data: currentRows, error: currentError } = await supabase
+    .from("employee_permissions")
+    .select("permission_key, granted")
+    .eq("company_id", context.companyId)
+    .eq("profile_id", id);
+
+  if (currentError) {
+    redirect(
+      `/team?error=${toQuery(
+        "Datenbank-Update fehlt: Bitte supabase/migrations/20260622_employee_permissions.sql ausführen."
+      )}`
+    );
+  }
+
+  const oldPermissions = normalizePermissionKeys(
+    (currentRows ?? [])
+      .filter((row) => Boolean((row as { granted?: boolean }).granted))
+      .map((row) => String((row as { permission_key?: string }).permission_key ?? ""))
+  );
+
+  const rows = allPermissionKeys.map((permissionKey) => ({
+    company_id: context.companyId,
+    profile_id: id,
+    permission_key: permissionKey,
+    granted: requestedPermissions.includes(permissionKey),
+    updated_by: context.userId
+  }));
+
+  const { error: upsertError } = await supabase.from("employee_permissions").upsert(rows, {
+    onConflict: "company_id,profile_id,permission_key"
+  });
+
+  if (upsertError) {
+    redirect(`/team?error=${toQuery("Rechte konnten nicht gespeichert werden.")}`);
+  }
+
+  const { error: auditError } = await supabase.from("employee_permission_audit_log").insert({
+    company_id: context.companyId,
+    actor_id: context.userId,
+    target_profile_id: id,
+    old_values: { permissions: oldPermissions },
+    new_values: { permissions: requestedPermissions }
+  });
+
+  if (auditError) {
+    redirect(`/team?error=${toQuery("Rechte wurden gespeichert, aber das Audit-Log konnte nicht geschrieben werden.")}`);
+  }
+
+  revalidatePath("/team");
+  revalidatePath("/dashboard");
+  redirect(`/team?success=${toQuery("Rechte wurden gespeichert und sind sofort wirksam.")}`);
+}
+
 export async function updateOwnProfileAction(formData: FormData) {
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
@@ -339,7 +422,7 @@ export async function updateOwnProfileAction(formData: FormData) {
 }
 
 export async function updateCompanyProfileAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("settings.edit", "/settings");
   const supabase = await createSupabaseServerClient();
   const returnTo = safeReturnPath(formData.get("return_to"), "/settings");
   const name = requiredString(formData, "name");
@@ -360,7 +443,7 @@ export async function updateCompanyProfileAction(formData: FormData) {
     redirect(
       `${returnTo}?error=${toQuery(
         isMissingSchemaError(error)
-          ? "Datenbank-Update fehlt: Bitte supabase/migrations/20260623_session_timeout_setting.sql ausfuehren."
+          ? "Datenbank-Update fehlt: Bitte supabase/migrations/20260623_session_timeout_setting.sql ausführen."
           : "Firmenprofil konnte nicht gespeichert werden."
       )}`
     );

@@ -94,6 +94,7 @@ supabase/migrations/20260619_dashboard_rpc.sql
 supabase/migrations/20260620_soft_delete_columns.sql
 supabase/migrations/20260621_role_escalation_guard.sql
 supabase/migrations/20260621_schema_gap_fix.sql
+supabase/migrations/20260622_employee_permissions.sql
 supabase/migrations/20260622_rls_consolidation.sql
 supabase/migrations/20260622_commercial_documents.sql
 supabase/migrations/20260623_roof_measurements.sql
@@ -472,6 +473,7 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 - `supabase/migrations/20260619_dashboard_rpc.sql`: Delta fuer gebuendelte Dashboard-RPC, Cache-Tags und mandantensichere Summary-Daten
 - `supabase/migrations/20260620_soft_delete_columns.sql`: Delta fuer Soft-Delete-Schutz und gesperrte Hard-Deletes bei Geschaeftsdaten
 - `supabase/migrations/20260622_rls_consolidation.sql`: Delta fuer dokumentierte RLS-Policy-Matrix und Entfernung exakt redundanter Redteam-Fallback-Policies
+- `supabase/migrations/20260622_employee_permissions.sql`: Delta fuer feingranulare Mitarbeiterrechte mit RLS, Manager-Bypass und Audit-Log
 - `supabase/migrations/20260622_commercial_documents.sql`: Delta fuer Angebote/Rechnungen, Positionen, Summen-Trigger und Manager-only RLS
 - `supabase/migrations/20260623_session_timeout_setting.sql`: Delta fuer firmenweite Inaktivitaets-Abmeldung auf geteilten Geraeten
 - `supabase/migrations/20260628_planning_board.sql`: Delta fuer Plantafel, Ressourcenplanung, Konflikt-Erkennung und rollenbasierte RLS

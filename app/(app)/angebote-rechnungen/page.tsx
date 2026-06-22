@@ -51,7 +51,7 @@ export default async function CommercialDocumentsPage({
         <StatCard icon={CheckCircle2} label="Bezahlt" value={counts.paid} tone="green" />
       </section>
 
-      <section className="surface mb-5 p-3 sm:p-4">
+      <section className="filter-bar mb-5">
         <form className="grid gap-3 lg:grid-cols-[1fr_auto]" action="/angebote-rechnungen">
           {selectedType !== "alle" ? <input type="hidden" name="type" value={selectedType} /> : null}
           {selectedStatus !== "alle" ? <input type="hidden" name="status" value={selectedStatus} /> : null}
@@ -79,8 +79,8 @@ export default async function CommercialDocumentsPage({
               key={type}
               href={commercialDocumentHref({ q: search, type, status: selectedStatus })}
               className={cn(
-                "shrink-0 rounded-md border px-3 py-2 text-sm font-black",
-                selectedType === type ? "border-primary bg-primary text-white" : "border-line bg-white text-slate-700 hover:border-primary/40"
+                "filter-chip",
+                selectedType === type ? "filter-chip-active" : ""
               )}
             >
               {type === "alle" ? "Alle Belege" : commercialDocumentTypeLabels[type]}
@@ -91,10 +91,10 @@ export default async function CommercialDocumentsPage({
               key={filter.value}
               href={commercialDocumentHref({ q: search, type: selectedType, status: filter.value })}
               className={cn(
-                "shrink-0 rounded-md border px-3 py-2 text-sm font-black",
+                "filter-chip",
                 selectedStatus === filter.value
-                  ? "border-primary bg-primary text-white"
-                  : "border-line bg-white text-slate-700 hover:border-primary/40"
+                  ? "filter-chip-active"
+                  : ""
               )}
             >
               {filter.label}
@@ -107,7 +107,7 @@ export default async function CommercialDocumentsPage({
         <EmptyState
           icon={WalletCards}
           title="Noch keine Angebote oder Rechnungen"
-          description="Oeffne einen Auftrag und erstelle daraus mit einem Klick ein Angebot oder eine Rechnung."
+          description="Öffne einen Auftrag und erstelle daraus mit einem Klick ein Angebot oder eine Rechnung."
           actionHref="/orders"
           actionLabel="Auftrag öffnen"
         />
@@ -115,14 +115,14 @@ export default async function CommercialDocumentsPage({
         <>
           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="section-kicker">Kaufmaennische Zentrale</p>
+              <p className="section-kicker">Kaufmännische Zentrale</p>
               <h2 className="section-title">Aktuelle Belege</h2>
             </div>
             <p className="text-sm font-semibold text-slate-500">
               {totalCount} Einträge · Seite {page} von {totalPages}
             </p>
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="mobile-card-list lg:grid-cols-2">
             {documents.map((document) => (
               <Link key={document.id} href={`/angebote-rechnungen/${document.id}`} className="interactive-surface group p-4 sm:p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

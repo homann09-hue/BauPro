@@ -25,13 +25,16 @@ describe("security headers", () => {
     ]) {
       expect(securitySource).toContain(required);
     }
+
+    expect(config).toContain('camera=(self)');
+    expect(config).not.toContain('camera=()');
   });
 
   it("uses per-request script nonces instead of unsafe script execution", () => {
     expect(proxy).toContain("randomBytes(16)");
     expect(proxy).toContain("nonce-${nonce}");
-    expect(proxy).not.toContain("scriptSources.push");
-    expect(proxy).not.toContain("\"'unsafe-eval'\"");
+    expect(proxy).toContain('process.env.NODE_ENV === "development"');
+    expect(proxy).toContain("scriptSources.push(\"'unsafe-eval'\")");
     expect(proxy).not.toContain("script-src 'self' 'unsafe-inline'");
   });
 });

@@ -2,17 +2,32 @@ import withPWAInit from "next-pwa";
 import defaultRuntimeCaching from "next-pwa/cache.js";
 import { withSentryConfig } from "@sentry/nextjs";
 
-const runtimeCaching = defaultRuntimeCaching.map((entry) => {
-  if (entry.options?.cacheName !== "apis") return entry;
-
-  return {
-    ...entry,
-    handler: "NetworkOnly",
+const runtimeCaching = [
+  {
+    urlPattern: ({ request, url }) =>
+      request.mode === "navigate" && ["/", "/dashboard", "/baustellen", "/berichte"].includes(url.pathname),
+    handler: "NetworkFirst",
     options: {
-      cacheName: "baupro-api-network-only"
+      cacheName: "baupro-app-shell-pages",
+      networkTimeoutSeconds: 4,
+      expiration: {
+        maxEntries: 12,
+        maxAgeSeconds: 24 * 60 * 60
+      }
     }
-  };
-});
+  },
+  ...defaultRuntimeCaching.map((entry) => {
+    if (entry.options?.cacheName !== "apis") return entry;
+
+    return {
+      ...entry,
+      handler: "NetworkOnly",
+      options: {
+        cacheName: "baupro-api-network-only"
+      }
+    };
+  })
+];
 
 const withPWA = withPWAInit({
   dest: "public",
@@ -25,11 +40,7 @@ const withPWA = withPWAInit({
   },
   runtimeCaching,
   additionalManifestEntries: [
-    { url: "/", revision: null },
     { url: "/offline", revision: null },
-    { url: "/dashboard", revision: null },
-    { url: "/baustellen", revision: null },
-    { url: "/berichte", revision: null },
     { url: "/manifest.json", revision: null },
     { url: "/icons/icon-192.png", revision: null },
     { url: "/icons/icon-512.png", revision: null },
@@ -56,7 +67,7 @@ const nextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(), geolocation=(self), microphone=(self)" },
+          { key: "Permissions-Policy", value: "camera=(self), geolocation=(self), microphone=(self)" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           { key: "X-DNS-Prefetch-Control", value: "off" },

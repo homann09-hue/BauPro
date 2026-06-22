@@ -8,7 +8,7 @@ import { updateCompanyProfileAction } from "@/lib/actions/auth-actions";
 import { updatePricingSettingsAction } from "@/lib/actions/material-calculation-actions";
 import { loadCalculationSettings } from "@/lib/ai/job-drafts";
 import { aiRuntimeState, loadAiSettings } from "@/lib/ai/permissions";
-import { requireManager } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { companyPricingSettingsSelect } from "@/lib/data/selects";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -20,7 +20,7 @@ export default async function SettingsPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await requireManager();
+  const context = await requirePermission("settings.edit", "/dashboard");
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
 
@@ -233,7 +233,7 @@ export default async function SettingsPage({
                 defaultChecked={calculationSettings.allow_ai_job_creation}
                 className="h-4 w-4 rounded border-line text-moss"
               />
-              KI darf Auftragsentwuerfe vorbereiten
+              KI darf Auftragsentwürfe vorbereiten
             </label>
             <label className="flex items-center gap-3 rounded-md border border-line bg-white px-3 py-2 text-sm font-semibold text-ink">
               <input

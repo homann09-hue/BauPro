@@ -130,7 +130,7 @@ export default async function JobsitesPage({
         <StatCard icon={HardHat} label="Abgeschlossen" value={doneCount} tone="neutral" />
       </section>
 
-      <section className="surface mb-5 p-3 sm:p-4">
+      <section className="filter-bar mb-5">
         <form className="grid gap-3 lg:grid-cols-[1fr_auto]" action="/baustellen">
           {selectedStatus !== "alle" ? <input type="hidden" name="status" value={selectedStatus} /> : null}
           <label>
@@ -147,10 +147,10 @@ export default async function JobsitesPage({
               key={filter.value}
               href={filterHref({ status: filter.value, q })}
               className={cn(
-                "rounded-md border px-3 py-2 text-sm font-black",
+                "filter-chip",
                 selectedStatus === filter.value
-                  ? "border-primary bg-primary text-white"
-                  : "border-line bg-white text-slate-700 hover:border-primary/40"
+                  ? "filter-chip-active"
+                  : ""
               )}
             >
               {filter.label}
@@ -178,7 +178,7 @@ export default async function JobsitesPage({
               {totalCount} Einträge · Seite {page} von {totalPages}
             </p>
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="mobile-card-list lg:grid-cols-2">
             {jobsites.map((jobsite) => (
               <JobsiteCard key={jobsite.id} jobsite={jobsite} canManage={context.canManage} />
             ))}

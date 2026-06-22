@@ -66,7 +66,7 @@ describe("server action hardening", () => {
     expect(confirmAction).not.toContain('formData, "company_id"');
     expect(confirmAction).not.toContain('formData, "actor_id"');
 
-    expect(reserveAction).toContain("requireManager");
+    expect(reserveAction).toContain('requirePermission("inventory.edit"');
     expect(reserveAction).toContain('rpc("reserve_inventory_for_jobsite"');
     expect(reserveAction).toContain("p_company_id: context.companyId");
     expect(reserveAction).toContain("p_reserved_by: context.userId");

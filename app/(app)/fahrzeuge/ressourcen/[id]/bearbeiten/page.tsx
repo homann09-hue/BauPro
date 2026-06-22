@@ -11,7 +11,7 @@ import {
   uploadResourceDocumentAction,
   updatePlanningResourceAction
 } from "@/lib/actions/planning-actions";
-import { requireManager } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { planningAssignmentSelect, planningResourceSelect, profileOptionSelect, resourceDocumentSelect, vehicleOptionSelect } from "@/lib/data/selects";
 import { planningStatusLabels } from "@/lib/planning";
 import { resourceKindLabels, resourceStatusBadgeClasses, resourceStatusLabels } from "@/lib/resources";
@@ -26,7 +26,7 @@ export default async function EditResourcePage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/fahrzeuge");
   const supabase = await createSupabaseServerClient();
   const { id } = await params;
   const { error, success } = searchParamMessage(await searchParams);

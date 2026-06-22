@@ -8,6 +8,7 @@ import { requireAppContext } from "@/lib/auth";
 import { contentHash } from "@/lib/customer-portal/tokens";
 import { reportFormSelect } from "@/lib/data/selects";
 import { revalidateDashboardCache } from "@/lib/data/dashboard";
+import { hasAppPermission } from "@/lib/permissions";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { formUuidList, optionalFormString, optionalFormUuid, requiredFormString, requiredFormUuid } from "@/lib/security/form-data";
 import { assertRateLimit } from "@/lib/security/rate-limit";
@@ -595,7 +596,9 @@ export async function updateReportWorkflowAction(formData: FormData) {
   let result: { success?: string; error?: string } = {};
 
   try {
-    if (!context.canManage) throw new SafeActionError("Nur Chef/Admin darf Bautagesberichte pruefen oder freigeben.");
+    if (!hasAppPermission(context.profile.role, context.permissions, "reports.approve")) {
+      throw new SafeActionError("Keine Berechtigung zum Pruefen oder Freigeben von Bautagesberichten.");
+    }
     if (nextStatus !== "reviewed" && nextStatus !== "approved") throw new SafeActionError("Ungueltiger Berichtstatus.");
 
     const { data: reportRow, error: reportError } = await supabase

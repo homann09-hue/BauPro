@@ -6,8 +6,9 @@ import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { updateCustomerStatusAction } from "@/lib/actions/customer-actions";
-import { requireManager } from "@/lib/auth";
+import { requireAnyPermission } from "@/lib/auth";
 import { customerDisplayName, customerStatusLabels, customerTypeLabels, orderStatusLabels, orderTypeLabels } from "@/lib/order-labels";
+import { hasAppPermission } from "@/lib/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, formatDateTime, searchParamMessage } from "@/lib/utils";
 import type { Customer, CustomerPortalMessage, Order } from "@/types/app";
@@ -28,10 +29,13 @@ export default async function CustomerDetailPage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await requireManager();
+  const context = await requireAnyPermission(["customers.view", "customers.edit"], "/customers");
   const supabase = await createSupabaseServerClient();
   const { id } = await params;
   const { error, success } = searchParamMessage(await searchParams);
+  const canEditCustomer = hasAppPermission(context.profile.role, context.permissions, "customers.edit");
+  const canCreateOrder = hasAppPermission(context.profile.role, context.permissions, "orders.create");
+  const canViewRequests = hasAppPermission(context.profile.role, context.permissions, "customer_requests.view");
   const customerSelect =
     "id, company_id, customer_type, company, first_name, last_name, contact_person, phone, email, billing_address, jobsite_address, notes, tax_id, payment_terms, status, created_by, created_at, updated_at";
   const orderSelect =
@@ -46,13 +50,15 @@ export default async function CustomerDetailPage({
       .eq("company_id", context.companyId)
       .order("created_at", { ascending: false })
       .limit(30),
-    supabase
-      .from("customer_portal_messages")
-      .select("id, company_id, customer_id, jobsite_id, portal_token_id, sender_name, sender_email, message, status, answered_at, answered_by, created_at")
-      .eq("customer_id", id)
-      .eq("company_id", context.companyId)
-      .order("created_at", { ascending: false })
-      .limit(12)
+    canViewRequests
+      ? supabase
+          .from("customer_portal_messages")
+          .select("id, company_id, customer_id, jobsite_id, portal_token_id, sender_name, sender_email, message, status, answered_at, answered_by, created_at")
+          .eq("customer_id", id)
+          .eq("company_id", context.companyId)
+          .order("created_at", { ascending: false })
+          .limit(12)
+      : Promise.resolve({ data: [] })
   ]);
 
   if (!customerData) {
@@ -68,25 +74,27 @@ export default async function CustomerDetailPage({
       <PageHeader
         title={customerDisplayName(customer)}
         description={`${customerTypeLabels[customer.customer_type]} · ${customerStatusLabels[customer.status]}`}
-        actionHref={`/orders/new?customer_id=${customer.id}`}
-        actionLabel="Neuer Auftrag"
-        actionIcon={Plus}
+        actionHref={canCreateOrder ? `/orders/new?customer_id=${customer.id}` : undefined}
+        actionLabel={canCreateOrder ? "Neuer Auftrag" : undefined}
+        actionIcon={canCreateOrder ? Plus : undefined}
       />
       <MessageBox error={error} success={success} />
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        <Link href={`/customers/${customer.id}/edit`} className="btn-secondary">
-          <Pencil className="h-4 w-4" aria-hidden="true" />
-          Kunde bearbeiten
-        </Link>
-        <form action={updateCustomerStatusAction}>
-          <input type="hidden" name="id" value={customer.id} />
-          <input type="hidden" name="status" value={customer.status === "aktiv" ? "inaktiv" : "aktiv"} />
-          <button className="btn-secondary" type="submit">
-            {customer.status === "aktiv" ? "Inaktiv setzen" : "Aktiv setzen"}
-          </button>
-        </form>
-      </div>
+      {canEditCustomer ? (
+        <div className="mb-5 flex flex-wrap gap-2">
+          <Link href={`/customers/${customer.id}/edit`} className="btn-secondary">
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+            Kunde bearbeiten
+          </Link>
+          <form action={updateCustomerStatusAction}>
+            <input type="hidden" name="id" value={customer.id} />
+            <input type="hidden" name="status" value={customer.status === "aktiv" ? "inaktiv" : "aktiv"} />
+            <button className="btn-secondary" type="submit">
+              {customer.status === "aktiv" ? "Inaktiv setzen" : "Aktiv setzen"}
+            </button>
+          </form>
+        </div>
+      ) : null}
 
       <section className="surface mb-6 p-4 sm:p-5">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -170,6 +178,7 @@ export default async function CustomerDetailPage({
         )}
       </section>
 
+      {canViewRequests ? (
       <section className="mt-6">
         <div className="mb-4 flex items-end justify-between gap-3">
           <div>
@@ -205,6 +214,7 @@ export default async function CustomerDetailPage({
           </div>
         )}
       </section>
+      ) : null}
     </>
   );
 }

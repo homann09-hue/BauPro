@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
+import { allPermissionKeys, hasAppPermission, normalizePermissionKeys, type PermissionKey } from "@/lib/permissions";
 import { canOperate, isManager } from "@/lib/utils";
 import type { Company, Profile } from "@/types/app";
 
@@ -25,6 +26,7 @@ export type AppContext = {
   companyName: string;
   canManage: boolean;
   canOperate: boolean;
+  permissions: PermissionKey[];
   mfaEnabled: boolean;
 };
 
@@ -75,6 +77,25 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
   const company = typedProfile.companies;
   const companyName = company?.name ?? "Meine Firma";
   const sessionTimeoutMinutes = Number(company?.session_timeout_minutes ?? 30);
+  let permissions: PermissionKey[] = isManager(typedProfile.role) ? allPermissionKeys : [];
+
+  if (!isManager(typedProfile.role)) {
+    const permissionsResult = await supabase
+      .from("employee_permissions")
+      .select("permission_key")
+      .eq("company_id", typedProfile.company_id)
+      .eq("profile_id", typedProfile.id)
+      .eq("granted", true);
+
+    if (!permissionsResult.error) {
+      permissions = normalizePermissionKeys(
+        (permissionsResult.data ?? []).map((row) => String((row as { permission_key?: string }).permission_key ?? ""))
+      );
+    } else if (!isMissingSchemaError(permissionsResult.error)) {
+      permissions = [];
+    }
+  }
+
   const factors = await supabase.auth.mfa.listFactors();
   const mfaEnabled = !factors.error && (factors.data?.totp?.length ?? 0) > 0;
 
@@ -91,6 +112,7 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
     companyName,
     canManage: isManager(typedProfile.role),
     canOperate: canOperate(typedProfile.role),
+    permissions,
     mfaEnabled
   };
 }
@@ -120,6 +142,26 @@ export async function requireAdmin() {
 
   if (context.profile.role !== "admin") {
     redirect("/dashboard?error=Keine+Berechtigung");
+  }
+
+  return context;
+}
+
+export async function requirePermission(permission: PermissionKey, redirectTo = "/dashboard") {
+  const context = await requireAppContext();
+
+  if (!hasAppPermission(context.profile.role, context.permissions, permission)) {
+    redirect(`${redirectTo}?error=Keine+Berechtigung`);
+  }
+
+  return context;
+}
+
+export async function requireAnyPermission(permissions: PermissionKey[], redirectTo = "/dashboard") {
+  const context = await requireAppContext();
+
+  if (!permissions.some((permission) => hasAppPermission(context.profile.role, context.permissions, permission))) {
+    redirect(`${redirectTo}?error=Keine+Berechtigung`);
   }
 
   return context;

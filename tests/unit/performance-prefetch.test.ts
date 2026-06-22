@@ -396,8 +396,14 @@ describe("predictive prefetching", () => {
   it("keeps legacy navigation entry points as explicit redirects", () => {
     expect(source("app/(app)/material/page.tsx")).toContain('redirect("/materials/inventory")');
     expect(source("app/(app)/materials/page.tsx")).toContain('redirect("/materials/inventory")');
-    expect(source("app/(app)/mehr/page.tsx")).toContain('redirect("/team")');
     expect(source("app/(app)/time/new/page.tsx")).toContain('redirect("/time-tracking/new")');
+  });
+
+  it("keeps the mobile all-functions entry as a real navigation surface", () => {
+    const morePage = source("app/(app)/mehr/page.tsx");
+    expect(morePage).toContain("Alle Funktionen");
+    expect(morePage).toContain("Was möchtest du tun?");
+    expect(morePage).not.toContain("redirect(");
   });
 
   it("prefetches already-authorized portal assets for customers", () => {

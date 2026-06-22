@@ -319,8 +319,8 @@ export default async function AiJobWizardPage({
   const schemaMissing = isMissingSchemaError(draftResult.error) || isMissingSchemaError(recentResult.error);
   const loadError = schemaMissing
     ? null
-    : safeQueryErrorMessage(draftResult.error, "KI-Auftragsentwuerfe konnten nicht geladen werden.") ??
-      safeQueryErrorMessage(recentResult.error, "KI-Auftragsentwuerfe konnten nicht geladen werden.");
+    : safeQueryErrorMessage(draftResult.error, "KI-Auftragsentwürfe konnten nicht geladen werden.") ??
+      safeQueryErrorMessage(recentResult.error, "KI-Auftragsentwürfe konnten nicht geladen werden.");
   const missingFields = preview ? preview.parsed.missing_fields : [];
   const missingMaterials = preview ? formatMissingMaterial(preview.items) : [];
   const disabledActions = !draft || draft.status === "rejected" || draft.status === "converted_to_job";

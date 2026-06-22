@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { requireManager } from "@/lib/auth";
+import { requireManager, requirePermission } from "@/lib/auth";
 import { addDaysIso, parseIsoDate } from "@/lib/planning";
 import { resourceKinds, resourceStatuses } from "@/lib/resources";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
@@ -220,7 +220,7 @@ async function loadJobsiteName({
 }
 
 export async function createPlanningResourceAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/fahrzeuge");
   const supabase = await createSupabaseServerClient();
   const returnTo = safeReturnPath(formData.get("return_to"), "/plantafel");
 
@@ -253,7 +253,7 @@ export async function createPlanningResourceAction(formData: FormData) {
 }
 
 export async function updatePlanningResourceAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/fahrzeuge");
   const supabase = await createSupabaseServerClient();
   const resourceId = requiredFormUuid(formData, "resource_id", "Ressource");
   const returnTo = safeReturnPath(formData.get("return_to"), `/fahrzeuge/ressourcen/${resourceId}/bearbeiten`);
@@ -291,7 +291,7 @@ export async function updatePlanningResourceAction(formData: FormData) {
 }
 
 export async function archivePlanningResourceAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/fahrzeuge");
   const supabase = await createSupabaseServerClient();
   const resourceId = requiredFormUuid(formData, "resource_id", "Ressource");
   const returnTo = safeReturnPath(formData.get("return_to"), "/fahrzeuge");
@@ -352,7 +352,7 @@ async function assertDocumentTarget({
 }
 
 export async function uploadResourceDocumentAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/fahrzeuge");
   const supabase = await createSupabaseServerClient();
   const targetType = enumValue(optionalFormString(formData, "target_type"), ["resource", "vehicle"] as const, "resource");
   const targetId = requiredFormUuid(formData, "target_id", "Ressource");
@@ -416,7 +416,7 @@ export async function uploadResourceDocumentAction(formData: FormData) {
 }
 
 export async function archiveResourceDocumentAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/fahrzeuge");
   const supabase = await createSupabaseServerClient();
   const documentId = requiredFormUuid(formData, "document_id", "Datei");
   const returnTo = safeReturnPath(formData.get("return_to"), "/fahrzeuge");

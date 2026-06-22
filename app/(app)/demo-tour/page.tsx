@@ -24,7 +24,7 @@ const tourCards = [
   },
   {
     title: "3. Lagerwarnung prüfen",
-    text: "Konterlatten und Spenglerschrauben sind knapp. Chef sieht Einkaufsvorschlaege, Mitarbeiter keine Preise.",
+    text: "Konterlatten und Spenglerschrauben sind knapp. Chef sieht Einkaufsvorschläge, Mitarbeiter keine Preise.",
     href: "/materials/control-center",
     label: "Material-Zentrale",
     icon: PackageCheck

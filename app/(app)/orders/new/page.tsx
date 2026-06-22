@@ -1,7 +1,7 @@
 import { OrderWizardForm } from "@/components/forms/order-wizard-form";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
-import { requireManager } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import {
   calculationSettingsSelect,
   companyPricingSettingsSelect,
@@ -9,6 +9,7 @@ import {
   inventoryItemCalculationSelect,
   profileOptionSelect
 } from "@/lib/data/selects";
+import { hasAppPermission } from "@/lib/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { RoofingMaterialPriceRow } from "@/lib/roofing-material-estimate";
 import { searchParamMessage } from "@/lib/utils";
@@ -24,10 +25,14 @@ export default async function NewOrderPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await requireManager();
+  const context = await requirePermission("orders.create", "/orders");
   const supabase = await createSupabaseServerClient();
   const params = (await searchParams) ?? {};
   const { error, success } = searchParamMessage(params);
+  const canSeeAnyPrices =
+    hasAppPermission(context.profile.role, context.permissions, "prices.purchase.view") ||
+    hasAppPermission(context.profile.role, context.permissions, "prices.sales.view");
+  const canUseCalculation = canSeeAnyPrices || hasAppPermission(context.profile.role, context.permissions, "quotes.create");
 
   const [customersResult, employeesResult, settingsResult, calculationSettingsResult, inventoryResult] = await Promise.all([
     supabase
@@ -48,16 +53,20 @@ export default async function NewOrderPage({
       .select(companyPricingSettingsSelect)
       .eq("company_id", context.companyId)
       .maybeSingle(),
-    supabase
-      .from("calculation_settings")
-      .select(calculationSettingsSelect)
-      .eq("company_id", context.companyId)
-      .maybeSingle(),
-    supabase
-      .from("inventory_items")
-      .select(inventoryItemCalculationSelect)
-      .eq("company_id", context.companyId)
-      .order("name", { ascending: true })
+    canUseCalculation
+      ? supabase
+          .from("calculation_settings")
+          .select(calculationSettingsSelect)
+          .eq("company_id", context.companyId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    canSeeAnyPrices
+      ? supabase
+          .from("inventory_items")
+          .select(inventoryItemCalculationSelect)
+          .eq("company_id", context.companyId)
+          .order("name", { ascending: true })
+      : Promise.resolve({ data: [] })
   ]);
 
   const settings = (settingsResult.data ?? {
@@ -92,10 +101,10 @@ export default async function NewOrderPage({
         materialPriceOptions={materialPriceOptions}
         calculationDefaults={{
           vatRate: Number(calculationSettingsResult.data?.default_vat_rate ?? 19),
-          internalLaborRateNet: Number(calculationSettingsResult.data?.default_internal_hourly_cost ?? 38),
-          laborRateNet: Number(calculationSettingsResult.data?.default_labor_rate_net ?? 65),
-          travelRatePerKm: Number(calculationSettingsResult.data?.default_travel_rate_per_km ?? 0.75),
-          travelFlatRate: Number(calculationSettingsResult.data?.default_travel_flat_rate ?? 0)
+          internalLaborRateNet: canUseCalculation ? Number(calculationSettingsResult.data?.default_internal_hourly_cost ?? 38) : 0,
+          laborRateNet: canUseCalculation ? Number(calculationSettingsResult.data?.default_labor_rate_net ?? 65) : 0,
+          travelRatePerKm: canUseCalculation ? Number(calculationSettingsResult.data?.default_travel_rate_per_km ?? 0.75) : 0,
+          travelFlatRate: canUseCalculation ? Number(calculationSettingsResult.data?.default_travel_flat_rate ?? 0) : 0
         }}
       />
     </>

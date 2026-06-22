@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PlayCircle } from "lucide-react";
+import { ArrowRight, PlayCircle } from "lucide-react";
 import { signInAction, startDemoModeAction } from "@/lib/actions/auth-actions";
 import { MessageBox } from "@/components/message-box";
 import { SubmitButton } from "@/components/submit-button";
@@ -13,64 +13,69 @@ export default async function LoginPage({
   const { error, success } = searchParamMessage(await searchParams);
 
   return (
-    <div className="surface-strong construction-rail p-5 sm:p-7">
-      <p className="section-kicker mb-2">Willkommen zurück</p>
-      <h1 className="text-2xl font-black text-ink">Einloggen</h1>
-      <p className="mt-2 text-sm leading-6 text-slate-600">
-        Melde dich mit deinem Firmenaccount an.
-      </p>
+    <div>
+      <p className="section-kicker mb-7">Firmen-Login</p>
+      <h1 className="text-5xl font-normal uppercase leading-none tracking-wide text-ink [font-family:var(--font-display)]">Einloggen</h1>
+      <p className="mt-2 text-sm font-semibold text-slate-600">Melde dich mit deinem Firmenaccount an.</p>
 
-      <div className="mt-5">
+      <div className="mt-8">
         <MessageBox error={error} success={success} />
-      </div>
 
-      <form action={signInAction} className="mt-5 space-y-4">
-        <div>
-          <label className="field-label" htmlFor="email">
-            E-Mail
-          </label>
-          <input className="field-input" id="email" name="email" type="email" autoComplete="email" required />
-        </div>
-        <div>
-          <label className="field-label" htmlFor="password">
-            Passwort
-          </label>
-          <input
-            className="field-input"
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-          />
-        </div>
-        <SubmitButton className="w-full">Einloggen</SubmitButton>
-      </form>
-
-      <div className="mt-5 rounded-lg border border-primary/20 bg-mint p-4">
-        <div className="flex items-start gap-3">
-          <PlayCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary-dark" aria-hidden="true" />
+        <form action={signInAction} className="space-y-4">
           <div>
-            <p className="font-black text-primary-dark">Noch keinen Account?</p>
-            <p className="mt-1 text-sm leading-6 text-primary-dark/80">
-              Starte eine vorbereitete Demo-Firma mit Baustellen, Team, Lager, Aufträgen und Tagesstunden.
-            </p>
+            <label className="field-label" htmlFor="email">
+              E-Mail
+            </label>
+            <input className="field-input" id="email" name="email" type="email" autoComplete="email" required />
           </div>
-        </div>
-        <form action={startDemoModeAction} className="mt-3">
-          <input type="hidden" name="return_to" value="/login" />
-          <SubmitButton className="w-full" variant="secondary">
-            Demo-Modus starten
-          </SubmitButton>
+          <div>
+            <label className="field-label" htmlFor="password">
+              Passwort
+            </label>
+            <input
+              className="field-input"
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+            />
+          </div>
+          <SubmitButton className="w-full">Einloggen</SubmitButton>
         </form>
-      </div>
 
-      <p className="mt-6 rounded-md bg-fog px-3 py-3 text-center text-sm text-slate-600">
-        Noch kein Account?{" "}
-        <Link href="/register" className="font-semibold text-primary">
-          Firma registrieren
-        </Link>
-      </p>
+        <div className="my-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-line" />
+          <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-700">oder</span>
+          <div className="h-px flex-1 bg-line" />
+        </div>
+
+        <div className="border border-line bg-surface p-4">
+          <div className="flex items-start gap-3">
+            <PlayCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+            <div>
+              <p className="font-black text-ink">BauPro ohne Eingabe testen</p>
+              <p className="mt-1 text-sm leading-6 text-ash">
+                Starte eine vorbereitete Demo-Firma mit Baustellen, Team, Lager, Aufträgen und Tagesstunden.
+              </p>
+            </div>
+          </div>
+          <form action={startDemoModeAction} className="mt-3">
+            <input type="hidden" name="return_to" value="/login" />
+            <SubmitButton className="w-full justify-between" variant="secondary">
+              Demo-Modus starten
+              <ArrowRight className="h-4 w-4 text-primary" aria-hidden="true" />
+            </SubmitButton>
+          </form>
+        </div>
+
+        <p className="mt-7 flex justify-between gap-4 border-t border-line pt-5 text-sm text-slate-600">
+          <span>Noch kein Account?</span>
+          <Link href="/register" className="font-semibold text-primary">
+            Firma registrieren →
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireManager } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import {
   customerFormSelect,
   inventoryItemCalculationSelect,
@@ -645,7 +645,7 @@ async function resolveCustomer(
 }
 
 export async function createOrderAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("orders.create", "/orders");
   const supabase = await createSupabaseServerClient();
   let createdOrderId: string | null = null;
   let materialCalculationWarning: string | null = null;
@@ -807,7 +807,7 @@ export async function createOrderAction(formData: FormData) {
 }
 
 export async function updateOrderDimensionsAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("orders.edit", "/orders");
   const supabase = await createSupabaseServerClient();
   const orderId = requiredFormUuid(formData, "order_id", "Auftrag");
   let materialCalculationWarning: string | null = null;
@@ -885,7 +885,7 @@ export async function updateOrderDimensionsAction(formData: FormData) {
 }
 
 export async function createOrderMeasurementItemAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("orders.edit", "/orders");
   const supabase = await createSupabaseServerClient();
   const orderId = requiredFormUuid(formData, "order_id", "Auftrag");
 
@@ -939,7 +939,7 @@ export async function createOrderMeasurementItemAction(formData: FormData) {
 }
 
 export async function archiveOrderMeasurementItemAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("orders.edit", "/orders");
   const supabase = await createSupabaseServerClient();
   const orderId = requiredFormUuid(formData, "order_id", "Auftrag");
   const itemId = requiredFormUuid(formData, "item_id", "Aufmassposition");
@@ -988,7 +988,7 @@ export async function archiveOrderMeasurementItemAction(formData: FormData) {
 }
 
 export async function recalculateOrderMaterialsAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("orders.edit", "/orders");
   const supabase = await createSupabaseServerClient();
   const orderId = requiredFormUuid(formData, "order_id", "Auftrag");
 
@@ -1039,7 +1039,7 @@ export async function recalculateOrderMaterialsAction(formData: FormData) {
 }
 
 export async function updateOrderStatusAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("orders.edit", "/orders");
   const supabase = await createSupabaseServerClient();
   const orderId = requiredFormUuid(formData, "order_id", "Auftrag");
   const status = orderStatusValue(formData.get("status"));

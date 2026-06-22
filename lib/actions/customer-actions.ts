@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireManager } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { requiredFormUuid } from "@/lib/security/form-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -49,7 +49,7 @@ function customerPayload(formData: FormData) {
 }
 
 export async function createCustomerAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("customers.edit", "/customers");
   const supabase = await createSupabaseServerClient();
 
   let payload: ReturnType<typeof customerPayload>;
@@ -78,7 +78,7 @@ export async function createCustomerAction(formData: FormData) {
 }
 
 export async function updateCustomerAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("customers.edit", "/customers");
   const supabase = await createSupabaseServerClient();
   const id = requiredFormUuid(formData, "id", "Kunde");
 
@@ -107,7 +107,7 @@ export async function updateCustomerAction(formData: FormData) {
 }
 
 export async function updateCustomerStatusAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("customers.edit", "/customers");
   const supabase = await createSupabaseServerClient();
   const id = requiredFormUuid(formData, "id", "Kunde");
   const status = customerStatusValue(formData.get("status"));

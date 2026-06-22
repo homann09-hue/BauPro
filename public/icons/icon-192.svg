@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" role="img" aria-label="BauPro">
-  <rect width="192" height="192" rx="36" fill="#2E7D32"/>
-  <path d="M46 132h100v14H46z" fill="#F8FAFC" opacity=".92"/>
-  <path d="M79 58l16-16 51 51-16 16z" fill="#F59E0B"/>
-  <path d="M62 71l22-22 18 18-22 22z" fill="#F8FAFC"/>
-  <path d="M58 76l58 58-13 13-58-58z" fill="#1F2937"/>
-  <path d="M119 95l16-16 14 14-16 16z" fill="#1F2937" opacity=".9"/>
+  <rect width="192" height="192" rx="20" fill="#111110"/>
+  <path d="M46 132h100v14H46z" fill="#F0EBE0" opacity=".92"/>
+  <path d="M79 58l16-16 51 51-16 16z" fill="#D4580A"/>
+  <path d="M62 71l22-22 18 18-22 22z" fill="#F0EBE0"/>
+  <path d="M58 76l58 58-13 13-58-58z" fill="#1A1918"/>
+  <path d="M119 95l16-16 14 14-16 16z" fill="#1A1918" opacity=".9"/>
 </svg>

@@ -18,6 +18,10 @@ test("Mitarbeiter legt Arbeitszeit an, Chef genehmigt und exportiert CSV", async
   await expect(page).toHaveURL(/\/time-tracking\?/, { timeout: 15_000 });
   await expect(page.getByText(/Arbeitszeit wurde gespeichert/)).toBeVisible();
 
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("wirklich abmelden");
+    await dialog.accept();
+  });
   await page.getByRole("button", { name: "Abmelden" }).click();
   await login(page);
   await gotoAppPage(page, "/time-tracking/daily?range=today");

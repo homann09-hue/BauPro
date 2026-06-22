@@ -236,7 +236,7 @@ export function OrderWizardForm({
 
   return (
     <form action={createOrderAction} className="space-y-5">
-      <section id="order-editing-area" className="surface p-4 sm:p-5">
+      <section id="order-editing-area" className="form-step-card">
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-mint text-moss">
             <UserRound className="h-5 w-5" aria-hidden="true" />
@@ -319,7 +319,7 @@ export function OrderWizardForm({
         </div>
       </section>
 
-      <section className="surface p-4 sm:p-5">
+      <section className="form-step-card">
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-steel/10 text-steel">
             <ClipboardCheck className="h-5 w-5" aria-hidden="true" />
@@ -424,7 +424,7 @@ export function OrderWizardForm({
         </fieldset>
       </section>
 
-      <section className="surface p-4 sm:p-5">
+      <section className="form-step-card">
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-signal/15 text-amber-700">
             <Calculator className="h-5 w-5" aria-hidden="true" />
@@ -539,7 +539,7 @@ export function OrderWizardForm({
 
       </section>
 
-      <section className="surface p-4 sm:p-5">
+      <section className="form-step-card">
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-mint text-moss">
             <Calculator className="h-5 w-5" aria-hidden="true" />
@@ -781,7 +781,7 @@ export function OrderWizardForm({
             </div>
           </div>
 
-          <aside className="rounded-lg border border-primary/20 bg-mint p-4 shadow-sm">
+          <aside className="rounded-lg border border-primary/20 bg-mint p-4 shadow-sm xl:sticky xl:top-24 xl:self-start">
             <p className="meta-label text-primary-dark">Live-Kalkulation</p>
             <div className="mt-3 grid gap-2 text-sm">
               <div className="flex items-center justify-between gap-3">
@@ -833,7 +833,7 @@ export function OrderWizardForm({
         </div>
       </section>
 
-      <section className="surface offer-print-area p-4 sm:p-5">
+      <section className="surface offer-print-area overflow-hidden p-4 sm:p-5">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="meta-label">Schritt 5</p>

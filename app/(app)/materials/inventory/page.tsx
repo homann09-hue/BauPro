@@ -226,7 +226,7 @@ export default async function InventoryPage({
       <MessageBox error={error} success={success} />
 
       <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_auto]">
-        <form className="surface grid gap-3 p-3 sm:grid-cols-[1fr_220px_auto]" action="/materials/inventory">
+        <form className="filter-bar grid gap-3 sm:grid-cols-[1fr_220px_auto]" action="/materials/inventory">
           <label className="sr-only" htmlFor="inventory-search">
             Lager suchen
           </label>
@@ -534,7 +534,7 @@ export default async function InventoryPage({
           title="Noch kein Lagerbestand"
           description={
             context.canManage
-              ? "Oeffne den Katalog und übernimm typische Dachdeckerartikel in dein Lager."
+              ? "Öffne den Katalog und übernimm typische Dachdeckerartikel in dein Lager."
               : "Es sind noch keine preisbereinigten Lagerartikel sichtbar. Melde fehlendes Material direkt an Chef/Admin."
           }
           actionHref={context.canManage ? "/materials/catalog" : "/material-melden"}

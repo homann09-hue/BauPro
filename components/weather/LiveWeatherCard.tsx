@@ -124,7 +124,7 @@ export function LiveWeatherCard({
                       <input className="field-input" name="manual_latitude" inputMode="decimal" placeholder="50.93836" />
                     </label>
                     <label>
-                      <span className="field-label">Laengengrad</span>
+                      <span className="field-label">Längengrad</span>
                       <input className="field-input" name="manual_longitude" inputMode="decimal" placeholder="6.95997" />
                     </label>
                     <SubmitButton className="self-end">
@@ -144,7 +144,7 @@ export function LiveWeatherCard({
                 </div>
 
                 <div className="mt-4 rounded-lg border border-line bg-fog p-4">
-                  <p className="meta-label">Einschaetzung</p>
+                  <p className="meta-label">Einschätzung</p>
                   <p className="mt-1 text-base font-black text-ink">{weather.summary}</p>
                   <p className="mt-2 text-sm text-slate-600">
                     {weather.weatherLabel} · aktualisiert {formatDateTime(weather.fetchedAt)} · {weather.source}
