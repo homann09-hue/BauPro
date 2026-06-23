@@ -6,13 +6,16 @@ import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { setTimeEntryStatusAction } from "@/lib/actions/time-tracking-actions";
 import { requireAppContext } from "@/lib/auth";
+import { pageParam, pageRange, totalPages as getTotalPages } from "@/lib/data/shared";
 import { selectTimeEntriesWithWeatherFallback } from "@/lib/data/time-entries";
 import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatMinutesAsHours, formatTime, sumNetMinutes, timeEntryStatusLabels } from "@/lib/time-tracking";
-import { formatDate, searchParamMessage } from "@/lib/utils";
+import { cn, formatDate, searchParamMessage } from "@/lib/utils";
 import { weatherSummary } from "@/lib/weather/display";
 import type { Jobsite, Profile, TimeEntry } from "@/types/app";
+
+const pageSize = 24;
 
 export default async function TimeTrackingPage({
   searchParams
@@ -21,16 +24,19 @@ export default async function TimeTrackingPage({
 }) {
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
-  const { error, success } = searchParamMessage(await searchParams);
+  const params = (await searchParams) ?? {};
+  const { error, success } = searchParamMessage(params);
+  const page = pageParam(params);
+  const { from, to } = pageRange(page, pageSize);
 
-  const { data, error: queryError } = await selectTimeEntriesWithWeatherFallback((select) => {
+  const { data, error: queryError, count } = await selectTimeEntriesWithWeatherFallback((select) => {
     let timeEntriesQuery = supabase
       .from("time_entries")
-      .select(select)
+      .select(select, { count: "exact" })
       .eq("company_id", context.companyId)
       .order("date", { ascending: false })
       .order("start_time", { ascending: false })
-      .limit(80);
+      .range(from, to);
 
     if (!context.canManage) timeEntriesQuery = timeEntriesQuery.eq("employee_id", context.userId);
 
@@ -65,6 +71,8 @@ export default async function TimeTrackingPage({
   }));
   const totalMinutes = sumNetMinutes(entries);
   const submittedCount = entries.filter((entry) => entry.status === "submitted").length;
+  const totalCount = count ?? entries.length;
+  const totalPages = getTotalPages(totalCount, pageSize);
 
   return (
     <>
@@ -83,14 +91,14 @@ export default async function TimeTrackingPage({
       <div className="mb-5 grid gap-3 sm:grid-cols-3">
         <div className="surface p-4">
           <p className="meta-label">Einträge</p>
-          <p className="mt-1 text-2xl font-black text-ink">{entries.length}</p>
+          <p className="mt-1 text-2xl font-black text-ink">{totalCount}</p>
         </div>
         <div className="surface p-4">
-          <p className="meta-label">Netto gesamt</p>
+          <p className="meta-label">Netto diese Seite</p>
           <p className="mt-1 text-2xl font-black text-ink">{formatMinutesAsHours(totalMinutes)}</p>
         </div>
         <div className="surface p-4">
-          <p className="meta-label">Eingereicht</p>
+          <p className="meta-label">Eingereicht diese Seite</p>
           <p className="mt-1 text-2xl font-black text-ink">{submittedCount}</p>
         </div>
       </div>
@@ -211,6 +219,30 @@ export default async function TimeTrackingPage({
           })}
         </div>
       )}
+
+      {totalPages > 1 ? (
+        <nav className="mt-6 flex flex-col gap-3 rounded-lg border border-line bg-white p-3 sm:flex-row sm:items-center sm:justify-between" aria-label="Zeiten Seiten">
+          <p className="text-sm font-semibold text-slate-600">
+            Seite {page} von {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <Link
+              href={`/time-tracking?page=${Math.max(1, page - 1)}`}
+              aria-disabled={page <= 1}
+              className={cn("btn-secondary min-h-11 flex-1 sm:flex-none", page <= 1 && "pointer-events-none opacity-50")}
+            >
+              Zurück
+            </Link>
+            <Link
+              href={`/time-tracking?page=${Math.min(totalPages, page + 1)}`}
+              aria-disabled={page >= totalPages}
+              className={cn("btn-primary min-h-11 flex-1 sm:flex-none", page >= totalPages && "pointer-events-none opacity-50")}
+            >
+              Weiter
+            </Link>
+          </div>
+        </nav>
+      ) : null}
 
       {context.canManage ? (
         <div className="mt-6 flex flex-wrap gap-2">

@@ -68,6 +68,10 @@ create table if not exists public.companies (
   ),
   trial_ends_at timestamptz,
   current_period_end timestamptz,
+  session_timeout_minutes integer not null default 30 constraint companies_session_timeout_minutes_check check (session_timeout_minutes between 0 and 1440),
+  trade text not null default 'dachdecker',
+  logo_path text,
+  onboarding_completed_at timestamptz,
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -2455,6 +2459,24 @@ to authenticated
 using (
   bucket_id = 'report-photos'
   and (storage.foldername(name))[1] = public.current_company_id()::text
+  and (storage.foldername(name))[2] = 'reports'
+  and exists (
+    select 1
+    from public.report_photos rp
+    join public.reports r on r.id = rp.report_id
+    where rp.company_id = public.current_company_id()
+      and rp.storage_path = storage.objects.name
+      and rp.archived_at is null
+      and r.company_id = public.current_company_id()
+      and r.archived_at is null
+      and r.id::text = (storage.foldername(name))[3]
+      and (
+        public.can_manage_company()
+        or rp.created_by = auth.uid()
+        or r.created_by = auth.uid()
+        or auth.uid() = any(r.employee_ids)
+      )
+  )
 );
 
 drop policy if exists "members can upload company report photos" on storage.objects;
@@ -4104,6 +4126,7 @@ create table if not exists public.calculation_settings (
   default_internal_hourly_cost numeric(12, 2) not null default 38,
   default_profit_markup_percent numeric(7, 2) not null default 10,
   default_overhead_percent numeric(7, 2) not null default 12,
+  default_travel_rate_per_km numeric(12, 2) not null default 0.75,
   default_travel_flat_rate numeric(12, 2) not null default 0,
   allow_ai_job_creation boolean not null default true,
   require_admin_confirmation boolean not null default true,
@@ -4470,6 +4493,11 @@ alter table public.companies add column if not exists website text;
 alter table public.companies add column if not exists tax_id text;
 alter table public.companies add column if not exists payment_terms text;
 alter table public.companies add column if not exists onboarding_completed_at timestamptz;
+alter table public.companies add column if not exists session_timeout_minutes integer not null default 30;
+alter table public.companies add column if not exists trade text not null default 'dachdecker';
+alter table public.companies add column if not exists logo_path text;
+alter table public.companies drop constraint if exists companies_session_timeout_minutes_check;
+alter table public.companies add constraint companies_session_timeout_minutes_check check (session_timeout_minutes between 0 and 1440);
 
 alter table public.customers add column if not exists archived_at timestamptz;
 alter table public.jobsites add column if not exists archived_at timestamptz;
@@ -4508,6 +4536,65 @@ create table if not exists public.privacy_requests (
 );
 
 create index if not exists companies_onboarding_idx on public.companies(onboarding_completed_at);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'company-logos',
+  'company-logos',
+  false,
+  1048576,
+  array['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
+)
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "company members read company logos" on storage.objects;
+create policy "company members read company logos"
+on storage.objects for select
+to authenticated
+using (
+  bucket_id = 'company-logos'
+  and (storage.foldername(name))[1] = public.current_company_id()::text
+);
+
+drop policy if exists "managers upload company logos" on storage.objects;
+create policy "managers upload company logos"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'company-logos'
+  and (storage.foldername(name))[1] = public.current_company_id()::text
+  and (storage.foldername(name))[2] = 'logos'
+  and public.can_manage_company()
+);
+
+drop policy if exists "managers update company logos" on storage.objects;
+create policy "managers update company logos"
+on storage.objects for update
+to authenticated
+using (
+  bucket_id = 'company-logos'
+  and (storage.foldername(name))[1] = public.current_company_id()::text
+  and public.can_manage_company()
+)
+with check (
+  bucket_id = 'company-logos'
+  and (storage.foldername(name))[1] = public.current_company_id()::text
+  and public.can_manage_company()
+);
+
+drop policy if exists "managers delete company logos" on storage.objects;
+create policy "managers delete company logos"
+on storage.objects for delete
+to authenticated
+using (
+  bucket_id = 'company-logos'
+  and (storage.foldername(name))[1] = public.current_company_id()::text
+  and public.can_manage_company()
+);
+
 create index if not exists customers_archived_idx on public.customers(company_id, archived_at);
 create index if not exists jobsites_archived_idx on public.jobsites(company_id, archived_at);
 create index if not exists orders_archived_idx on public.orders(company_id, archived_at);
@@ -5511,6 +5598,142 @@ begin
   end loop;
 end $$;
 
+-- RLS consolidation: exact duplicate redteam fallback policies removed.
+-- Generated from: node scripts/audit-rls-policies.mjs --redundant-drops
+drop policy if exists "redteam managers select fallback" on public.ai_job_drafts; -- select, gedeckt durch "managers read ai job drafts"
+drop policy if exists "redteam managers update fallback" on public.ai_job_drafts; -- update, gedeckt durch "managers update ai job drafts"
+drop policy if exists "redteam managers insert fallback" on public.ai_settings; -- insert, gedeckt durch "managers insert ai settings"
+drop policy if exists "redteam managers update fallback" on public.ai_settings; -- update, gedeckt durch "managers update ai settings"
+drop policy if exists "redteam managers select fallback" on public.ai_usage_logs; -- select, gedeckt durch "managers read ai usage logs"
+drop policy if exists "redteam managers delete fallback" on public.bring_list_availability_snapshots; -- delete, gedeckt durch "managers delete availability snapshots"
+drop policy if exists "redteam managers update fallback" on public.bring_list_availability_snapshots; -- update, gedeckt durch "managers maintain availability snapshots"
+drop policy if exists "redteam managers delete fallback" on public.bring_lists; -- delete, gedeckt durch "managers delete bring lists"
+drop policy if exists "redteam managers select fallback" on public.calculation_settings; -- select, gedeckt durch "managers read calculation settings"
+drop policy if exists "redteam managers delete fallback" on public.commercial_document_items; -- delete, gedeckt durch "managers delete commercial document items"
+drop policy if exists "redteam managers insert fallback" on public.commercial_document_items; -- insert, gedeckt durch "managers insert commercial document items"
+drop policy if exists "redteam managers select fallback" on public.commercial_document_items; -- select, gedeckt durch "managers read commercial document items"
+drop policy if exists "redteam managers update fallback" on public.commercial_document_items; -- update, gedeckt durch "managers update commercial document items"
+drop policy if exists "redteam managers insert fallback" on public.commercial_documents; -- insert, gedeckt durch "managers insert commercial documents"
+drop policy if exists "redteam managers select fallback" on public.commercial_documents; -- select, gedeckt durch "managers read commercial documents"
+drop policy if exists "redteam managers update fallback" on public.commercial_documents; -- update, gedeckt durch "managers update commercial documents"
+drop policy if exists "redteam managers insert fallback" on public.company_audit_log; -- insert, gedeckt durch "managers create company audit log"
+drop policy if exists "redteam managers select fallback" on public.company_audit_log; -- select, gedeckt durch "managers read company audit log"
+drop policy if exists "redteam managers insert fallback" on public.company_pricing_settings; -- insert, gedeckt durch "managers can insert pricing settings"
+drop policy if exists "redteam managers select fallback" on public.company_pricing_settings; -- select, gedeckt durch "managers can read pricing settings"
+drop policy if exists "redteam managers update fallback" on public.company_pricing_settings; -- update, gedeckt durch "managers can update pricing settings"
+drop policy if exists "redteam managers select fallback" on public.customer_documents; -- select, gedeckt durch "managers read customer documents"
+drop policy if exists "redteam managers select fallback" on public.customer_portal_events; -- select, gedeckt durch "managers read customer portal events"
+drop policy if exists "redteam managers delete fallback" on public.customer_portal_messages; -- delete, gedeckt durch "managers delete customer portal messages"
+drop policy if exists "redteam managers insert fallback" on public.customer_portal_messages; -- insert, gedeckt durch "managers insert customer portal messages"
+drop policy if exists "redteam managers select fallback" on public.customer_portal_messages; -- select, gedeckt durch "managers read customer portal messages"
+drop policy if exists "redteam managers update fallback" on public.customer_portal_messages; -- update, gedeckt durch "managers update customer portal messages"
+drop policy if exists "redteam managers delete fallback" on public.customer_portal_tokens; -- delete, gedeckt durch "managers delete customer portal tokens"
+drop policy if exists "redteam managers insert fallback" on public.customer_portal_tokens; -- insert, gedeckt durch "managers insert customer portal tokens"
+drop policy if exists "redteam managers select fallback" on public.customer_portal_tokens; -- select, gedeckt durch "managers read customer portal tokens"
+drop policy if exists "redteam managers update fallback" on public.customer_portal_tokens; -- update, gedeckt durch "managers update customer portal tokens"
+drop policy if exists "redteam managers insert fallback" on public.customers; -- insert, gedeckt durch "managers can insert customers"
+drop policy if exists "redteam managers select fallback" on public.customers; -- select, gedeckt durch "managers can read customers"
+drop policy if exists "redteam managers update fallback" on public.customers; -- update, gedeckt durch "managers can update customers"
+drop policy if exists "redteam managers insert fallback" on public.inventory_items; -- insert, gedeckt durch "managers can insert inventory items"
+drop policy if exists "redteam managers select fallback" on public.inventory_items; -- select, gedeckt durch "managers can read inventory items with prices"
+drop policy if exists "redteam managers update fallback" on public.inventory_items; -- update, gedeckt durch "managers can update inventory items"
+drop policy if exists "redteam managers delete fallback" on public.inventory_locations; -- delete, gedeckt durch "managers can delete inventory locations"
+drop policy if exists "redteam managers insert fallback" on public.inventory_locations; -- insert, gedeckt durch "managers can insert inventory locations"
+drop policy if exists "redteam managers select fallback" on public.inventory_locations; -- select, gedeckt durch "read own company inventory locations"
+drop policy if exists "redteam managers update fallback" on public.inventory_locations; -- update, gedeckt durch "managers can update inventory locations"
+drop policy if exists "redteam managers insert fallback" on public.job_dimensions; -- insert, gedeckt durch "managers can insert job dimensions"
+drop policy if exists "redteam managers update fallback" on public.job_dimensions; -- update, gedeckt durch "managers can update job dimensions"
+drop policy if exists "redteam managers insert fallback" on public.job_estimates; -- insert, gedeckt durch "managers create job estimates"
+drop policy if exists "redteam managers select fallback" on public.job_estimates; -- select, gedeckt durch "managers read job estimates"
+drop policy if exists "redteam managers delete fallback" on public.job_material_calculation_items; -- delete, gedeckt durch "managers can delete calculation items"
+drop policy if exists "redteam managers insert fallback" on public.job_material_calculation_items; -- insert, gedeckt durch "managers can insert calculation items"
+drop policy if exists "redteam managers select fallback" on public.job_material_calculation_items; -- select, gedeckt durch "managers can read priced calculation items"
+drop policy if exists "redteam managers update fallback" on public.job_material_calculation_items; -- update, gedeckt durch "managers can update calculation items"
+drop policy if exists "redteam managers delete fallback" on public.job_material_calculations; -- delete, gedeckt durch "managers can delete job material calculations"
+drop policy if exists "redteam managers insert fallback" on public.job_material_calculations; -- insert, gedeckt durch "managers can insert job material calculations"
+drop policy if exists "redteam managers update fallback" on public.job_material_calculations; -- update, gedeckt durch "managers can update job material calculations"
+drop policy if exists "redteam managers insert fallback" on public.job_material_requirements; -- insert, gedeckt durch "managers can insert order requirements"
+drop policy if exists "redteam managers select fallback" on public.job_material_requirements; -- select, gedeckt durch "managers can read priced order requirements"
+drop policy if exists "redteam managers update fallback" on public.job_material_requirements; -- update, gedeckt durch "managers can update order requirements"
+drop policy if exists "redteam managers update fallback" on public.jobsite_activity_events; -- update, gedeckt durch "managers archive jobsite activity"
+drop policy if exists "redteam managers update fallback" on public.jobsite_documents; -- update, gedeckt durch "managers update jobsite documents"
+drop policy if exists "redteam managers insert fallback" on public.jobsites; -- insert, gedeckt durch "managers can insert jobsites"
+drop policy if exists "redteam managers update fallback" on public.jobsites; -- update, gedeckt durch "managers can update jobsites"
+drop policy if exists "redteam managers update fallback" on public.material_alerts; -- update, gedeckt durch "managers update material alerts"
+drop policy if exists "redteam managers delete fallback" on public.material_calculation_rules; -- delete, gedeckt durch "managers can delete calculation rules"
+drop policy if exists "redteam managers insert fallback" on public.material_calculation_rules; -- insert, gedeckt durch "managers can insert calculation rules"
+drop policy if exists "redteam managers update fallback" on public.material_calculation_rules; -- update, gedeckt durch "managers can update calculation rules"
+drop policy if exists "redteam managers insert fallback" on public.material_movements; -- insert, gedeckt durch "managers create material movements"
+drop policy if exists "redteam managers update fallback" on public.material_movements; -- update, gedeckt durch "managers update material movements"
+drop policy if exists "redteam managers insert fallback" on public.material_reservations; -- insert, gedeckt durch "managers create material reservations"
+drop policy if exists "redteam managers update fallback" on public.material_reservations; -- update, gedeckt durch "managers update material reservations"
+drop policy if exists "redteam managers insert fallback" on public.materials; -- insert, gedeckt durch "managers can insert materials"
+drop policy if exists "redteam managers select fallback" on public.materials; -- select, gedeckt durch "managers can read materials with prices"
+drop policy if exists "redteam managers update fallback" on public.materials; -- update, gedeckt durch "managers can update materials"
+drop policy if exists "redteam managers delete fallback" on public.online_price_discoveries; -- delete, gedeckt durch "managers can delete online price discoveries"
+drop policy if exists "redteam managers insert fallback" on public.online_price_discoveries; -- insert, gedeckt durch "managers can insert online price discoveries"
+drop policy if exists "redteam managers select fallback" on public.online_price_discoveries; -- select, gedeckt durch "managers can read online price discoveries"
+drop policy if exists "redteam managers delete fallback" on public.online_price_offers; -- delete, gedeckt durch "managers can delete online price offers"
+drop policy if exists "redteam managers insert fallback" on public.online_price_offers; -- insert, gedeckt durch "managers can insert online price offers"
+drop policy if exists "redteam managers select fallback" on public.online_price_offers; -- select, gedeckt durch "managers can read online price offers"
+drop policy if exists "redteam managers insert fallback" on public.order_measurement_items; -- insert, gedeckt durch "managers insert order measurement items"
+drop policy if exists "redteam managers select fallback" on public.order_measurement_items; -- select, gedeckt durch "managers read order measurement items"
+drop policy if exists "redteam managers update fallback" on public.order_measurement_items; -- update, gedeckt durch "managers update order measurement items"
+drop policy if exists "redteam managers insert fallback" on public.orders; -- insert, gedeckt durch "managers can insert orders"
+drop policy if exists "redteam managers select fallback" on public.orders; -- select, gedeckt durch "managers can read orders"
+drop policy if exists "redteam managers update fallback" on public.orders; -- update, gedeckt durch "managers can update orders"
+drop policy if exists "redteam managers insert fallback" on public.planning_assignments; -- insert, gedeckt durch "managers insert planning assignments"
+drop policy if exists "redteam managers update fallback" on public.planning_assignments; -- update, gedeckt durch "managers update planning assignments"
+drop policy if exists "redteam managers insert fallback" on public.planning_resources; -- insert, gedeckt durch "managers insert planning resources"
+drop policy if exists "redteam managers update fallback" on public.planning_resources; -- update, gedeckt durch "managers update planning resources"
+drop policy if exists "redteam managers insert fallback" on public.planning_weather_checks; -- insert, gedeckt durch "managers insert planning weather checks"
+drop policy if exists "redteam managers update fallback" on public.planning_weather_checks; -- update, gedeckt durch "managers update planning weather checks"
+drop policy if exists "redteam managers update fallback" on public.privacy_requests; -- update, gedeckt durch "managers update privacy requests"
+drop policy if exists "redteam managers delete fallback" on public.profiles; -- delete, gedeckt durch "managers can delete profiles"
+drop policy if exists "redteam managers insert fallback" on public.profiles; -- insert, gedeckt durch "managers can insert profiles"
+drop policy if exists "redteam managers update fallback" on public.profiles; -- update, gedeckt durch "managers can update profiles"
+drop policy if exists "redteam managers select fallback" on public.purchase_suggestions; -- select, gedeckt durch "managers read purchase suggestions"
+drop policy if exists "redteam managers update fallback" on public.purchase_suggestions; -- update, gedeckt durch "managers update purchase suggestions"
+drop policy if exists "redteam managers update fallback" on public.report_photos; -- update, gedeckt durch "managers update report photo release"
+drop policy if exists "redteam managers insert fallback" on public.resource_documents; -- insert, gedeckt durch "managers insert resource documents"
+drop policy if exists "redteam managers update fallback" on public.resource_documents; -- update, gedeckt durch "managers update resource documents"
+drop policy if exists "redteam managers delete fallback" on public.supplier_integrations; -- delete, gedeckt durch "managers can delete supplier integrations"
+drop policy if exists "redteam managers insert fallback" on public.supplier_integrations; -- insert, gedeckt durch "managers can insert supplier integrations"
+drop policy if exists "redteam managers select fallback" on public.supplier_integrations; -- select, gedeckt durch "managers can read supplier integrations"
+drop policy if exists "redteam managers update fallback" on public.supplier_integrations; -- update, gedeckt durch "managers can update supplier integrations"
+drop policy if exists "redteam managers delete fallback" on public.supplier_offer_matches; -- delete, gedeckt durch "managers can delete supplier offer matches"
+drop policy if exists "redteam managers insert fallback" on public.supplier_offer_matches; -- insert, gedeckt durch "managers can insert supplier offer matches"
+drop policy if exists "redteam managers select fallback" on public.supplier_offer_matches; -- select, gedeckt durch "managers can read supplier offer matches"
+drop policy if exists "redteam managers update fallback" on public.supplier_offer_matches; -- update, gedeckt durch "managers can update supplier offer matches"
+drop policy if exists "redteam managers delete fallback" on public.supplier_offers; -- delete, gedeckt durch "managers can delete supplier offers"
+drop policy if exists "redteam managers insert fallback" on public.supplier_offers; -- insert, gedeckt durch "managers can insert supplier offers"
+drop policy if exists "redteam managers select fallback" on public.supplier_offers; -- select, gedeckt durch "managers can read supplier offers"
+drop policy if exists "redteam managers update fallback" on public.supplier_offers; -- update, gedeckt durch "managers can update supplier offers"
+drop policy if exists "redteam managers delete fallback" on public.supplier_price_history; -- delete, gedeckt durch "managers can delete supplier price history"
+drop policy if exists "redteam managers insert fallback" on public.supplier_price_history; -- insert, gedeckt durch "managers can insert supplier price history"
+drop policy if exists "redteam managers select fallback" on public.supplier_price_history; -- select, gedeckt durch "managers can read supplier price history"
+drop policy if exists "redteam managers delete fallback" on public.suppliers; -- delete, gedeckt durch "managers can delete suppliers"
+drop policy if exists "redteam managers insert fallback" on public.suppliers; -- insert, gedeckt durch "managers can insert suppliers"
+drop policy if exists "redteam managers select fallback" on public.suppliers; -- select, gedeckt durch "read own company suppliers"
+drop policy if exists "redteam managers update fallback" on public.suppliers; -- update, gedeckt durch "managers can update suppliers"
+drop policy if exists "redteam managers insert fallback" on public.tasks; -- insert, gedeckt durch "managers can insert tasks"
+drop policy if exists "redteam managers delete fallback" on public.time_reports; -- delete, gedeckt durch "managers can delete time reports"
+drop policy if exists "redteam managers insert fallback" on public.time_reports; -- insert, gedeckt durch "managers can insert time reports"
+drop policy if exists "redteam managers select fallback" on public.time_reports; -- select, gedeckt durch "managers can read time reports"
+drop policy if exists "redteam managers update fallback" on public.time_reports; -- update, gedeckt durch "managers can update time reports"
+drop policy if exists "redteam managers insert fallback" on public.vehicle_materials; -- insert, gedeckt durch "managers can insert vehicle materials"
+drop policy if exists "redteam managers update fallback" on public.vehicle_materials; -- update, gedeckt durch "managers can update vehicle materials"
+drop policy if exists "redteam managers insert fallback" on public.vehicles; -- insert, gedeckt durch "managers can insert vehicles"
+drop policy if exists "redteam managers update fallback" on public.vehicles; -- update, gedeckt durch "managers can update vehicles"
+drop policy if exists "redteam managers delete fallback" on public.weather_snapshots; -- delete, gedeckt durch "managers can delete weather snapshots"
+drop policy if exists "redteam managers insert fallback" on public.weather_snapshots; -- insert, gedeckt durch "managers can insert weather snapshots"
+drop policy if exists "redteam managers select fallback" on public.weather_snapshots; -- select, gedeckt durch "managers can read weather snapshots"
+drop policy if exists "redteam managers update fallback" on public.weather_snapshots; -- update, gedeckt durch "managers can update weather snapshots"
+drop policy if exists "redteam managers insert fallback" on public.work_order_versions; -- insert, gedeckt durch "managers insert work order versions"
+drop policy if exists "redteam managers select fallback" on public.work_order_versions; -- select, gedeckt durch "managers read work order versions"
+drop policy if exists "redteam managers insert fallback" on public.work_orders; -- insert, gedeckt durch "managers insert work orders"
+drop policy if exists "redteam managers select fallback" on public.work_orders; -- select, gedeckt durch "managers read work orders"
+drop policy if exists "redteam managers update fallback" on public.work_orders; -- update, gedeckt durch "managers update work orders"
 drop policy if exists "read own company inventory items" on public.inventory_items;
 drop policy if exists "managers can read inventory items with prices" on public.inventory_items;
 create policy "managers can read inventory items with prices"
@@ -6823,6 +7046,57 @@ drop trigger if exists validate_vehicle_material_tenant on public.vehicle_materi
 create trigger validate_vehicle_material_tenant
 before insert or update on public.vehicle_materials
 for each row execute function public.validate_vehicle_material_tenant();
+
+create or replace function public.assert_role_change_allowed()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_role text;
+  other_admin_exists boolean;
+begin
+  if old.role is not distinct from new.role then
+    return new;
+  end if;
+
+  select p.role
+    into actor_role
+  from public.profiles p
+  where p.id = auth.uid()
+    and p.company_id = old.company_id
+    and p.active = true
+  limit 1;
+
+  if new.role = 'admin' and coalesce(actor_role, '') <> 'admin' then
+    raise exception 'Keine Berechtigung fuer diese Rollenaenderung.';
+  end if;
+
+  if old.role = 'admin' and new.role <> 'admin' then
+    select exists (
+      select 1
+      from public.profiles p
+      where p.company_id = old.company_id
+        and p.id <> old.id
+        and p.role = 'admin'
+        and p.active = true
+    )
+      into other_admin_exists;
+
+    if not coalesce(other_admin_exists, false) then
+      raise exception 'Keine Berechtigung fuer diese Rollenaenderung.';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists guard_profile_role_change_before_audit on public.profiles;
+create trigger guard_profile_role_change_before_audit
+before update of role on public.profiles
+for each row execute function public.assert_role_change_allowed();
 
 create or replace function public.audit_profile_role_change()
 returns trigger
@@ -8833,5 +9107,502 @@ comment on column public.inventory_items.sales_price is
   'VK-Preis: darf niemals an Mitarbeiter-, Vorarbeiter- oder Kundenportal-Responses ausgeliefert werden.';
 comment on column public.inventory_items.markup_percent is
   'Marge/Aufschlag: nur fuer Chef/Admin, nicht fuer Mitarbeiter/Vorarbeiter/Kundenportal.';
+
+create table if not exists public.invoices (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  customer_id uuid not null references public.customers(id) on delete restrict,
+  order_id uuid references public.orders(id) on delete set null,
+  type text not null check (type in ('angebot', 'rechnung', 'gutschrift')),
+  status text not null default 'entwurf' check (status in ('entwurf', 'gesendet', 'bezahlt', 'storniert')),
+  invoice_number text not null,
+  issue_date date not null default current_date,
+  due_date date,
+  subtotal_eur numeric(12, 2) not null default 0,
+  tax_rate_percent numeric(7, 2) not null default 19 check (tax_rate_percent in (0, 7, 19)),
+  tax_eur numeric(12, 2) not null default 0,
+  total_eur numeric(12, 2) not null default 0,
+  notes text,
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  archived_at timestamptz,
+  unique (company_id, invoice_number)
+);
+
+create table if not exists public.invoice_items (
+  id uuid primary key default gen_random_uuid(),
+  invoice_id uuid not null references public.invoices(id) on delete cascade,
+  description text not null,
+  quantity numeric(12, 2) not null default 1 check (quantity > 0),
+  unit text not null default 'Stueck',
+  unit_price_eur numeric(12, 2) not null default 0 check (unit_price_eur >= 0),
+  total_eur numeric(12, 2) generated always as (
+    round(coalesce(quantity, 0) * coalesce(unit_price_eur, 0), 2)
+  ) stored,
+  position integer not null default 1,
+  created_at timestamptz not null default now(),
+  archived_at timestamptz
+);
+
+create index if not exists invoices_company_type_status_idx
+  on public.invoices(company_id, type, status, issue_date desc)
+  where archived_at is null;
+create index if not exists invoices_company_customer_idx
+  on public.invoices(company_id, customer_id, created_at desc)
+  where archived_at is null;
+create index if not exists invoices_company_order_idx
+  on public.invoices(company_id, order_id, created_at desc)
+  where archived_at is null;
+create index if not exists invoice_items_invoice_position_idx
+  on public.invoice_items(invoice_id, position)
+  where archived_at is null;
+
+alter table public.invoices enable row level security;
+alter table public.invoice_items enable row level security;
+alter table public.invoices force row level security;
+alter table public.invoice_items force row level security;
+
+grant select, insert, update on public.invoices to authenticated;
+grant select, insert, update, delete on public.invoice_items to authenticated;
+
+drop policy if exists "managers read invoices" on public.invoices;
+create policy "managers read invoices"
+on public.invoices for select
+to authenticated
+using (company_id = public.current_company_id() and public.can_manage_company());
+
+drop policy if exists "creators read own invoices" on public.invoices;
+create policy "creators read own invoices"
+on public.invoices for select
+to authenticated
+using (company_id = public.current_company_id() and created_by = auth.uid());
+
+drop policy if exists "managers insert invoices" on public.invoices;
+create policy "managers insert invoices"
+on public.invoices for insert
+to authenticated
+with check (company_id = public.current_company_id() and public.can_manage_company());
+
+drop policy if exists "managers update invoices" on public.invoices;
+create policy "managers update invoices"
+on public.invoices for update
+to authenticated
+using (company_id = public.current_company_id() and public.can_manage_company())
+with check (company_id = public.current_company_id() and public.can_manage_company());
+
+drop policy if exists "managers read invoice items" on public.invoice_items;
+create policy "managers read invoice items"
+on public.invoice_items for select
+to authenticated
+using (
+  exists (
+    select 1 from public.invoices i
+    where i.id = invoice_items.invoice_id
+      and i.company_id = public.current_company_id()
+      and public.can_manage_company()
+  )
+);
+
+drop policy if exists "creators read own invoice items" on public.invoice_items;
+create policy "creators read own invoice items"
+on public.invoice_items for select
+to authenticated
+using (
+  exists (
+    select 1 from public.invoices i
+    where i.id = invoice_items.invoice_id
+      and i.company_id = public.current_company_id()
+      and i.created_by = auth.uid()
+  )
+);
+
+drop policy if exists "managers insert invoice items" on public.invoice_items;
+create policy "managers insert invoice items"
+on public.invoice_items for insert
+to authenticated
+with check (
+  exists (
+    select 1 from public.invoices i
+    where i.id = invoice_items.invoice_id
+      and i.company_id = public.current_company_id()
+      and public.can_manage_company()
+  )
+);
+
+drop policy if exists "managers update invoice items" on public.invoice_items;
+create policy "managers update invoice items"
+on public.invoice_items for update
+to authenticated
+using (
+  exists (
+    select 1 from public.invoices i
+    where i.id = invoice_items.invoice_id
+      and i.company_id = public.current_company_id()
+      and public.can_manage_company()
+  )
+)
+with check (
+  exists (
+    select 1 from public.invoices i
+    where i.id = invoice_items.invoice_id
+      and i.company_id = public.current_company_id()
+      and public.can_manage_company()
+  )
+);
+
+drop policy if exists "managers delete invoice items" on public.invoice_items;
+create policy "managers delete invoice items"
+on public.invoice_items for delete
+to authenticated
+using (
+  exists (
+    select 1 from public.invoices i
+    where i.id = invoice_items.invoice_id
+      and i.company_id = public.current_company_id()
+      and public.can_manage_company()
+  )
+);
+
+drop trigger if exists set_invoices_updated_at on public.invoices;
+create trigger set_invoices_updated_at
+before update on public.invoices
+for each row execute function public.set_updated_at();
+
+create or replace function public.generate_invoice_number(p_company_id uuid, p_type text default 'rechnung')
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_year text := to_char(current_date, 'YYYY');
+  prefix text;
+  last_number int;
+begin
+  if p_type = 'angebot' then
+    prefix := 'AN-' || current_year || '-';
+  elsif p_type = 'gutschrift' then
+    prefix := 'GS-' || current_year || '-';
+  else
+    prefix := 'RE-' || current_year || '-';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext(p_company_id::text || ':' || prefix));
+
+  select coalesce(max(nullif(regexp_replace(invoice_number, '^.*-', ''), '')::int), 0)
+  into last_number
+  from public.invoices
+  where company_id = p_company_id
+    and invoice_number like prefix || '%';
+
+  return prefix || lpad((last_number + 1)::text, 4, '0');
+end;
+$$;
+
+create or replace function public.recalculate_invoice_totals(p_invoice_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  subtotal numeric(12, 2);
+  tax_rate numeric(7, 2);
+begin
+  select coalesce(sum(total_eur), 0)
+  into subtotal
+  from public.invoice_items
+  where invoice_id = p_invoice_id
+    and archived_at is null;
+
+  select tax_rate_percent
+  into tax_rate
+  from public.invoices
+  where id = p_invoice_id;
+
+  update public.invoices
+  set
+    subtotal_eur = subtotal,
+    tax_eur = round(subtotal * coalesce(tax_rate, 19) / 100, 2),
+    total_eur = round(subtotal * (1 + coalesce(tax_rate, 19) / 100), 2)
+  where id = p_invoice_id;
+end;
+$$;
+
+create or replace function public.recalculate_invoice_totals_trigger()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform public.recalculate_invoice_totals(coalesce(new.invoice_id, old.invoice_id));
+  return coalesce(new, old);
+end;
+$$;
+
+drop trigger if exists recalculate_invoice_totals_on_items on public.invoice_items;
+create trigger recalculate_invoice_totals_on_items
+after insert or update or delete on public.invoice_items
+for each row execute function public.recalculate_invoice_totals_trigger();
+
+grant execute on function public.generate_invoice_number(uuid, text) to authenticated;
+grant execute on function public.recalculate_invoice_totals(uuid) to authenticated;
+
+create or replace function public.insert_invoice_items_from_json(p_invoice_id uuid, p_items jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if jsonb_typeof(p_items) is distinct from 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'Bitte mindestens eine Position erfassen.';
+  end if;
+
+  if exists (
+    select 1
+    from jsonb_array_elements(p_items) as parsed(item)
+    where btrim(coalesce(item->>'description', '')) = ''
+      or coalesce(nullif(item->>'quantity', '')::numeric, 0) <= 0
+      or coalesce(nullif(item->>'unit_price_eur', '')::numeric, 0) < 0
+  ) then
+    raise exception 'Belegpositionen sind ungueltig.';
+  end if;
+
+  insert into public.invoice_items (
+    invoice_id,
+    description,
+    quantity,
+    unit,
+    unit_price_eur,
+    position
+  )
+  select
+    p_invoice_id,
+    left(btrim(item->>'description'), 1000),
+    (item->>'quantity')::numeric,
+    left(coalesce(nullif(btrim(item->>'unit'), ''), 'Stueck'), 40),
+    coalesce(nullif(item->>'unit_price_eur', '')::numeric, 0),
+    coalesce(nullif(item->>'position', '')::int, ordinality::int)
+  from jsonb_array_elements(p_items) with ordinality as parsed(item, ordinality);
+end;
+$$;
+
+create or replace function public.create_invoice_with_items(
+  p_company_id uuid,
+  p_customer_id uuid,
+  p_order_id uuid,
+  p_type text,
+  p_issue_date date,
+  p_due_date date,
+  p_tax_rate_percent numeric,
+  p_notes text,
+  p_created_by uuid,
+  p_items jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  created_invoice_id uuid;
+  invoice_number text;
+begin
+  if p_company_id is distinct from public.current_company_id() or not public.can_manage_company() then
+    raise exception 'Keine Berechtigung fuer diesen Beleg.';
+  end if;
+
+  if p_type not in ('angebot', 'rechnung', 'gutschrift') then
+    raise exception 'Ungueltiger Belegtyp.';
+  end if;
+
+  if p_tax_rate_percent not in (0, 7, 19) then
+    raise exception 'Ungueltiger MwSt.-Satz.';
+  end if;
+
+  if not exists (
+    select 1 from public.customers
+    where id = p_customer_id
+      and company_id = p_company_id
+      and archived_at is null
+  ) then
+    raise exception 'Kunde wurde nicht gefunden.';
+  end if;
+
+  if p_order_id is not null and not exists (
+    select 1 from public.orders
+    where id = p_order_id
+      and company_id = p_company_id
+      and customer_id = p_customer_id
+      and archived_at is null
+  ) then
+    raise exception 'Auftrag wurde nicht gefunden.';
+  end if;
+
+  invoice_number := public.generate_invoice_number(p_company_id, p_type);
+
+  insert into public.invoices (
+    company_id,
+    customer_id,
+    order_id,
+    type,
+    status,
+    invoice_number,
+    issue_date,
+    due_date,
+    tax_rate_percent,
+    notes,
+    created_by
+  )
+  values (
+    p_company_id,
+    p_customer_id,
+    p_order_id,
+    p_type,
+    'entwurf',
+    invoice_number,
+    p_issue_date,
+    p_due_date,
+    p_tax_rate_percent,
+    nullif(btrim(coalesce(p_notes, '')), ''),
+    p_created_by
+  )
+  returning id into created_invoice_id;
+
+  perform public.insert_invoice_items_from_json(created_invoice_id, p_items);
+  perform public.recalculate_invoice_totals(created_invoice_id);
+
+  return created_invoice_id;
+end;
+$$;
+
+create or replace function public.update_invoice_with_items(
+  p_invoice_id uuid,
+  p_company_id uuid,
+  p_customer_id uuid,
+  p_order_id uuid,
+  p_type text,
+  p_issue_date date,
+  p_due_date date,
+  p_tax_rate_percent numeric,
+  p_notes text,
+  p_items jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_status text;
+begin
+  if p_company_id is distinct from public.current_company_id() or not public.can_manage_company() then
+    raise exception 'Keine Berechtigung fuer diesen Beleg.';
+  end if;
+
+  select status
+  into current_status
+  from public.invoices
+  where id = p_invoice_id
+    and company_id = p_company_id
+    and archived_at is null
+  for update;
+
+  if current_status is null then
+    raise exception 'Beleg wurde nicht gefunden.';
+  end if;
+
+  if current_status <> 'entwurf' then
+    raise exception 'Nur Entwuerfe koennen bearbeitet werden.';
+  end if;
+
+  if p_type not in ('angebot', 'rechnung', 'gutschrift') then
+    raise exception 'Ungueltiger Belegtyp.';
+  end if;
+
+  if p_tax_rate_percent not in (0, 7, 19) then
+    raise exception 'Ungueltiger MwSt.-Satz.';
+  end if;
+
+  if not exists (
+    select 1 from public.customers
+    where id = p_customer_id
+      and company_id = p_company_id
+      and archived_at is null
+  ) then
+    raise exception 'Kunde wurde nicht gefunden.';
+  end if;
+
+  if p_order_id is not null and not exists (
+    select 1 from public.orders
+    where id = p_order_id
+      and company_id = p_company_id
+      and customer_id = p_customer_id
+      and archived_at is null
+  ) then
+    raise exception 'Auftrag wurde nicht gefunden.';
+  end if;
+
+  update public.invoices
+  set
+    customer_id = p_customer_id,
+    order_id = p_order_id,
+    type = p_type,
+    issue_date = p_issue_date,
+    due_date = p_due_date,
+    tax_rate_percent = p_tax_rate_percent,
+    notes = nullif(btrim(coalesce(p_notes, '')), '')
+  where id = p_invoice_id
+    and company_id = p_company_id;
+
+  update public.invoice_items
+  set archived_at = now()
+  where invoice_id = p_invoice_id
+    and archived_at is null;
+
+  perform public.insert_invoice_items_from_json(p_invoice_id, p_items);
+  perform public.recalculate_invoice_totals(p_invoice_id);
+
+  return p_invoice_id;
+end;
+$$;
+
+create or replace function public.get_invoice_stats(p_company_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select case
+    when p_company_id = public.current_company_id() and public.can_manage_company() then (
+      select jsonb_build_object(
+        'open_count', count(*) filter (where status in ('entwurf', 'gesendet')),
+        'paid_count', count(*) filter (where status = 'bezahlt'),
+        'total_gross', coalesce(sum(total_eur), 0)
+      )
+      from public.invoices
+      where company_id = p_company_id
+        and archived_at is null
+    )
+    else jsonb_build_object('open_count', 0, 'paid_count', 0, 'total_gross', 0)
+  end
+$$;
+
+revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from public;
+grant execute on function public.create_invoice_with_items(uuid, uuid, uuid, text, date, date, numeric, text, uuid, jsonb) to authenticated;
+grant execute on function public.update_invoice_with_items(uuid, uuid, uuid, uuid, text, date, date, numeric, text, jsonb) to authenticated;
+grant execute on function public.get_invoice_stats(uuid) to authenticated;
+
+create unique index if not exists suppliers_company_lower_name_unique_idx
+on public.suppliers (company_id, lower(trim(name)))
+where active is true;
+
+create unique index if not exists time_reports_company_employee_period_unique_idx
+on public.time_reports (company_id, coalesce(employee_id, '00000000-0000-0000-0000-000000000000'::uuid), year, month)
+where status <> 'archived';
 
 select pg_notify('pgrst', 'reload schema');

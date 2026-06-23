@@ -5,6 +5,7 @@ import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { requireAppContext } from "@/lib/auth";
 import { planningAssignmentSelect, planningResourceSelect, vehicleOptionSelect } from "@/lib/data/selects";
+import { hasAppPermission } from "@/lib/permissions";
 import { assignmentResourceKey, detectPlanningConflicts } from "@/lib/planning";
 import { maintenanceDueState, resourceKindLabels, resourceStatusBadgeClasses, resourceStatusLabels } from "@/lib/resources";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -18,8 +19,9 @@ export default async function VehiclesPage({
 }) {
   const context = await requireAppContext();
   const { error, success } = searchParamMessage(await searchParams);
+  const canManageResources = hasAppPermission(context.profile.role, context.permissions, "vehicles.manage");
 
-  if (!context.canManage) {
+  if (!canManageResources) {
     return (
       <>
         <PageHeader title="Fahrzeuge & Geräte" description="Ressourcenverwaltung." />
@@ -129,7 +131,7 @@ export default async function VehiclesPage({
         <EmptyState
           icon={Truck}
           title="Noch keine Ressourcen"
-          description="Lege Transporter, Anhaenger, Maschinen oder Werkzeuge an."
+          description="Lege Transporter, Anhänger, Maschinen oder Werkzeuge an."
           actionHref="/fahrzeuge/neu"
           actionLabel="Fahrzeug anlegen"
         />
@@ -181,7 +183,7 @@ export default async function VehiclesPage({
                           ) : null}
                           {due === "overdue" || due === "soon" ? (
                             <span className="rounded-md bg-amber-50 px-2 py-1 text-xs font-black text-amber-800">
-                              {due === "overdue" ? "Prüfung faellig" : "Prüfung bald"}
+                              {due === "overdue" ? "Prüfung fällig" : "Prüfung bald"}
                             </span>
                           ) : null}
                         </div>
@@ -256,7 +258,7 @@ export default async function VehiclesPage({
                           ) : null}
                           {due === "overdue" || due === "soon" ? (
                             <span className="rounded-md bg-amber-50 px-2 py-1 text-xs font-black text-amber-800">
-                              {due === "overdue" ? "Prüfung faellig" : "Prüfung bald"}
+                              {due === "overdue" ? "Prüfung fällig" : "Prüfung bald"}
                             </span>
                           ) : null}
                         </div>

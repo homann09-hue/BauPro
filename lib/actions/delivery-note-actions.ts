@@ -46,6 +46,26 @@ function ensureOperator(context: AppContext) {
   }
 }
 
+async function findSupplierIdByName({
+  supabase,
+  context,
+  supplierName
+}: {
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  context: AppContext;
+  supplierName: string;
+}) {
+  const { data: existing } = await supabase
+    .from("suppliers")
+    .select("id")
+    .eq("company_id", context.companyId)
+    .or(searchOrFilter(["name"], supplierName))
+    .limit(1)
+    .maybeSingle();
+
+  return (existing?.id as string | undefined) ?? null;
+}
+
 async function findOrCreateSupplier({
   supabase,
   context,
@@ -57,17 +77,10 @@ async function findOrCreateSupplier({
 }) {
   if (!supplierName || !context.canManage) return null;
 
-  const { data: existing } = await supabase
-    .from("suppliers")
-    .select("id")
-    .eq("company_id", context.companyId)
-    .or(searchOrFilter(["name"], supplierName))
-    .limit(1)
-    .maybeSingle();
+  const existingId = await findSupplierIdByName({ supabase, context, supplierName });
+  if (existingId) return existingId;
 
-  if (existing?.id) return existing.id as string;
-
-  const { data: inserted } = await supabase
+  const { data: inserted, error: insertError } = await supabase
     .from("suppliers")
     .insert({
       company_id: context.companyId,
@@ -76,7 +89,15 @@ async function findOrCreateSupplier({
     .select("id")
     .maybeSingle();
 
-  return (inserted?.id as string | undefined) ?? null;
+  if (inserted?.id) return inserted.id as string;
+
+  // Parallele Lieferschein-Erfassung kann denselben Lieferanten gleichzeitig
+  // anlegen. Nach Unique-Konflikt sauber erneut lesen.
+  if (insertError) {
+    return findSupplierIdByName({ supabase, context, supplierName });
+  }
+
+  return null;
 }
 
 async function findMatchingInventoryItem({

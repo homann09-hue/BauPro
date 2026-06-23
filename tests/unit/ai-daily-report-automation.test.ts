@@ -68,7 +68,7 @@ describe("AI daily report automation", () => {
     expect(actions).toContain("generateDailyReportDraftFromPayload");
     expect(actions).toContain('feature: "daily_report"');
     expect(actions).toContain("checkAiLimit");
-    expect(actions).toContain("assertRateLimit");
+    expect(actions).toContain("checkRateLimit");
     expect(actions).toContain("logAiUsage");
     expect(actions).toContain("OpenAI genutzt");
   });

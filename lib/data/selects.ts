@@ -179,7 +179,7 @@ export const aiSettingsSelect =
   "id, company_id, enabled, default_model, allow_employee_ai, allow_ai_daily_reports, allow_ai_time_tracking, allow_ai_material_matching, created_at, updated_at";
 
 export const calculationSettingsSelect =
-  "id, company_id, default_waste_percent, default_vat_rate, default_labor_rate_net, default_internal_hourly_cost, default_profit_markup_percent, default_overhead_percent, default_travel_flat_rate, allow_ai_job_creation, require_admin_confirmation, created_at, updated_at";
+  "id, company_id, default_waste_percent, default_vat_rate, default_labor_rate_net, default_internal_hourly_cost, default_profit_markup_percent, default_overhead_percent, default_travel_rate_per_km, default_travel_flat_rate, allow_ai_job_creation, require_admin_confirmation, created_at, updated_at";
 
 export const jobMaterialCalculationSelect =
   "id, company_id, jobsite_id, roof_type, roof_form, material_type, length_m, width_m, area_m2, roof_pitch, eaves_length_m, ridge_length_m, verge_length_m, valley_length_m, wall_connection_length_m, penetrations_count, roof_windows_count, dormers_count, chimneys_count, waste_percent, ai_enabled, ai_model, ai_confidence, ai_notes, review_notice, notes, created_by, created_at";
@@ -222,6 +222,12 @@ export const commercialDocumentListSelect =
 
 export const commercialDocumentItemSelect =
   "id, company_id, document_id, source_requirement_id, position, title, description, quantity, unit, unit_price_net, discount_percent, line_total_net, created_at, updated_at";
+
+export const invoiceListSelect =
+  "id, company_id, customer_id, order_id, type, status, invoice_number, issue_date, due_date, subtotal_eur, tax_rate_percent, tax_eur, total_eur, notes, created_by, created_at, updated_at, archived_at, customers(id, company, first_name, last_name, contact_person, email, phone, billing_address, jobsite_address, payment_terms), orders(id, order_number, title, status, jobsite_address)";
+
+export const invoiceItemSelect =
+  "id, invoice_id, description, quantity, unit, unit_price_eur, total_eur, position, created_at";
 
 export const timeEntryFormSelect =
   "id, company_id, employee_id, job_id, customer_id, date, work_location, work_address, start_time, end_time, break_minutes, gross_minutes, net_minutes, activity, weather, weather_summary, weather_temperature_c, weather_precipitation_mm, weather_wind_kmh, weather_source, weather_fetched_at, weather_lat, weather_lng, kilometers, notes, status, approved_by, approved_at, created_by, created_at, updated_at";

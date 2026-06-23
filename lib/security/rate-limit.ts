@@ -1,185 +1,101 @@
-import { Worker } from "node:worker_threads";
 import { Ratelimit } from "@upstash/ratelimit";
 import type { Duration } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { SafeActionError } from "@/lib/security/errors";
 
-type TestBucket = {
-  hits: number[];
+type RedisConfig = {
+  url: string;
+  token: string;
 };
 
-const testBuckets = new Map<string, TestBucket>();
-const asyncLimiters = new Map<string, Ratelimit>();
+const RATE_LIMIT_ERROR = "Zu viele Anfragen in kurzer Zeit. Bitte versuche es gleich erneut.";
+const RATE_LIMIT_UNAVAILABLE_ERROR = "Rate Limit konnte nicht geprüft werden. Bitte versuche es gleich erneut.";
+
+const limiters = new Map<string, Ratelimit>();
+let redisClient: Redis | null = null;
+let redisConfigKey: string | null = null;
 let missingRedisWarningShown = false;
 
-const RATE_LIMIT_TIMEOUT_MS = 4_000;
-const RATE_LIMIT_ERROR = "Zu viele Anfragen in kurzer Zeit. Bitte versuche es gleich erneut.";
-const RATE_LIMIT_UNAVAILABLE_ERROR = "Rate Limit konnte nicht geprueft werden. Bitte versuche es gleich erneut.";
-
-export function getRateLimitRedisConfig() {
-  const upstashUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
-  const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
-  const vercelKvUrl = process.env.KV_REST_API_URL?.trim();
-  const vercelKvToken = process.env.KV_REST_API_TOKEN?.trim();
-  const url = upstashUrl || vercelKvUrl;
-  const token = upstashToken || vercelKvToken;
+export function getRateLimitRedisConfig(): RedisConfig | null {
+  const url = (process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL)?.trim();
+  const token = (process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN)?.trim();
 
   if (!url || !token) return null;
 
-  return {
-    url,
-    token
-  };
+  return { url, token };
 }
 
 function warnMissingRedisOnce() {
   if (missingRedisWarningShown) return;
   missingRedisWarningShown = true;
   console.warn(
-    "Rate Limiting laeuft ohne Redis. UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN oder KV_REST_API_URL/KV_REST_API_TOKEN fehlt."
+    "Rate Limiting läuft ohne Redis. UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN oder KV_REST_API_URL/KV_REST_API_TOKEN fehlt."
   );
 }
 
-function redisConfigured() {
-  return Boolean(getRateLimitRedisConfig());
-}
-
-function testModeEnabled() {
-  return process.env.BAUPRO_RATE_LIMIT_TEST_MODE === "memory";
-}
-
-function assertTestSlidingWindowLimit(key: string, limit: number, windowMs: number) {
-  const now = Date.now();
-  const bucket = testBuckets.get(key) ?? { hits: [] };
-  bucket.hits = bucket.hits.filter((hitAt) => now - hitAt < windowMs);
-
-  if (bucket.hits.length >= limit) {
-    testBuckets.set(key, bucket);
-    throw new SafeActionError(RATE_LIMIT_ERROR);
-  }
-
-  bucket.hits.push(now);
-  testBuckets.set(key, bucket);
+function shouldBlockWhenRedisMissing() {
+  return process.env.NODE_ENV === "production";
 }
 
 function duration(windowMs: number): Duration {
   return `${Math.max(1, Math.ceil(windowMs / 1000))} s`;
 }
 
-function limiterCacheKey(limit: number, windowMs: number) {
-  return `${limit}:${windowMs}`;
+function limiterCacheKey(config: RedisConfig, limit: number, windowMs: number) {
+  return `${config.url}:${limit}:${windowMs}`;
 }
 
-function getAsyncLimiter(limit: number, windowMs: number) {
-  const key = limiterCacheKey(limit, windowMs);
-  const cached = asyncLimiters.get(key);
+function resetRedisIfConfigChanged(config: RedisConfig) {
+  const nextConfigKey = `${config.url}:${config.token}`;
+  if (redisConfigKey === nextConfigKey) return;
+
+  redisClient = null;
+  redisConfigKey = nextConfigKey;
+  limiters.clear();
+}
+
+function getRedis(config: RedisConfig) {
+  resetRedisIfConfigChanged(config);
+
+  if (!redisClient) {
+    // Redis wird lazy initialisiert, damit Serverless-Starts ohne Rate-Limit-Aufruf schlank bleiben.
+    redisClient = new Redis({
+      url: config.url,
+      token: config.token
+    });
+  }
+
+  return redisClient;
+}
+
+function getLimiter(limit: number, windowMs: number) {
+  const config = getRateLimitRedisConfig();
+  if (!config) return null;
+
+  const key = limiterCacheKey(config, limit, windowMs);
+  const cached = limiters.get(key);
   if (cached) return cached;
 
-  const config = getRateLimitRedisConfig();
-  if (!config) throw new SafeActionError(RATE_LIMIT_UNAVAILABLE_ERROR);
-
-  const redis = new Redis({
-    url: config.url,
-    token: config.token
-  });
   const limiter = new Ratelimit({
-    redis,
+    redis: getRedis(config),
     limiter: Ratelimit.slidingWindow(limit, duration(windowMs)),
     prefix: "baupro:ratelimit"
   });
 
-  asyncLimiters.set(key, limiter);
+  limiters.set(key, limiter);
   return limiter;
 }
 
-// Async-Variante fuer neue Call-Sites. Bestehende Aufrufe nutzen weiter assertRateLimit().
 export async function checkRateLimit(key: string, limit: number, windowMs: number) {
   if (limit <= 0) throw new SafeActionError(RATE_LIMIT_ERROR);
 
-  if (testModeEnabled()) {
-    assertTestSlidingWindowLimit(key, limit, windowMs);
-    return;
-  }
-
-  if (!redisConfigured()) {
+  const limiter = getLimiter(limit, windowMs);
+  if (!limiter) {
     warnMissingRedisOnce();
+    if (shouldBlockWhenRedisMissing()) throw new SafeActionError(RATE_LIMIT_UNAVAILABLE_ERROR);
     return;
   }
 
-  const { success } = await getAsyncLimiter(limit, windowMs).limit(key);
+  const { success } = await limiter.limit(key);
   if (!success) throw new SafeActionError(RATE_LIMIT_ERROR);
-}
-
-function assertRedisLimitSynchronously(key: string, limit: number, windowMs: number) {
-  const config = getRateLimitRedisConfig();
-  if (!config) throw new SafeActionError(RATE_LIMIT_UNAVAILABLE_ERROR);
-
-  const shared = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT);
-  const state = new Int32Array(shared);
-  const worker = new Worker(
-    `
-      const { workerData } = require("node:worker_threads");
-      const state = new Int32Array(workerData.shared);
-
-      function finish(code) {
-        Atomics.store(state, 0, code);
-        Atomics.notify(state, 0, 1);
-      }
-
-      (async () => {
-        try {
-          const { Ratelimit } = await import("@upstash/ratelimit");
-          const { Redis } = await import("@upstash/redis");
-          const redis = new Redis({ url: workerData.url, token: workerData.token });
-          const ratelimit = new Ratelimit({
-            redis,
-            limiter: Ratelimit.slidingWindow(workerData.limit, workerData.duration),
-            prefix: "baupro:ratelimit"
-          });
-          const result = await ratelimit.limit(workerData.key);
-          finish(result.success ? 1 : 2);
-        } catch {
-          finish(3);
-        }
-      })();
-    `,
-    {
-      eval: true,
-      workerData: {
-        shared,
-        key,
-        limit,
-        duration: duration(windowMs),
-        url: config.url,
-        token: config.token
-      }
-    }
-  );
-
-  const result = Atomics.wait(state, 0, 0, RATE_LIMIT_TIMEOUT_MS);
-  void worker.terminate();
-
-  if (result === "timed-out") {
-    throw new SafeActionError(RATE_LIMIT_UNAVAILABLE_ERROR);
-  }
-
-  const code = Atomics.load(state, 0);
-  if (code === 2) throw new SafeActionError(RATE_LIMIT_ERROR);
-  if (code !== 1) throw new SafeActionError(RATE_LIMIT_UNAVAILABLE_ERROR);
-}
-
-export function assertRateLimit(key: string, limit: number, windowMs: number) {
-  if (limit <= 0) throw new SafeActionError(RATE_LIMIT_ERROR);
-
-  if (testModeEnabled()) {
-    assertTestSlidingWindowLimit(key, limit, windowMs);
-    return;
-  }
-
-  if (!redisConfigured()) {
-    warnMissingRedisOnce();
-    return;
-  }
-
-  assertRedisLimitSynchronously(key, limit, windowMs);
 }

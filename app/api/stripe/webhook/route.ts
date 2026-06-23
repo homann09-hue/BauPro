@@ -5,6 +5,7 @@ import {
   planIdFromPriceId
 } from "@/lib/billing/stripe";
 import { normalizePlanId } from "@/lib/billing/plans";
+import { logServerError } from "@/lib/security/logging";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -200,7 +201,7 @@ export async function POST(request: Request) {
     await markProcessed(event.id);
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("Stripe webhook processing failed", error instanceof Error ? error.message : "unknown");
+    logServerError("stripe-webhook-processing-failed", error);
     return NextResponse.json({ error: "Webhook konnte nicht verarbeitet werden." }, { status: 500 });
   }
 }

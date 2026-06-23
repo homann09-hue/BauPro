@@ -26,7 +26,9 @@ import {
   StatCard,
   TodayJobsiteFocus
 } from "@/components/construction-ui";
+import { DashboardDetailsSkeleton } from "@/components/loading-states";
 import { MessageBox } from "@/components/message-box";
+import { MfaRecommendationBanner } from "@/components/mfa-recommendation-banner";
 import { StatusBadge } from "@/components/status-badge";
 import { SubmitButton } from "@/components/submit-button";
 import { VoiceQuickAction } from "@/components/voice/VoiceQuickAction";
@@ -51,10 +53,10 @@ function schemaSetupMessage(
   if (!error) return null;
   const message = [error.code, error.message, error.details, error.hint].filter(Boolean).join(" ");
   if (message.includes("get_dashboard_summary")) {
-    return "Datenbank-Update fehlt: Bitte `supabase/migrations/20260619_dashboard_rpc.sql` im Supabase SQL Editor ausfuehren.";
+    return "Datenbank-Update fehlt: Bitte `supabase/migrations/20260619_dashboard_rpc.sql` im Supabase SQL Editor ausführen.";
   }
   if (message.includes("Could not find the table") && message.includes("schema cache")) {
-    return "Datenbank-Update fehlt: Bitte die Supabase-Migration für Materialwarnungen/Einkaufsvorschlaege ausfuehren.";
+    return "Datenbank-Update fehlt: Bitte die Supabase-Migration für Materialwarnungen/Einkaufsvorschläge ausführen.";
   }
   return safeQueryErrorMessage(error);
 }
@@ -90,6 +92,7 @@ export default async function DashboardPage({
   return (
     <div className="baupro-screen">
       <MessageBox error={dashboardError} success={success} />
+      <MfaRecommendationBanner canManage={context.canManage} mfaEnabled={context.mfaEnabled} />
 
       <section className="command-panel overflow-hidden">
         <div className="grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">
@@ -205,10 +208,10 @@ export default async function DashboardPage({
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
                 Warum BauPro?
               </div>
-              <h2 className="section-title">Wechselgruende für Handwerksbetriebe</h2>
+              <h2 className="section-title">Wechselgründe für Handwerksbetriebe</h2>
               <p className="mt-1 text-sm leading-6 text-slate-600">
                 Nutze diese Punkte in der Demo: BauPro spart Zeit, senkt Fehlkosten, verhindert Preis-Leaks und automatisiert
-                Baustellenablaeufe.
+                Baustellenabläufe.
               </p>
             </div>
             <Link href="/warum-baupro" className="btn-primary w-full lg:w-auto">
@@ -227,7 +230,7 @@ export default async function DashboardPage({
         </section>
       ) : null}
 
-      <Suspense fallback={null}>
+      <Suspense fallback={context.canManage ? <DashboardDetailsSkeleton /> : null}>
         {context.canManage ? <DashboardManagedDetails supabase={supabase} context={context} summary={summary} /> : null}
       </Suspense>
 

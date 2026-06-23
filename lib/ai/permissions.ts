@@ -3,6 +3,7 @@ import type { AppContext } from "@/lib/auth";
 import type { AiFeature, AiRuntimeState, AiSettings } from "@/lib/ai/types";
 import { aiSettingsSelect } from "@/lib/data/selects";
 import { getOpenAiModel, isOpenAiConfigured } from "@/lib/ai/openai";
+import { hasAppPermission } from "@/lib/permissions";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -42,8 +43,12 @@ export function canUseAiFeature(context: AppContext, settings: AiSettings, featu
   return true;
 }
 
-export function canSeePrices(context: Pick<AppContext, "canManage">) {
-  return context.canManage;
+export function canSeePrices(context: AppContext) {
+  return (
+    context.canManage ||
+    hasAppPermission(context.profile.role, context.permissions, "prices.purchase.view") ||
+    hasAppPermission(context.profile.role, context.permissions, "prices.sales.view")
+  );
 }
 
 export function aiRuntimeState(context: AppContext, settings: AiSettings): AiRuntimeState {
@@ -60,7 +65,7 @@ export function aiRuntimeState(context: AppContext, settings: AiSettings): AiRun
 }
 
 export function removePricesForEmployees<T extends Record<string, unknown>>(context: AppContext, row: T) {
-  if (context.canManage) return row;
+  if (canSeePrices(context)) return row;
 
   const hiddenFields = new Set([
     "purchase_price",

@@ -1,4 +1,5 @@
 import type { StructuredAiResult } from "@/lib/ai/types";
+import { logServerError } from "@/lib/security/logging";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-4.1-mini";
@@ -193,7 +194,7 @@ export async function createStructuredAiResponse<T>({
       outputTokens
     };
   } catch (error) {
-    console.error("openai-structured-response-failed", error);
+    logServerError("openai-structured-response-failed", error, { feature, model });
     return {
       ok: false,
       disabled: false,

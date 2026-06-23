@@ -9,7 +9,7 @@ import { contentHash } from "@/lib/customer-portal/tokens";
 import { jobsiteDocumentSelect } from "@/lib/data/selects";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { optionalFormString, requiredFormString, requiredFormUuid } from "@/lib/security/form-data";
-import { assertRateLimit } from "@/lib/security/rate-limit";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { sanitizeUploadFileName, validateCustomerDocument } from "@/lib/security/uploads";
 import { signerRole, validateSignatureDataUrl } from "@/lib/signatures/signature";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -172,7 +172,7 @@ export async function uploadJobsiteDocumentAction(formData: FormData) {
     const file = formData.get("document");
     if (!(file instanceof File) || file.size === 0) throw new SafeActionError("Bitte ein Dokument auswaehlen.");
 
-    assertRateLimit(`jobsite-document-upload:${context.companyId}:${context.userId}`, 20, 60_000);
+    await checkRateLimit(`jobsite-document-upload:${context.companyId}:${context.userId}`, 20, 60_000);
     await validateCustomerDocument(file);
 
     const category = documentCategory(optionalFormString(formData, "category"));

@@ -1,9 +1,18 @@
 import { OrderWizardForm } from "@/components/forms/order-wizard-form";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
-import { requireManager } from "@/lib/auth";
-import { companyPricingSettingsSelect, customerFormSelect, profileOptionSelect } from "@/lib/data/selects";
+import { requirePermission } from "@/lib/auth";
+import {
+  calculationSettingsSelect,
+  companyPricingSettingsSelect,
+  customerFormSelect,
+  inventoryItemCalculationSelect,
+  profileOptionSelect
+} from "@/lib/data/selects";
+import { hasAppPermission } from "@/lib/permissions";
+import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { RoofingMaterialPriceRow } from "@/lib/roofing-material-estimate";
 import { searchParamMessage } from "@/lib/utils";
 import type { CompanyPricingSettings, Customer, Profile } from "@/types/app";
 
@@ -17,12 +26,16 @@ export default async function NewOrderPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await requireManager();
+  const context = await requirePermission("orders.create", "/orders");
   const supabase = await createSupabaseServerClient();
   const params = (await searchParams) ?? {};
   const { error, success } = searchParamMessage(params);
+  const canSeeAnyPrices =
+    hasAppPermission(context.profile.role, context.permissions, "prices.purchase.view") ||
+    hasAppPermission(context.profile.role, context.permissions, "prices.sales.view");
+  const canUseCalculation = canSeeAnyPrices || hasAppPermission(context.profile.role, context.permissions, "quotes.create");
 
-  const [customersResult, employeesResult, settingsResult] = await Promise.all([
+  const [customersResult, employeesResult, settingsResult, calculationSettingsResult, inventoryResult] = await Promise.all([
     supabase
       .from("customers")
       .select(customerFormSelect)
@@ -40,8 +53,28 @@ export default async function NewOrderPage({
       .from("company_pricing_settings")
       .select(companyPricingSettingsSelect)
       .eq("company_id", context.companyId)
-      .maybeSingle()
+      .maybeSingle(),
+    canUseCalculation
+      ? supabase
+          .from("calculation_settings")
+          .select(calculationSettingsSelect)
+          .eq("company_id", context.companyId)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    canSeeAnyPrices
+      ? supabase
+          .from("inventory_items")
+          .select(inventoryItemCalculationSelect)
+          .eq("company_id", context.companyId)
+          .order("name", { ascending: true })
+      : Promise.resolve({ data: [], error: null })
   ]);
+  const queryError =
+    safeQueryErrorMessage(customersResult.error) ||
+    safeQueryErrorMessage(employeesResult.error) ||
+    safeQueryErrorMessage(settingsResult.error) ||
+    safeQueryErrorMessage(calculationSettingsResult.error) ||
+    safeQueryErrorMessage(inventoryResult.error);
 
   const settings = (settingsResult.data ?? {
     company_id: context.companyId,
@@ -49,6 +82,16 @@ export default async function NewOrderPage({
     default_markup_percent: 35,
     auto_calculate_sales_price: true
   }) as CompanyPricingSettings;
+  const materialPriceOptions = ((inventoryResult.data ?? []) as unknown as Array<
+    Omit<RoofingMaterialPriceRow, "inventory_locations"> & {
+      inventory_locations?: RoofingMaterialPriceRow["inventory_locations"] | RoofingMaterialPriceRow["inventory_locations"][];
+    }
+  >).map((item) => ({
+    ...item,
+    inventory_locations: Array.isArray(item.inventory_locations)
+      ? item.inventory_locations[0] ?? null
+      : item.inventory_locations ?? null
+  }));
 
   return (
     <>
@@ -56,12 +99,21 @@ export default async function NewOrderPage({
         title="Neuer Auftrag"
         description="Kunde wählen, Auftrag erfassen und Materialbedarf mit Verschnitt berechnen."
       />
-      <MessageBox error={error} success={success} />
+      <MessageBox error={error || queryError} success={success} />
       <OrderWizardForm
         customers={(customersResult.data ?? []) as Customer[]}
         employees={(employeesResult.data ?? []) as Profile[]}
         defaultCustomerId={defaultCustomerId(params)}
         defaultWastePercent={Number(settings.waste_percent ?? 20)}
+        canManage={context.canManage}
+        materialPriceOptions={materialPriceOptions}
+        calculationDefaults={{
+          vatRate: Number(calculationSettingsResult.data?.default_vat_rate ?? 19),
+          internalLaborRateNet: canUseCalculation ? Number(calculationSettingsResult.data?.default_internal_hourly_cost ?? 38) : 0,
+          laborRateNet: canUseCalculation ? Number(calculationSettingsResult.data?.default_labor_rate_net ?? 65) : 0,
+          travelRatePerKm: canUseCalculation ? Number(calculationSettingsResult.data?.default_travel_rate_per_km ?? 0.75) : 0,
+          travelFlatRate: canUseCalculation ? Number(calculationSettingsResult.data?.default_travel_flat_rate ?? 0) : 0
+        }}
       />
     </>
   );

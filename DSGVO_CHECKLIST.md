@@ -20,7 +20,8 @@ Pruefpflichtige Arbeitsliste, keine Rechtsberatung.
 - [ ] Anwaltliche Pruefung von Impressum, AGB, Datenschutzerklaerung, AVV.
 - [ ] Datenschutzbeauftragter prueft Datenlandkarte und TOMs.
 - [ ] Supabase Region, AVV/DPA und Subprozessoren final dokumentieren.
-- [ ] OpenAI-Verarbeitung, Rechtsgrundlage und Datenminimierung final bewerten.
+- [ ] OpenAI-Verarbeitung, Rechtsgrundlage, EU-/Drittlandtransfer, AVV/DPA und Subprozessoren final dokumentieren.
+- [ ] KI-Funktionen nur nach bewusstem Opt-in nutzen und Kunden-/Adressdaten vor OpenAI-Uebertragung auf Datenminimierung pruefen.
 - [ ] Arbeitsrechtliche Hinweise fuer Zeiterfassung, Baustellenberichte und moegliche Standortdaten klaeren.
 - [ ] Loesch-/Archivfristen final festlegen.
 - [ ] Backup, Incident Response und Berechtigungskonzept freigeben.

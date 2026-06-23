@@ -9,7 +9,7 @@ import type { DailyReportAutomationContext } from "@/lib/ai/types";
 export const dynamic = "force-dynamic";
 
 const reportDraftRequestSchema = z.object({
-  input: z.string().trim().min(1).max(8000),
+  input: z.string().trim().min(1).max(2000, "KI-Eingabe ist zu lang (max. 2000 Zeichen)."),
   aiProcessingOptIn: z.literal(true, {
     error: "Bitte KI-Verarbeitung aktiv bestätigen."
   }),

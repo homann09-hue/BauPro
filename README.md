@@ -92,10 +92,17 @@ supabase/migrations/20260617_bring_list_direct_update_hardening.sql
 supabase/migrations/20260619_stripe_billing.sql
 supabase/migrations/20260619_dashboard_rpc.sql
 supabase/migrations/20260620_soft_delete_columns.sql
+supabase/migrations/20260621_role_escalation_guard.sql
 supabase/migrations/20260621_schema_gap_fix.sql
+supabase/migrations/20260622_employee_permissions.sql
+supabase/migrations/20260622_rls_consolidation.sql
 supabase/migrations/20260622_commercial_documents.sql
+supabase/migrations/20260622_redteam_hardening.sql
 supabase/migrations/20260623_roof_measurements.sql
+supabase/migrations/20260623_session_timeout_setting.sql
+supabase/migrations/20260624_onboarding.sql
 supabase/migrations/20260624_jobsite_file_documents.sql
+supabase/migrations/20260625_invoices.sql
 supabase/migrations/20260625_digital_signatures.sql
 supabase/migrations/20260626_construction_daily_reports.sql
 supabase/migrations/20260627_customer_portal_jobsites.sql
@@ -111,6 +118,10 @@ supabase/migrations/20260706_defect_management.sql
 supabase/migrations/20260707_performance_followup_indexes.sql
 supabase/migrations/20260708_privacy_security_hardening.sql
 supabase/migrations/20260709_fix_material_usage_confirmation_rpc.sql
+supabase/migrations/20260710_calculation_travel_rate.sql
+supabase/migrations/20260711_invoice_atomic_stats.sql
+supabase/migrations/20260712_price_permission_hardening.sql
+supabase/migrations/20260713_redteam_storage_prefetch_hardening.sql
 ```
 
 `20260615_material_alerts_repair.sql` bleibt idempotent, damit aeltere Testdatenbanken mit fehlender Mitbringlisten-Kette repariert werden koennen. Fuer neue Projekte ist der vollstaendige Stand bereits in `supabase/schema.sql` enthalten.
@@ -235,11 +246,42 @@ npm run build
 
 Der Schema-Check prueft statisch FORCE RLS, preisbereinigte Views, Manager-only Preis-Policies, Storage-Pfade und atomare Lager-RPCs.
 
+### Rate Limiting in Production
+
+BauPro nutzt serverseitiges Rate Limiting fuer Login, Demo-Start, KI, Uploads, Wetter, Kalender, Kundenportal und Preisabfragen.
+In Vercel/Serverless darf Rate Limiting nicht im Arbeitsspeicher der Funktion liegen, weil jede Instanz eigenen State hat.
+Darum ist Redis/KV fuer Production Pflicht.
+
+Erforderliche Production-Variablen:
+
+```env
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+```
+
+Alternativ werden die Vercel-KV-Aliasse akzeptiert:
+
+```env
+KV_REST_API_URL=
+KV_REST_API_TOKEN=
+```
+
+Wenn Redis/KV in `NODE_ENV=production` fehlt, blockiert `checkRateLimit()` die Anfrage mit einer sicheren Fehlermeldung.
+In Development darf Redis fehlen; die App warnt dann einmalig in der Konsole und laesst Requests durch, damit lokale Arbeit nicht blockiert.
+
+Warum das wichtig ist:
+
+- Login- und Demo-Endpunkte werden gegen automatisierte Versuche gedrosselt.
+- KI-Endpunkte koennen nicht unbegrenzt Kosten verursachen.
+- Upload-, Wetter- und Preisabfrage-Routen erzeugen weniger vermeidbare Datenbank- und Provider-Last.
+- Rate Limits gelten instanzuebergreifend statt nur pro Serverless-Funktion.
+
 Wichtige Härtungen:
 
 - Server Actions validieren kritische IDs serverseitig und uebernehmen keine `company_id` aus Formularen.
 - Supplier API Keys bleiben verschluesselt gespeichert und werden nur serverseitig kurz vor dem Provider-Call entschluesselt.
 - Tagesbericht-Fotos werden nach Dateigroesse, MIME und Magic Bytes geprueft; Storage-Pfade muessen `company_id/reports/report_id/...` entsprechen.
+- Tagesbericht-Fotos koennen nur gelesen werden, wenn der Storage-Pfad zur `report_photos`-Metadatenzeile und zu einem fuer den Nutzer erlaubten, nicht archivierten Bericht passt.
 - Kundenportal-Links werden nicht im Klartext gespeichert, sondern als SHA-256-Hash mit Ablaufdatum und Sperrmoeglichkeit.
 - Arbeitsauftraege werden nach Unterschrift/Abweisung finalisiert, versioniert und als PDF-Nachweis exportierbar.
 - Lagerbestand und Reservierungen laufen ueber Postgres-Funktionen mit `for update`, damit parallele Buchungen keinen negativen Bestand erzeugen.
@@ -437,7 +479,7 @@ Die App enthaelt technische Grundlagen fuer Datenschutz und B2B-SaaS-Betrieb. Di
 
 - Datenschutz-Center unter `/privacy` mit eigenem Datenexport, Firmenexport fuer Chef/Admin und Datenschutzanfragen.
 - Billing unter `/billing` mit Stripe Checkout, Stripe Customer Portal, Tariflimits und KI-Kontingent.
-- Angebote/Rechnungen unter `/angebote-rechnungen` mit Belegstatus, PDF-Export, DATEV-CSV, XRechnung-XML-Entwurf und Auftrag-Uebernahme.
+- Angebote/Rechnungen unter `/invoices` mit Belegstatus, PDF-Export und Auftrag-Uebernahme. Das aeltere Modul `/angebote-rechnungen` bleibt fuer bestehende DATEV-/XRechnung-Exporte erreichbar.
 - Rechtliche Entwurfsseiten unter `/legal`.
 - Consent-Banner fuer notwendige Login-Cookies und optionale Analyse/Marketing-Verarbeitung.
 - Datenlandkarte und Subprozessoren in `DATA_PROCESSING.md` und `SUBPROCESSORS.md`.
@@ -467,7 +509,12 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 - `supabase/migrations/20260619_stripe_billing.sql`: Delta fuer Stripe Billing, Tariflimits und Webhook-Idempotenz
 - `supabase/migrations/20260619_dashboard_rpc.sql`: Delta fuer gebuendelte Dashboard-RPC, Cache-Tags und mandantensichere Summary-Daten
 - `supabase/migrations/20260620_soft_delete_columns.sql`: Delta fuer Soft-Delete-Schutz und gesperrte Hard-Deletes bei Geschaeftsdaten
+- `supabase/migrations/20260622_rls_consolidation.sql`: Delta fuer dokumentierte RLS-Policy-Matrix und Entfernung exakt redundanter Redteam-Fallback-Policies
+- `supabase/migrations/20260622_employee_permissions.sql`: Delta fuer feingranulare Mitarbeiterrechte mit RLS, Manager-Bypass und Audit-Log
 - `supabase/migrations/20260622_commercial_documents.sql`: Delta fuer Angebote/Rechnungen, Positionen, Summen-Trigger und Manager-only RLS
+- `supabase/migrations/20260622_redteam_hardening.sql`: Delta fuer RedTeam-Fixes gegen Lieferanten-Dubletten und doppelte Stundenzettel
+- `supabase/migrations/20260623_session_timeout_setting.sql`: Delta fuer firmenweite Inaktivitaets-Abmeldung auf geteilten Geraeten
+- `supabase/migrations/20260624_onboarding.sql`: Delta fuer gefuehrten Firmen-Start, Onboarding-Abschluss, Gewerk, Firmenlogo und Logo-Storage-RLS
 - `supabase/migrations/20260628_planning_board.sql`: Delta fuer Plantafel, Ressourcenplanung, Konflikt-Erkennung und rollenbasierte RLS
 - `supabase/migrations/20260629_planning_weather_risks.sql`: Delta fuer Plantafel-Wetterrisiken, Cache und Chef-Bestaetigung/Ignorieren
 - `supabase/migrations/20260630_inventory_jobsite_flow.sql`: Delta fuer Baustellen-Verbrauch, Rueckgabe, Verlust/Bruch, Reservierung und unveraenderbare Materialbewegungen
@@ -477,6 +524,8 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 - `supabase/migrations/20260704_resource_vehicle_management.sql`: Delta fuer Fahrzeuge, Maschinen, Werkzeuge, Prueftermine, Dokumente und Plantafel-Zuordnung
 - `supabase/migrations/20260705_flexible_checklists.sql`: Delta fuer wiederverwendbare Checklisten, Baustellen-Checks, Foto-Nachweise, optionale Signatur und automatische Problem-Aufgaben
 - `supabase/migrations/20260706_defect_management.sql`: Delta fuer Maengel, Fotos, Fristen, Kundenfreigabe, interne Benachrichtigungen und PDF-Maengelbericht
+- `supabase/migrations/20260712_price_permission_hardening.sql`: Delta entfernt delegierbare Chef-/Preisrechte fuer Mitarbeiter/Vorarbeiter und haertet `has_employee_permission`
+- `supabase/migrations/20260713_redteam_storage_prefetch_hardening.sql`: Delta bindet Report-Foto-Storage-Lesen an Bericht-Metadaten und Berichtsrechte
 - `supabase/material-catalog-seed.sql`: praxisnaher Dachdecker-Materialkatalog
 - `scripts/seed-demo-company.mjs`: realistische Demo-Firma fuer Verkauf, QA und Produktdemos
 - `tests/`: Unit-, Integration- und E2E-Smoke-Tests

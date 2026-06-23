@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3, MapPin, ShieldCheck } from "lucide-react";
+import { FormDraftAutosave } from "@/components/offline/form-draft-autosave";
 import { SubmitButton } from "@/components/submit-button";
 import { VoiceInputField } from "@/components/voice/VoiceInputField";
 import { VoiceTextarea } from "@/components/voice/VoiceTextarea";
@@ -66,9 +67,14 @@ export function TimeEntryForm({
   }
 
   return (
-    <form action={action} className="space-y-4" data-testid="time-entry-form">
+    <form id="time-entry-form" action={action} className="space-y-4" data-testid="time-entry-form">
       {entry ? <input type="hidden" name="id" value={entry.id} /> : null}
       <input type="hidden" name="return_to" value={entry ? `/time-tracking/${entry.id}/edit` : "/time/new"} />
+      <FormDraftAutosave
+        formId="time-entry-form"
+        storageKey={`baupro:time-entry:${entry?.id ?? "new"}:${currentUserId}`}
+        description="Zeiten, Baustelle und Beschreibung werden auf diesem Gerät zwischengespeichert, falls der Empfang auf der Baustelle abreißt."
+      />
 
       <section className="surface-strong construction-rail p-4 sm:p-5">
         <div className="mb-4 flex items-start gap-3">

@@ -14,7 +14,7 @@ export const legalPages: LegalPage[] = [
   {
     slug: "impressum",
     title: "Impressum",
-    summary: "Platzhalter für Anbieterkennzeichnung und Kontaktangaben.",
+    summary: "Prüfpflichtiger Entwurf für Anbieterkennzeichnung und Kontaktangaben.",
     sections: [
       { heading: "Prüfhinweis", body: [draftNotice] },
       {
@@ -83,7 +83,7 @@ export const legalPages: LegalPage[] = [
   {
     slug: "avv",
     title: "AVV-Hinweis",
-    summary: "Platzhalter für Auftragsverarbeitung zwischen SaaS-Anbieter und Kundenfirma.",
+    summary: "Prüfpflichtiger Entwurf für Auftragsverarbeitung zwischen SaaS-Anbieter und Kundenfirma.",
     sections: [
       { heading: "Prüfhinweis", body: [draftNotice] },
       {
@@ -94,8 +94,8 @@ export const legalPages: LegalPage[] = [
         ]
       },
       {
-        heading: "Download-Platzhalter",
-        body: ["Im Produkt kann später ein final geprüfter AVV als PDF bereitgestellt werden. Bis dahin ist dieser Bereich ein prüfpflichtiger Platzhalter."]
+        heading: "AVV-Dokument",
+        body: ["Im Produkt kann ein final geprüfter AVV als PDF bereitgestellt werden. Bis zur rechtlichen Finalisierung bleibt dieser Bereich klar als prüfpflichtiger Entwurf gekennzeichnet."]
       }
     ]
   },

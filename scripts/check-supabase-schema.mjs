@@ -12,6 +12,19 @@ const privacySecurityHardening = fs.readFileSync(
   path.join(root, "supabase/migrations/20260708_privacy_security_hardening.sql"),
   "utf8"
 );
+const rlsPolicyMatrix = fs.readFileSync(path.join(root, "docs/RLS_POLICY_MATRIX.md"), "utf8");
+const rlsConsolidation = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260622_rls_consolidation.sql"),
+  "utf8"
+);
+const sessionTimeoutSetting = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260623_session_timeout_setting.sql"),
+  "utf8"
+);
+const pricePermissionHardening = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260712_price_permission_hardening.sql"),
+  "utf8"
+);
 
 const failures = [];
 
@@ -47,6 +60,47 @@ check(
 );
 check(schema.includes("redteam managers select fallback"), "schema.sql must include tenant manager CRUD fallback policies.");
 check(hardening.includes("redteam managers delete fallback"), "redteam migration must include tenant delete fallback policies.");
+check(
+  schema.includes("RLS consolidation: exact duplicate redteam fallback policies removed"),
+  "schema.sql must include the documented RLS consolidation block."
+);
+check(
+  schema.indexOf("RLS consolidation: exact duplicate redteam fallback policies removed") >
+    schema.indexOf('create policy "redteam managers select fallback" on %I.%I'),
+  "RLS consolidation block must run after dynamic redteam fallback policy creation."
+);
+check(rlsPolicyMatrix.includes("# RLS Policy Matrix"), "RLS policy matrix must be generated.");
+check(
+  rlsPolicyMatrix.includes("Automatisch als exakt redundant erkannte Fallback-Policies: 0"),
+  "RLS policy matrix must confirm that no exact duplicate redteam fallbacks remain."
+);
+check(
+  rlsConsolidation.includes("scripts/audit-rls-policies.mjs --redundant-drops"),
+  "RLS consolidation migration must be generated from the audit script."
+);
+check(!/create policy/i.test(rlsConsolidation), "RLS consolidation migration must not create new policies.");
+check(
+  rlsConsolidation.includes("to_regclass(format('%I.%I'") &&
+    rlsConsolidation.includes("drop policy if exists %I on %I.%I") &&
+    rlsConsolidation.includes("redteam managers select fallback"),
+  "RLS consolidation migration must guard missing tables and only remove documented redteam fallback policies."
+);
+check(schema.includes("session_timeout_minutes integer not null default 30"), "companies must define session timeout minutes.");
+check(schema.includes("companies_session_timeout_minutes_check"), "companies must constrain session timeout minutes.");
+check(
+  sessionTimeoutSetting.includes("session_timeout_minutes integer not null default 30") &&
+    sessionTimeoutSetting.includes("check (session_timeout_minutes between 0 and 1440)"),
+  "session timeout migration must add and constrain the company setting."
+);
+check(
+  pricePermissionHardening.includes("delete from public.employee_permissions") &&
+    pricePermissionHardening.includes("'prices.purchase.view'") &&
+    pricePermissionHardening.includes("'prices.sales.view'") &&
+    pricePermissionHardening.includes("'settings.edit'") &&
+    pricePermissionHardening.includes("'users.permissions.manage'") &&
+    pricePermissionHardening.includes("public.can_manage_company()"),
+  "price/manager permission hardening migration must remove delegated Chef-only permissions."
+);
 
 check(inventoryPublicView.includes("where i.company_id = public.current_company_id()"), "inventory_items_public must filter by current company.");
 check(
@@ -71,10 +125,32 @@ check(schema.includes("negative_stock_not_allowed"), "inventory RPC must reject 
 
 check(schema.includes("(storage.foldername(name))[2] = 'reports'"), "storage upload policy must enforce reports path segment.");
 check(schema.includes("r.id::text = (storage.foldername(name))[3]"), "storage upload policy must bind path report_id to reports table.");
+check(
+  block(schema, 'create policy "members can read company report photos"', 'drop policy if exists "members can upload company report photos"').includes(
+    "rp.storage_path = storage.objects.name"
+  ),
+  "storage read policy must bind report photo object path to report_photos metadata."
+);
+check(
+  block(schema, 'create policy "members can read company report photos"', 'drop policy if exists "members can upload company report photos"').includes(
+    "r.archived_at is null"
+  ),
+  "storage read policy must hide report photos behind archived reports."
+);
+check(
+  block(schema, 'create policy "members can read company report photos"', 'drop policy if exists "members can upload company report photos"').includes(
+    "auth.uid() = any(r.employee_ids)"
+  ),
+  "storage read policy must keep employee report photo access assignment-scoped."
+);
 
 check(schema.includes("audit_inventory_price_change"), "price changes must be audited.");
 check(schema.includes("audit_supplier_key_change"), "supplier key changes must be audited.");
 check(schema.includes("audit_profile_role_change"), "role changes must be audited.");
+check(schema.includes("function public.assert_role_change_allowed"), "role changes must be guarded before audit.");
+check(schema.includes("guard_profile_role_change_before_audit"), "profiles must have a role escalation guard trigger.");
+check(schema.includes("before update of role on public.profiles"), "role escalation guard must run before profile role updates.");
+check(schema.includes("Keine Berechtigung fuer diese Rollenaenderung."), "role escalation guard must raise a safe German error.");
 
 check(schema.includes("archived_at timestamptz"), "reports must support archived_at for soft deletion.");
 check(reportArchiveHardening.includes("alter table public.reports add column if not exists archived_at timestamptz"), "report archive migration must add archived_at.");

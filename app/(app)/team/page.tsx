@@ -1,11 +1,16 @@
 import { ShieldCheck, Users } from "lucide-react";
 import { FormSection, ResponsiveTableCard, StatCard } from "@/components/construction-ui";
+import { PasswordInputWithStrength } from "@/components/forms/password-strength-indicator";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { SubmitButton } from "@/components/submit-button";
+import { EmployeePermissionsMenu } from "@/components/team/employee-permissions-menu";
 import { createEmployeeAction, updateEmployeeAction } from "@/lib/actions/auth-actions";
 import { requireManager } from "@/lib/auth";
 import { teamProfileSelect } from "@/lib/data/selects";
+import { effectivePermissionKeys, normalizePermissionKeys, type PermissionKey } from "@/lib/permissions";
+import { safeQueryErrorMessage } from "@/lib/security/errors";
+import { isMissingSchemaError } from "@/lib/supabase/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { searchParamMessage } from "@/lib/utils";
 import type { Profile } from "@/types/app";
@@ -39,12 +44,33 @@ export default async function TeamPage({
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
 
-  const { data } = await supabase
+  const { data, error: profilesError } = await supabase
     .from("profiles")
     .select(teamProfileSelect)
     .eq("company_id", context.companyId)
     .order("created_at", { ascending: true });
   const profiles = (data ?? []) as Profile[];
+  const permissionsResult = await supabase
+    .from("employee_permissions")
+    .select("profile_id, permission_key, granted")
+    .eq("company_id", context.companyId);
+  const permissionsByProfile = new Map<string, PermissionKey[]>();
+
+  if (!permissionsResult.error) {
+    for (const row of permissionsResult.data ?? []) {
+      const typedRow = row as { profile_id?: string; permission_key?: string; granted?: boolean };
+      if (!typedRow.profile_id || !typedRow.granted) continue;
+      const current = permissionsByProfile.get(typedRow.profile_id) ?? [];
+      permissionsByProfile.set(typedRow.profile_id, normalizePermissionKeys([...current, String(typedRow.permission_key ?? "")]));
+    }
+  }
+
+  const permissionsError = permissionsResult.error
+    ? isMissingSchemaError(permissionsResult.error)
+      ? "Datenbank-Update fehlt: Bitte supabase/migrations/20260622_employee_permissions.sql ausführen."
+      : "Rechte konnten nicht geladen werden."
+    : null;
+  const teamError = safeQueryErrorMessage(profilesError) || permissionsError;
   const hasServiceRole = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
   const activeProfiles = profiles.filter((profile) => profile.active).length;
   const foremen = profiles.filter((profile) => profile.role === "vorarbeiter").length;
@@ -53,7 +79,7 @@ export default async function TeamPage({
   return (
     <>
       <PageHeader title="Team" description="Mitarbeiter, Rollen und Zugänge direkt verwalten." />
-      <MessageBox error={error} success={success} />
+      <MessageBox error={error || teamError} success={success} />
 
       <section className="mb-5 grid gap-3 sm:grid-cols-3">
         <StatCard icon={ShieldCheck} label="Aktive Zugänge" value={activeProfiles} tone="green" />
@@ -96,12 +122,11 @@ export default async function TeamPage({
                 <input className="field-input" id="email" name="email" type="email" required />
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="field-label" htmlFor="password">
-                    Startpasswort
-                  </label>
-                  <input className="field-input" id="password" name="password" type="password" minLength={8} required />
-                </div>
+                <PasswordInputWithStrength
+                  id="password"
+                  label="Startpasswort"
+                  helpText="Mindestens 8 Zeichen. Wird vor dem Anlegen auf bekannte Datenlecks geprüft."
+                />
                 <div>
                   <label className="field-label" htmlFor="role">
                     Rolle
@@ -137,6 +162,21 @@ export default async function TeamPage({
                   title={profile.full_name || profile.email || "Ohne Namen"}
                   meta={`${profile.email || "Keine E-Mail"} · ${roleLabels[profile.role]}`}
                 >
+                  <div className="mb-3">
+                    <EmployeePermissionsMenu
+                      employeeId={profile.id}
+                      employeeName={profile.full_name || profile.email || "Ohne Namen"}
+                      employeeRole={profile.role}
+                      grantedPermissions={effectivePermissionKeys(profile.role, permissionsByProfile.get(profile.id) ?? [])}
+                      disabledReason={
+                        profile.id === context.userId
+                          ? "Du kannst deine eigenen Rechte nicht bearbeiten."
+                          : profile.role === "admin" || profile.role === "chef"
+                            ? "Chef/Admin hat automatisch alle Rechte. Diese Rechte werden über die Rolle gesteuert."
+                            : undefined
+                      }
+                    />
+                  </div>
                   <form action={updateEmployeeAction}>
                     <input type="hidden" name="id" value={profile.id} />
                     <div className="grid gap-3 md:grid-cols-[1fr_170px_110px_auto] md:items-end">

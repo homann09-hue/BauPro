@@ -14,7 +14,8 @@ import type { SupplierOfferInput } from "@/lib/suppliers/types";
 import { SupplierIntegrationError } from "@/lib/suppliers/types";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { optionalFormUuid, requiredFormUuid } from "@/lib/security/form-data";
-import { assertRateLimit } from "@/lib/security/rate-limit";
+import { logServerWarning } from "@/lib/security/logging";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { safeReturnPath } from "@/lib/security/redirects";
 import { assertInventoryItemInCompany, assertSupplierIntegrationInCompany } from "@/lib/security/tenant-guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -27,16 +28,37 @@ import type {
   SupplierProviderKey
 } from "@/types/app";
 
+const MAX_SUPPLIER_CSV_BYTES = 5 * 1024 * 1024;
+const MAX_SUPPLIER_CSV_TEXT_CHARS = 1_000_000;
+
 function redirectTarget(formData: FormData, fallback = "/materials/live-offers") {
   return safeReturnPath(formData.get("return_to"), fallback);
 }
 
 async function readUtf8CsvFile(file: File) {
+  if (file.size > MAX_SUPPLIER_CSV_BYTES) {
+    throw new SafeActionError("CSV-Datei darf maximal 5 MB gross sein.");
+  }
+
   const text = Buffer.from(await file.arrayBuffer()).toString("utf8").replace(/^\uFEFF/, "");
   if (text.includes("\uFFFD")) {
     throw new SafeActionError("CSV-Datei ist nicht UTF-8 kodiert. Bitte die Datei als UTF-8 speichern und erneut hochladen.");
   }
+
+  if (text.length > MAX_SUPPLIER_CSV_TEXT_CHARS) {
+    throw new SafeActionError("CSV-Inhalt ist zu gross. Bitte Datei auf maximal 1.000.000 Zeichen kuerzen.");
+  }
+
   return text;
+}
+
+function validatePastedCsvText(value: string | null) {
+  if (!value) return null;
+  if (value.length > MAX_SUPPLIER_CSV_TEXT_CHARS) {
+    throw new SafeActionError("CSV-Inhalt ist zu gross. Bitte Datei auf maximal 1.000.000 Zeichen kuerzen.");
+  }
+
+  return value;
 }
 
 function boolField(formData: FormData, key: string) {
@@ -52,6 +74,47 @@ function integrationTypeValue(value: FormDataEntryValue | null): SupplierIntegra
   const type = String(value ?? "manual");
   if (type === "api" || type === "csv" || type === "affiliate_feed") return type;
   return "manual";
+}
+
+async function findSupplierIdByName(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  companyId: string,
+  supplierName: string
+) {
+  const { data } = await supabase
+    .from("suppliers")
+    .select("id")
+    .eq("company_id", companyId)
+    .or(searchOrFilter(["name"], supplierName))
+    .limit(1)
+    .maybeSingle();
+
+  return (data?.id as string | undefined) ?? null;
+}
+
+async function findOrCreateSupplierId(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  companyId: string,
+  supplierName: string
+) {
+  const existingId = await findSupplierIdByName(supabase, companyId, supplierName);
+  if (existingId) return existingId;
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("suppliers")
+    .insert({ company_id: companyId, name: supplierName })
+    .select("id")
+    .single();
+
+  if (inserted?.id) return inserted.id as string;
+
+  // Falls ein paralleler Request denselben Lieferanten gerade angelegt hat,
+  // liest dieser Fallback die vorhandene Zeile statt eine Null-Verknuepfung zu speichern.
+  if (insertError) {
+    return findSupplierIdByName(supabase, companyId, supplierName);
+  }
+
+  return null;
 }
 
 function encryptApiKey(value: string | null) {
@@ -86,7 +149,7 @@ function decryptApiKey(value: string | null) {
     decipher.setAuthTag(Buffer.from(tagValue, "base64"));
     return Buffer.concat([decipher.update(Buffer.from(encryptedValue, "base64")), decipher.final()]).toString("utf8");
   } catch (error) {
-    console.error("supplier-api-key-decrypt-failed", error);
+    logServerWarning("supplier-api-key-decrypt-failed", error);
     throw new SafeActionError("Gespeicherter API-Key konnte nicht verwendet werden. Bitte Key rotieren.");
   }
 }
@@ -346,7 +409,7 @@ export async function importSupplierOffersCsvAction(formData: FormData) {
     await assertInventoryItemInCompany({ supabase, companyId: context.companyId, itemId: materialId });
     await assertSupplierIntegrationInCompany({ supabase, companyId: context.companyId, integrationId });
     const file = formData.get("csv_file");
-    const pastedCsv = optionalString(formData, "csv_text");
+    const pastedCsv = validatePastedCsvText(optionalString(formData, "csv_text"));
     const csvText = file instanceof File && file.size > 0 ? await readUtf8CsvFile(file) : pastedCsv;
 
     if (!csvText) throw new SafeActionError("Bitte CSV-Datei hochladen oder CSV-Inhalt einfügen.");
@@ -390,11 +453,12 @@ export async function fetchSupplierOffersAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/suppliers");
+  let providerKey: string | null = null;
 
   try {
     const integrationId = requiredFormUuid(formData, "supplier_integration_id", "Lieferantenintegration");
     const query = requiredString(formData, "query");
-    assertRateLimit(`supplier-fetch:${context.companyId}:${context.userId}`, 15, 60_000);
+    await checkRateLimit(`supplier-fetch:${context.companyId}:${context.userId}`, 15, 60_000);
     const { data: integration, error } = await supabase
       .from("supplier_integrations")
       .select(supplierIntegrationSecretSelect)
@@ -404,6 +468,7 @@ export async function fetchSupplierOffersAction(formData: FormData) {
 
     if (error || !integration) throw new SafeActionError("Integration wurde nicht gefunden.");
     const typed = integration as SupplierIntegration;
+    providerKey = typed.provider_key;
     const adapter = createSupplierAdapter({
       providerKey: typed.provider_key,
       apiKey: decryptApiKey(typed.api_key_encrypted),
@@ -422,7 +487,7 @@ export async function fetchSupplierOffersAction(formData: FormData) {
 
     if (insertError) throw new SafeActionError("Angebote konnten nicht gespeichert werden.");
   } catch (error) {
-    console.warn("supplier-fetch-failed", error);
+    logServerWarning("supplier-fetch-failed", error, { providerKey });
     redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Angebotssuche fehlgeschlagen. Provider-Details wurden nicht angezeigt."))}`);
   }
 
@@ -497,23 +562,7 @@ export async function acceptSupplierOfferAsPurchasePriceAction(formData: FormDat
     const typedOffer = offer as SupplierOffer;
     const purchasePrice = typedOffer.price_net ?? Math.round((typedOffer.price_gross / (1 + typedOffer.vat_rate / 100)) * 100) / 100;
 
-    const { data: supplier } = await supabase
-      .from("suppliers")
-      .select("id")
-      .eq("company_id", context.companyId)
-      .or(searchOrFilter(["name"], typedOffer.supplier_name))
-      .limit(1)
-      .maybeSingle();
-
-    const supplierId =
-      (supplier?.id as string | undefined) ??
-      (
-        await supabase
-          .from("suppliers")
-          .insert({ company_id: context.companyId, name: typedOffer.supplier_name })
-          .select("id")
-          .single()
-      ).data?.id;
+    const supplierId = await findOrCreateSupplierId(supabase, context.companyId, typedOffer.supplier_name);
 
     const { error: updateError } = await supabase
       .from("inventory_items")

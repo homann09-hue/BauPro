@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getOptionalAppContext } from "@/lib/auth";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
-import { assertRateLimit } from "@/lib/security/rate-limit";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { emptyWeatherSuggestion, fetchOpenMeteoWeather, geocodeOpenMeteo } from "@/lib/weather/open-meteo";
 
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   if (!context) return json({ ok: false, message: "Nicht angemeldet." }, { status: 401 });
 
   try {
-    assertRateLimit(`weather:${context.companyId}:${context.userId}`, 40, 60_000);
+    await checkRateLimit(`weather:${context.companyId}:${context.userId}`, 40, 60_000);
 
     const body = request.headers.get("content-type")?.includes("application/json")
       ? await request.json().catch(() => ({}))

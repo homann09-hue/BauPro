@@ -30,3 +30,13 @@ export function publicAppOrigin(requestOrigin?: string | null) {
 
   return "http://localhost:3000";
 }
+
+export function getClientIp(headers: Headers) {
+  const forwardedFor = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  if (forwardedFor) return forwardedFor;
+
+  const realIp = headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
+
+  return "unknown";
+}

@@ -17,6 +17,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { requireAppContext } from "@/lib/auth";
 import { loadOrderList, orderHref, orderStatusFilters } from "@/lib/data/orders";
 import { customerDisplayName, orderPriorityLabels, orderStatusLabels, orderTypeLabels } from "@/lib/order-labels";
+import { hasAppPermission } from "@/lib/permissions";
 import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cn, formatDate, searchParamMessage } from "@/lib/utils";
@@ -37,6 +38,7 @@ export default async function OrdersPage({
   const supabase = await createSupabaseServerClient();
   const params = (await searchParams) ?? {};
   const { error, success } = searchParamMessage(params);
+  const canCreateOrder = hasAppPermission(context.profile.role, context.permissions, "orders.create");
   const { search, selectedStatus, page, from, to, orders, totalCount, totalPages, error: queryError, counts } = await loadOrderList({
     supabase,
     canManage: context.canManage,
@@ -48,9 +50,9 @@ export default async function OrdersPage({
       <PageHeader
         title="Aufträge"
         description="Aufträge, Kunden, Termine und Materialbedarf an einem Ort."
-        actionHref={context.canManage ? "/orders/new" : undefined}
-        actionLabel={context.canManage ? "Neuer Auftrag" : undefined}
-        actionIcon={Plus}
+        actionHref={canCreateOrder ? "/orders/new" : undefined}
+        actionLabel={canCreateOrder ? "Neuer Auftrag" : undefined}
+        actionIcon={canCreateOrder ? Plus : undefined}
       />
       <MessageBox error={error || safeQueryErrorMessage(queryError)} success={success} />
 
@@ -61,7 +63,7 @@ export default async function OrdersPage({
         <StatCard icon={CheckCircle2} label="Fertig/Abgerechnet" value={counts.finished} tone="neutral" />
       </section>
 
-      <section className="surface mb-5 p-3 sm:p-4">
+      <section className="filter-bar mb-5">
         <form className="grid gap-3 lg:grid-cols-[1fr_auto]" action="/orders">
           {selectedStatus !== "alle" ? <input type="hidden" name="status" value={selectedStatus} /> : null}
           <label className="sr-only" htmlFor="order-search">
@@ -88,10 +90,10 @@ export default async function OrdersPage({
               key={filter.value}
               href={orderHref({ q: search, status: filter.value })}
               className={cn(
-                "shrink-0 rounded-md border px-3 py-2 text-sm font-black",
+                "filter-chip",
                 selectedStatus === filter.value
-                  ? "border-primary bg-primary text-white"
-                  : "border-line bg-white text-slate-700 hover:border-primary/40"
+                  ? "filter-chip-active"
+                  : ""
               )}
             >
               {filter.label}
@@ -119,7 +121,7 @@ export default async function OrdersPage({
               {totalCount} Einträge · Seite {page} von {totalPages}
             </p>
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="mobile-card-list lg:grid-cols-2">
             {orders.map((order) => (
               <Link key={order.id} href={`/orders/${order.id}`} className="interactive-surface group overflow-hidden p-0">
                 <div className={cn("h-1.5", order.priority === "hoch" ? "bg-warning" : "bg-primary")} />

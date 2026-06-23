@@ -3,13 +3,16 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireAppContext, requireManager } from "@/lib/auth";
+import { requireAppContext, requireManager, requirePermission } from "@/lib/auth";
 import { checkUserLimit } from "@/lib/billing/plans";
 import { ensureDemoModeData } from "@/lib/demo/demo-mode";
+import { assignableEmployeePermissionKeys, isAssignableEmployeePermission, normalizePermissionKeys } from "@/lib/permissions";
 import { requiredFormUuid } from "@/lib/security/form-data";
-import { safeErrorMessage } from "@/lib/security/errors";
-import { publicAppOrigin } from "@/lib/security/origin";
-import { assertRateLimit } from "@/lib/security/rate-limit";
+import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
+import { logServerWarning } from "@/lib/security/logging";
+import { getClientIp, publicAppOrigin } from "@/lib/security/origin";
+import { checkPasswordBreach } from "@/lib/security/password-breach-check";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { safeReturnPath } from "@/lib/security/redirects";
 import { isMissingSchemaError, isUnsupportedVorarbeiterRoleError } from "@/lib/supabase/errors";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
@@ -26,11 +29,60 @@ function toQuery(value: string) {
   return encodeURIComponent(value);
 }
 
+function redirectWithMessage(path: string, key: "error" | "success", message: string): never {
+  const separator = path.includes("?") ? "&" : "?";
+  redirect(`${path}${separator}${key}=${toQuery(message)}`);
+}
+
+async function assertNewPasswordAllowed(password: string) {
+  if (password.length < 8) {
+    throw new SafeActionError("Passwort muss mindestens 8 Zeichen haben.");
+  }
+
+  if (await checkPasswordBreach(password)) {
+    throw new SafeActionError("Dieses Passwort wurde in einem Datenleck gefunden. Bitte wähle ein anderes Passwort.");
+  }
+}
+
 function normalizeRole(value: FormDataEntryValue | null): Role {
   const role = String(value ?? "mitarbeiter");
   return role === "admin" || role === "chef" || role === "vorarbeiter" || role === "mitarbeiter" || role === "kunde"
     ? role
     : "mitarbeiter";
+}
+
+function sessionTimeoutMinutesFromForm(formData: FormData) {
+  const raw = String(formData.get("session_timeout_minutes") ?? "30").trim();
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 1440 ? parsed : null;
+}
+
+function companyTradeFromForm(formData: FormData) {
+  const trade = optionalString(formData, "trade");
+  if (!trade) return null;
+
+  return ["dachdecker", "zimmermann", "klempner", "maler", "sonstiges"].includes(trade) ? trade : "sonstiges";
+}
+
+function logoExtension(contentType: string) {
+  if (contentType === "image/png") return "png";
+  if (contentType === "image/jpeg") return "jpg";
+  if (contentType === "image/webp") return "webp";
+  if (contentType === "image/svg+xml") return "svg";
+  return null;
+}
+
+function rateLimitKeyPart(value: string | null | undefined) {
+  return (value || "unknown").replace(/[^a-zA-Z0-9:._-]/g, "_").slice(0, 96) || "unknown";
+}
+
+function demoStartRateLimitKey(requestHeaders: Headers) {
+  const clientIp = getClientIp(requestHeaders);
+  const userAgent = requestHeaders.get("user-agent");
+
+  // Demo-Starts werden pro Browser/IP gedrosselt. Ein globaler Key sperrt sonst
+  // lokale Tests oder mehrere Interessenten gegenseitig aus.
+  return `demo:start:${rateLimitKeyPart(clientIp)}:${rateLimitKeyPart(userAgent)}`;
 }
 
 export async function signInAction(formData: FormData) {
@@ -39,7 +91,7 @@ export async function signInAction(formData: FormData) {
   const password = requiredString(formData, "password");
 
   try {
-    assertRateLimit(`login:${email.toLowerCase()}`, 10, 60_000);
+    await checkRateLimit(`login:${email.toLowerCase()}`, 10, 60_000);
   } catch {
     redirect(`/login?error=${toQuery("Zu viele Login-Versuche. Bitte kurz warten.")}`);
   }
@@ -48,14 +100,19 @@ export async function signInAction(formData: FormData) {
 
   if (error) {
     const message = error.message.includes("Email not confirmed")
-      ? "Bitte bestaetige zuerst deine E-Mail-Adresse."
+      ? "Bitte bestätige zuerst deine E-Mail-Adresse."
       : error.message.includes("Invalid login credentials")
         ? "E-Mail oder Passwort stimmt nicht."
-        : "Login fehlgeschlagen. Bitte pruefe E-Mail und Passwort.";
+        : "Login fehlgeschlagen. Bitte prüfe E-Mail und Passwort.";
     redirect(`/login?error=${toQuery(message)}`);
   }
 
   await supabase.rpc("bootstrap_my_profile");
+
+  const aal = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (!aal.error && aal.data?.nextLevel === "aal2" && aal.data.currentLevel !== "aal2") {
+    redirect("/login/mfa-challenge");
+  }
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
@@ -65,7 +122,7 @@ export async function signInAction(formData: FormData) {
 
   if (profileError || !profile) {
     redirect(
-      `/login?error=${toQuery("Login war erfolgreich, aber das Firmenprofil fehlt. Bitte supabase/schema.sql in Supabase ausfuehren und erneut einloggen.")}`
+      `/login?error=${toQuery("Login war erfolgreich, aber das Firmenprofil fehlt. Bitte supabase/schema.sql in Supabase ausführen und erneut einloggen.")}`
     );
   }
 
@@ -94,18 +151,26 @@ export async function signInAction(formData: FormData) {
 export async function startDemoModeAction(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const errorPath = safeReturnPath(formData.get("return_to"), "/demo");
+  const requestHeaders = await headers();
 
-  try {
-    assertRateLimit("demo:start", 6, 60_000);
-  } catch {
-    redirect(`${errorPath}?error=${toQuery("Demo wurde zu oft gestartet. Bitte kurz warten.")}`);
+  if (process.env.NODE_ENV === "production") {
+    try {
+      await checkRateLimit(demoStartRateLimitKey(requestHeaders), 30, 60_000);
+    } catch (error) {
+      const message = safeErrorMessage(error, "Demo-Schutz konnte nicht geprüft werden.");
+      if (message.includes("Zu viele Anfragen")) {
+        redirect(`${errorPath}?error=${toQuery("Demo wurde zu oft gestartet. Bitte warte kurz und versuche es erneut.")}`);
+      }
+
+      logServerWarning("demo-rate-limit-fallback", error, { message });
+    }
   }
 
   let demo: Awaited<ReturnType<typeof ensureDemoModeData>>;
   try {
     demo = await ensureDemoModeData();
   } catch (error) {
-    console.error("Demo-Modus konnte nicht vorbereitet werden", error);
+    logServerWarning("demo-mode-prepare-failed", error);
     redirect(`${errorPath}?error=${toQuery(safeErrorMessage(error, "Demo-Modus konnte nicht vorbereitet werden."))}`);
   }
 
@@ -130,6 +195,12 @@ export async function signUpCompanyAction(formData: FormData) {
   const fullName = requiredString(formData, "full_name");
   const email = requiredString(formData, "email");
   const password = requiredString(formData, "password");
+
+  try {
+    await assertNewPasswordAllowed(password);
+  } catch (error) {
+    redirect(`/register?error=${toQuery(safeErrorMessage(error, "Passwort konnte nicht geprüft werden."))}`);
+  }
 
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -157,20 +228,25 @@ export async function signUpCompanyAction(formData: FormData) {
   );
 }
 
-export async function signOutAction() {
+export async function signOutAction(formData?: FormData) {
   const supabase = await createSupabaseServerClient();
+  const reason = formData?.get("reason") === "inactivity" ? "inactivity" : "manual";
   await supabase.auth.signOut();
+  if (reason === "inactivity") {
+    redirect(`/login?success=${toQuery("Du wurdest wegen Inaktivität abgemeldet.")}`);
+  }
   redirect("/login");
 }
 
 export async function createEmployeeAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
+  const returnTo = safeReturnPath(formData.get("return_to"), "/team");
   let admin: ReturnType<typeof createSupabaseAdminClient>;
   try {
     admin = createSupabaseAdminClient();
   } catch {
-    redirect(`/team?error=${toQuery("SUPABASE_SERVICE_ROLE_KEY fehlt fuer das Anlegen von Mitarbeitern.")}`);
+    redirectWithMessage(returnTo, "error", "SUPABASE_SERVICE_ROLE_KEY fehlt für das Anlegen von Mitarbeitern.");
   }
 
   const email = requiredString(formData, "email");
@@ -179,9 +255,15 @@ export async function createEmployeeAction(formData: FormData) {
   const role = normalizeRole(formData.get("role"));
 
   try {
+    await assertNewPasswordAllowed(password);
+  } catch (error) {
+    redirectWithMessage(returnTo, "error", safeErrorMessage(error, "Passwort konnte nicht geprüft werden."));
+  }
+
+  try {
     await checkUserLimit(supabase, context.companyId);
   } catch (error) {
-    redirect(`/team?error=${toQuery(safeErrorMessage(error, "Nutzerlimit konnte nicht geprueft werden."))}`);
+    redirectWithMessage(returnTo, "error", safeErrorMessage(error, "Nutzerlimit konnte nicht geprüft werden."));
   }
 
   const { data, error } = await admin.auth.admin.createUser({
@@ -196,7 +278,7 @@ export async function createEmployeeAction(formData: FormData) {
   });
 
   if (error || !data.user) {
-    redirect(`/team?error=${toQuery("Mitarbeiter konnte nicht angelegt werden.")}`);
+    redirectWithMessage(returnTo, "error", "Mitarbeiter konnte nicht angelegt werden.");
   }
 
   let finalRole = role;
@@ -229,15 +311,16 @@ export async function createEmployeeAction(formData: FormData) {
   }
 
   if (profileResult.error) {
-    redirect(`/team?error=${toQuery("Mitarbeiterprofil konnte nicht gespeichert werden.")}`);
+    redirectWithMessage(returnTo, "error", "Mitarbeiterprofil konnte nicht gespeichert werden.");
   }
 
   revalidatePath("/team");
+  revalidatePath("/onboarding");
   const success =
     finalRole === role
       ? "Mitarbeiter wurde angelegt."
       : "Mitarbeiter wurde angelegt. Hinweis: Vorarbeiter-Rolle ist erst nach der Rollen-Migration verfuegbar.";
-  redirect(`/team?success=${toQuery(success)}`);
+  redirectWithMessage(returnTo, "success", success);
 }
 
 export async function updateEmployeeAction(formData: FormData) {
@@ -250,6 +333,10 @@ export async function updateEmployeeAction(formData: FormData) {
 
   if (id === context.userId && !active) {
     redirect(`/team?error=${toQuery("Du kannst deinen eigenen Zugang nicht deaktivieren.")}`);
+  }
+
+  if (role === "admin" && context.profile.role !== "admin") {
+    redirect(`/team?error=${toQuery("Nur Admins koennen andere Nutzer zu Admin befoerdern.")}`);
   }
 
   let finalRole = role;
@@ -281,6 +368,84 @@ export async function updateEmployeeAction(formData: FormData) {
   redirect(`/team?success=${toQuery(success)}`);
 }
 
+export async function updateEmployeePermissionsAction(formData: FormData) {
+  const context = await requireManager();
+  const supabase = await createSupabaseServerClient();
+  const id = requiredFormUuid(formData, "id", "Mitarbeiter");
+
+  if (id === context.userId) {
+    redirect(`/team?error=${toQuery("Du kannst deine eigenen Rechte nicht bearbeiten.")}`);
+  }
+
+  const { data: target, error: targetError } = await supabase
+    .from("profiles")
+    .select("id, company_id, role")
+    .eq("id", id)
+    .eq("company_id", context.companyId)
+    .maybeSingle();
+
+  if (targetError || !target) {
+    redirect(`/team?error=${toQuery("Mitarbeiter wurde nicht gefunden.")}`);
+  }
+
+  if (target.role === "admin" || target.role === "chef") {
+    redirect(`/team?error=${toQuery("Chef/Admin hat automatisch alle Rechte und kann hier nicht eingeschränkt werden.")}`);
+  }
+
+  const requestedPermissions = normalizePermissionKeys(formData.getAll("permission").map(String)).filter(isAssignableEmployeePermission);
+  const { data: currentRows, error: currentError } = await supabase
+    .from("employee_permissions")
+    .select("permission_key, granted")
+    .eq("company_id", context.companyId)
+    .eq("profile_id", id);
+
+  if (currentError) {
+    redirect(
+      `/team?error=${toQuery(
+        "Datenbank-Update fehlt: Bitte supabase/migrations/20260622_employee_permissions.sql ausführen."
+      )}`
+    );
+  }
+
+  const oldPermissions = normalizePermissionKeys(
+    (currentRows ?? [])
+      .filter((row) => Boolean((row as { granted?: boolean }).granted))
+      .map((row) => String((row as { permission_key?: string }).permission_key ?? ""))
+  ).filter(isAssignableEmployeePermission);
+
+  const rows = assignableEmployeePermissionKeys.map((permissionKey) => ({
+    company_id: context.companyId,
+    profile_id: id,
+    permission_key: permissionKey,
+    granted: requestedPermissions.includes(permissionKey),
+    updated_by: context.userId
+  }));
+
+  const { error: upsertError } = await supabase.from("employee_permissions").upsert(rows, {
+    onConflict: "company_id,profile_id,permission_key"
+  });
+
+  if (upsertError) {
+    redirect(`/team?error=${toQuery("Rechte konnten nicht gespeichert werden.")}`);
+  }
+
+  const { error: auditError } = await supabase.from("employee_permission_audit_log").insert({
+    company_id: context.companyId,
+    actor_id: context.userId,
+    target_profile_id: id,
+    old_values: { permissions: oldPermissions },
+    new_values: { permissions: requestedPermissions }
+  });
+
+  if (auditError) {
+    redirect(`/team?error=${toQuery("Rechte wurden gespeichert, aber das Audit-Log konnte nicht geschrieben werden.")}`);
+  }
+
+  revalidatePath("/team");
+  revalidatePath("/dashboard");
+  redirect(`/team?success=${toQuery("Rechte wurden gespeichert und sind sofort wirksam.")}`);
+}
+
 export async function updateOwnProfileAction(formData: FormData) {
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
@@ -303,18 +468,94 @@ export async function updateOwnProfileAction(formData: FormData) {
 }
 
 export async function updateCompanyProfileAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("settings.edit", "/settings");
   const supabase = await createSupabaseServerClient();
   const returnTo = safeReturnPath(formData.get("return_to"), "/settings");
   const name = requiredString(formData, "name");
+  const sessionTimeoutMinutes = sessionTimeoutMinutesFromForm(formData);
+  const trade = companyTradeFromForm(formData);
+  const logo = formData.get("logo");
+  const updatePayload: {
+    name: string;
+    session_timeout_minutes: number;
+    trade?: string;
+    logo_path?: string;
+  } = { name, session_timeout_minutes: sessionTimeoutMinutes ?? 30 };
 
-  const { data, error } = await supabase.from("companies").update({ name }).eq("id", context.companyId).select("id").maybeSingle();
+  if (sessionTimeoutMinutes === null) {
+    redirectWithMessage(returnTo, "error", "Automatische Abmeldung muss zwischen 0 und 1440 Minuten liegen.");
+  }
+
+  if (trade) {
+    updatePayload.trade = trade;
+  }
+
+  if (logo instanceof File && logo.size > 0) {
+    const extension = logoExtension(logo.type);
+    if (!extension) {
+      redirectWithMessage(returnTo, "error", "Firmenlogo muss PNG, JPG, WebP oder SVG sein.");
+    }
+
+    if (logo.size > 1024 * 1024) {
+      redirectWithMessage(returnTo, "error", "Firmenlogo darf maximal 1 MB gross sein.");
+    }
+
+    const logoPath = `${context.companyId}/logos/logo-${Date.now()}.${extension}`;
+    const { error: uploadError } = await supabase.storage.from("company-logos").upload(logoPath, logo, {
+      contentType: logo.type,
+      upsert: true
+    });
+
+    if (uploadError) {
+      redirectWithMessage(
+        returnTo,
+        "error",
+        "Firmenlogo konnte nicht hochgeladen werden. Bitte supabase/migrations/20260624_onboarding.sql ausfuehren."
+      );
+    }
+
+    updatePayload.logo_path = logoPath;
+  }
+
+  const { data, error } = await supabase
+    .from("companies")
+    .update(updatePayload)
+    .eq("id", context.companyId)
+    .select("id")
+    .maybeSingle();
 
   if (error || !data) {
-    redirect(`${returnTo}?error=${toQuery("Firmenprofil konnte nicht gespeichert werden.")}`);
+    if (error && isMissingSchemaError(error) && (trade || updatePayload.logo_path)) {
+      const fallback = await supabase
+        .from("companies")
+        .update({ name, session_timeout_minutes: sessionTimeoutMinutes })
+        .eq("id", context.companyId)
+        .select("id")
+        .maybeSingle();
+
+      if (!fallback.error && fallback.data) {
+        revalidatePath("/settings");
+        revalidatePath("/onboarding");
+        revalidatePath("/dashboard");
+        redirectWithMessage(
+          returnTo,
+          "success",
+          "Firmenprofil wurde gespeichert. Gewerk/Logo sind erst nach der Onboarding-Migration verfuegbar."
+        );
+      }
+    }
+
+    redirectWithMessage(
+      returnTo,
+      "error",
+        isMissingSchemaError(error)
+          ? "Datenbank-Update fehlt: Bitte supabase/migrations/20260624_onboarding.sql und 20260623_session_timeout_setting.sql ausführen."
+          : "Firmenprofil konnte nicht gespeichert werden."
+    );
   }
 
   revalidatePath("/settings");
+  revalidatePath("/onboarding");
   revalidatePath("/dashboard");
-  redirect(`${returnTo}?success=${toQuery("Firmenprofil wurde gespeichert.")}`);
+  redirectWithMessage(returnTo, "success", "Firmenprofil wurde gespeichert.");
 }

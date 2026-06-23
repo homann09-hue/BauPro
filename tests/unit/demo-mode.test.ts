@@ -14,11 +14,13 @@ describe("Demo-Modus", () => {
     const loginPage = source("app/(auth)/login/page.tsx");
     const demoPage = source("app/(auth)/demo/page.tsx");
 
-    expect(loginPage).toContain("startDemoModeAction");
+    expect(loginPage).toContain('action="/api/auth/demo/start"');
+    expect(loginPage).toContain('method="post"');
     expect(loginPage).toContain("Demo-Modus starten");
-    expect(demoPage).toContain("BauPro ohne Eingabe testen");
-    expect(demoPage).toContain("Demo in 2 Minuten starten");
+    expect(demoPage).toContain("Demo als Chef starten");
+    expect(demoPage).toContain("Baustellen, Team, Lager, Zeiten, Bautagesberichte");
     expect(demoPage).toContain('name="return_to" value="/demo"');
+    expect(demoPage).toContain("Die Demo enthält ausschließlich Beispieldaten");
   });
 
   it("guards demo creation server-side and uses only fake demo identities", () => {
@@ -33,12 +35,24 @@ describe("Demo-Modus", () => {
   });
 
   it("starts the demo by seeding data, signing in and opening the two-minute tour", () => {
-    const authActions = source("lib/actions/auth-actions.ts");
+    const demoStartRoute = source("app/api/auth/demo/start/route.ts");
 
-    expect(authActions).toContain("ensureDemoModeData");
-    expect(authActions).toContain("signInWithPassword");
-    expect(authActions).toContain('redirect("/demo-tour?success=');
-    expect(authActions).toContain('assertRateLimit("demo:start"');
+    expect(demoStartRoute).toContain("ensureDemoModeData");
+    expect(demoStartRoute).toContain("signInWithPassword");
+    expect(demoStartRoute).toContain("/demo-tour?success=");
+    expect(demoStartRoute).toContain("demoStartRateLimitKey");
+    expect(demoStartRoute).toContain('process.env.NODE_ENV === "production"');
+    expect(demoStartRoute).toContain("await checkRateLimit(demoStartRateLimitKey");
+    expect(demoStartRoute).toContain("Demo wurde zu oft gestartet");
+    expect(demoStartRoute).toContain("redirectWithCookies");
+
+    const demoSeed = source("lib/demo/demo-mode.ts");
+    expect(demoSeed).toContain("DEMO_CUSTOMER_PORTAL_TOKEN");
+    expect(demoSeed).toContain("customer_portal_tokens");
+    expect(demoSeed).toContain("customer_portal_messages");
+    expect(demoSeed).toContain("Arbeitsauftrag: Steildachsanierung Schmidt");
+    expect(demoSeed).toContain("visible_to_customer: true");
+    expect(demoSeed).toContain("customer_summary");
   });
 
   it("keeps the tour reachable and prefetched for managers", () => {
@@ -48,6 +62,8 @@ describe("Demo-Modus", () => {
     expect(appShell).toContain('/demo-tour", label: "Demo-Tour"');
     expect(prefetchRoutesForRole("chef", true)).toContain("/demo-tour");
     expect(tourPage).toContain("Zeige zuerst Nutzen, nicht Menues.");
+    expect(tourPage).toContain("Kundenportal zeigen");
+    expect(tourPage).toContain("DEMO_CUSTOMER_PORTAL_TOKEN");
     expect(tourPage).toContain("Vorbereitete Daten");
   });
 });

@@ -1,7 +1,23 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
+import { Bebas_Neue, Inter } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ConsentBanner } from "@/components/consent-banner";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap"
+});
+
+const bebasNeue = Bebas_Neue({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-display",
+  display: "swap"
+});
 
 export const metadata: Metadata = {
   applicationName: "BauPro",
@@ -32,7 +48,7 @@ export const metadata: Metadata = {
     "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-capable": "yes",
     "apple-mobile-web-app-title": "BauPro",
-    "msapplication-TileColor": "#2E7D32"
+    "msapplication-TileColor": "#131313"
   }
 };
 
@@ -40,8 +56,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#2E7D32",
-  colorScheme: "light"
+  themeColor: "#131313",
+  colorScheme: "dark light"
 };
 
 export default async function RootLayout({
@@ -52,10 +68,13 @@ export default async function RootLayout({
   const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
-    <html lang="de">
+    <html lang="de" className={`${inter.variable} ${bebasNeue.variable}`}>
+      {/* Aktuell gibt es keine app-eigenen Inline-Skripte. Falls spaeter eines hinzukommt, muss es `nonce={nonce}` nutzen. */}
       <body data-nonce-present={nonce ? "true" : undefined}>
         {children}
         <ConsentBanner />
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

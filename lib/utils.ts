@@ -1,4 +1,5 @@
 import { clsx, type ClassValue } from "clsx";
+import { SafeActionError } from "@/lib/security/errors";
 import type { Role } from "@/types/app";
 
 export function cn(...inputs: ClassValue[]) {
@@ -20,7 +21,7 @@ export function canOperate(role?: Role | null) {
 export function requiredString(formData: FormData, key: string) {
   const value = String(formData.get(key) ?? "").trim();
   if (!value) {
-    throw new Error(`Pflichtfeld fehlt: ${key}`);
+    throw new SafeActionError(`Pflichtfeld fehlt: ${key}`);
   }
 
   return value;

@@ -3,13 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireManager } from "@/lib/auth";
+import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { requiredFormUuid } from "@/lib/security/form-data";
+import { safeReturnPath } from "@/lib/security/redirects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formIds, optionalDate, optionalString, requiredString } from "@/lib/utils";
 import type { JobsiteStatus } from "@/types/app";
 
 function toQuery(value: string) {
   return encodeURIComponent(value);
+}
+
+function redirectWithMessage(path: string, key: "error" | "success", message: string): never {
+  const separator = path.includes("?") ? "&" : "?";
+  redirect(`${path}${separator}${key}=${toQuery(message)}`);
 }
 
 function statusValue(value: FormDataEntryValue | null): JobsiteStatus {
@@ -51,34 +58,42 @@ async function getAssignableEmployeeIds(
 export async function createJobsiteAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
-  const assignedEmployees = await getAssignableEmployeeIds(supabase, formData, context.companyId);
+  const returnTo = safeReturnPath(formData.get("return_to"), "/baustellen");
 
-  if (assignedEmployees.error) {
-    redirect(`/baustellen/neu?error=${toQuery(assignedEmployees.error)}`);
-  }
+  try {
+    const assignedEmployees = await getAssignableEmployeeIds(supabase, formData, context.companyId);
+    if (assignedEmployees.error) throw new SafeActionError(assignedEmployees.error);
 
-  const { data, error } = await supabase
-    .from("jobsites")
-    .insert({
-      company_id: context.companyId,
-      name: requiredString(formData, "name"),
-      customer: requiredString(formData, "customer"),
-      address: requiredString(formData, "address"),
-      start_date: optionalDate(formData, "start_date"),
-      status: statusValue(formData.get("status")),
-      notes: optionalString(formData, "notes"),
-      assigned_employee_ids: assignedEmployees.ids,
-      created_by: context.userId
-    })
-    .select("id")
-    .maybeSingle();
+    const { data, error } = await supabase
+      .from("jobsites")
+      .insert({
+        company_id: context.companyId,
+        name: requiredString(formData, "name"),
+        customer: requiredString(formData, "customer"),
+        address: requiredString(formData, "address"),
+        start_date: optionalDate(formData, "start_date"),
+        status: statusValue(formData.get("status")),
+        notes: optionalString(formData, "notes"),
+        assigned_employee_ids: assignedEmployees.ids,
+        created_by: context.userId
+      })
+      .select("id")
+      .maybeSingle();
 
-  if (error || !data) {
-    redirect(`/baustellen/neu?error=${toQuery("Baustelle konnte nicht angelegt werden.")}`);
+    if (error || !data) {
+      throw new SafeActionError("Baustelle konnte nicht angelegt werden.");
+    }
+  } catch (error) {
+    redirectWithMessage(
+      returnTo === "/baustellen" ? "/baustellen/neu" : returnTo,
+      "error",
+      safeErrorMessage(error, "Baustelle konnte nicht angelegt werden.")
+    );
   }
 
   revalidatePath("/baustellen");
-  redirect(`/baustellen?success=${toQuery("Baustelle wurde angelegt.")}`);
+  revalidatePath("/onboarding");
+  redirectWithMessage(returnTo, "success", "Baustelle wurde angelegt.");
 }
 
 export async function updateJobsiteAction(formData: FormData) {

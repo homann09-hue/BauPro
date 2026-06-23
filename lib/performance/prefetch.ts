@@ -2,45 +2,47 @@ import type { Role } from "@/types/app";
 
 const managerRoutes = [
   "/dashboard",
-  "/demo-tour",
-  "/onboarding",
   "/baustellen",
-  "/plantafel",
-  "/orders",
-  "/angebote-rechnungen",
-  "/customers",
+  "/time-tracking/daily",
+  "/berichte",
   "/materials/inventory",
+  "/orders",
+  "/team",
+  "/plantafel",
+  "/invoices",
+  "/customers",
+  "/bring-lists",
+  "/bring-lists/tomorrow",
   "/materials/control-center",
   "/materials/delivery-notes",
   "/materials/low-stock",
   "/materials/live-offers",
-  "/bring-lists",
-  "/bring-lists/tomorrow",
-  "/time-tracking/daily",
   "/time-tracking/reports",
-  "/team",
+  "/demo-tour",
+  "/onboarding",
   "/settings"
 ];
 
 const foremanRoutes = [
   "/dashboard",
   "/baustellen",
-  "/plantafel",
+  "/time-tracking",
+  "/material-melden",
   "/berichte",
   "/bring-lists",
   "/bring-lists/tomorrow",
-  "/time-tracking",
-  "/material-melden"
+  "/plantafel"
 ];
 
 const employeeRoutes = [
   "/dashboard",
-  "/time/new",
   "/baustellen",
+  "/time-tracking",
+  "/material-melden",
   "/berichte",
+  "/time/new",
   "/bring-lists",
   "/bring-lists/new",
-  "/material-melden",
   "/profile"
 ];
 
@@ -52,10 +54,10 @@ export function prefetchRoutesForRole(role: Role, canManage: boolean) {
 }
 
 export function prefetchScopesForRole(role: Role, canManage: boolean) {
-  if (canManage) return ["dashboard", "jobsites", "tasks", "planning", "team", "materials", "bring-lists", "time", "weather"] as const;
-  if (role === "vorarbeiter") return ["dashboard", "jobsites", "tasks", "planning", "bring-lists", "time"] as const;
+  if (canManage) return ["dashboard", "jobsites", "time", "materials"] as const;
+  if (role === "vorarbeiter") return ["dashboard", "jobsites", "time", "bring-lists"] as const;
   if (role === "kunde") return [] as const;
-  return ["dashboard", "jobsites", "tasks", "bring-lists", "time"] as const;
+  return ["dashboard", "jobsites", "time", "bring-lists"] as const;
 }
 
 export const PREFETCH_CACHE_TTL_MS = 120_000;

@@ -1,5 +1,7 @@
 import type { Config } from "tailwindcss";
 
+const colorVar = (name: string) => `rgb(var(${name}) / <alpha-value>)`;
+
 const config: Config = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -9,25 +11,35 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#1F2937",
-        moss: "#2E7D32",
-        fog: "#F8FAFC",
-        line: "#E2E8F0",
-        signal: "#F59E0B",
-        clay: "#DC2626",
-        steel: "#2563EB",
-        mint: "#E8F5E9",
-        primary: "#2E7D32",
-        "primary-dark": "#1B5E20",
-        anthracite: "#1F2937",
-        warning: "#F59E0B",
-        danger: "#DC2626",
-        info: "#2563EB",
-        surface: "#FFFFFF"
+        ink: colorVar("--color-ink"),
+        moss: colorVar("--color-moss"),
+        fog: colorVar("--color-fog"),
+        line: colorVar("--color-line"),
+        signal: colorVar("--color-signal"),
+        clay: colorVar("--color-clay"),
+        steel: colorVar("--color-steel"),
+        mint: colorVar("--color-mint"),
+        primary: colorVar("--color-primary"),
+        "primary-dark": colorVar("--color-primary-dark"),
+        anthracite: colorVar("--color-anthracite"),
+        warning: colorVar("--color-warning"),
+        danger: colorVar("--color-danger"),
+        info: colorVar("--color-info"),
+        surface: colorVar("--color-surface"),
+        cream: colorVar("--color-cream"),
+        ash: colorVar("--color-ash"),
+        ember: colorVar("--color-ember"),
+        coal: colorVar("--color-coal"),
+        basalt: colorVar("--color-basalt"),
+        ocher: colorVar("--color-ocher"),
+        "surface-container": colorVar("--color-surface-container"),
+        "surface-container-high": colorVar("--color-surface-container-high"),
+        "industrial-dark": colorVar("--color-industrial-dark"),
+        "industrial-panel": colorVar("--color-industrial-panel")
       },
       boxShadow: {
-        soft: "0 12px 28px rgba(31, 41, 55, 0.08)",
-        lift: "0 18px 46px rgba(31, 41, 55, 0.14)"
+        soft: "var(--bp-shadow-soft)",
+        lift: "var(--bp-shadow-lift)"
       }
     }
   },

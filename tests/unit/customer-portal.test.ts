@@ -87,6 +87,9 @@ describe("customer portal security", () => {
     const portalActions = fs.readFileSync(path.join(root, "lib/actions/customer-portal-actions.ts"), "utf8");
 
     expect(portalPage).not.toMatch(/\b(purchase_price|sales_price|margin|markup_percent|supplier_offers|online_price_offers)\b/);
+    expect(portalPage).not.toMatch(/\binternal_notes\b/);
+    expect(portalPage).toContain("Nur freigegebene Informationen");
+    expect(portalPage).toContain("Interne Notizen, Lagerdaten, EK-/VK-Preise");
     expect(portalActions).not.toMatch(/formData\.get\(["']company_id["']\)/);
     expect(portalActions).toContain("validateCustomerDocument(file)");
     expect(portalActions).toContain("customer-documents");
@@ -95,10 +98,27 @@ describe("customer portal security", () => {
   it("filters customer portal data by jobsite before returning portal content", () => {
     const portalTokens = fs.readFileSync(path.join(root, "lib/customer-portal/tokens.ts"), "utf8");
 
+    expect(portalTokens).toContain(".eq(\"visible_to_customer\", true)");
+    expect(portalTokens).toContain(".eq(\"report_status\", \"approved\")");
+    expect(portalTokens).toContain(".not(\"customer_released_at\", \"is\", null)");
+    expect(portalTokens).not.toMatch(/\binternal_notes\b/);
+    expect(portalTokens).not.toMatch(/\b(purchase_price|sales_price|margin_total|purchase_total|sales_total|supplier_offers|online_price_offers)\b/);
     expect(portalTokens).toContain('eventsQuery = eventsQuery.eq("jobsite_id", portalToken.jobsite_id)');
     expect(portalTokens).toContain('documentsQuery = documentsQuery.eq("jobsite_id", portalToken.jobsite_id)');
     expect(portalTokens).toContain('workOrdersQuery = workOrdersQuery.eq("jobsite_id", portalToken.jobsite_id)');
     expect(portalTokens).not.toContain("workOrdersResult.data ?? []) as unknown as PortalWorkOrder[]).filter");
+  });
+
+  it("keeps customer portal tokens hashed, expiring and absent from logs", () => {
+    const portalTokens = fs.readFileSync(path.join(root, "lib/customer-portal/tokens.ts"), "utf8");
+    const portalPage = fs.readFileSync(path.join(root, "app/portal/[token]/page.tsx"), "utf8");
+
+    expect(portalTokens).toContain("hashCustomerPortalToken(token)");
+    expect(portalTokens).toContain(".eq(\"token_hash\", tokenHash)");
+    expect(portalTokens).toContain("isActiveToken");
+    expect(portalTokens).toContain("expires_at");
+    expect(portalPage).not.toMatch(/console\.(log|warn|error)\([^)]*token/i);
+    expect(portalPage).toContain("Portal-Link ist abgelaufen oder ungültig");
   });
 
   it("checks affected rows for portal revocation, sending, signing and photo releases", () => {

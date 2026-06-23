@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAppContext, requireManager, type AppContext } from "@/lib/auth";
+import { requireAppContext, requireManager, requirePermission, type AppContext } from "@/lib/auth";
 import { revalidateDashboardCache } from "@/lib/data/dashboard";
 import { searchOrFilter } from "@/lib/data/shared";
 import { materialCatalogItemSelect } from "@/lib/data/selects";
@@ -107,13 +107,11 @@ async function assertCompanyLocation(
   return Boolean(data);
 }
 
-async function findOrCreateSupplier(
+async function findSupplierIdByName(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   companyId: string,
-  supplierName: string | null
+  supplierName: string
 ) {
-  if (!supplierName) return null;
-
   const { data: existing } = await supabase
     .from("suppliers")
     .select("id")
@@ -122,9 +120,20 @@ async function findOrCreateSupplier(
     .limit(1)
     .maybeSingle();
 
-  if (existing?.id) return existing.id as string;
+  return (existing?.id as string | undefined) ?? null;
+}
 
-  const { data: inserted } = await supabase
+async function findOrCreateSupplier(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  companyId: string,
+  supplierName: string | null
+) {
+  if (!supplierName) return null;
+
+  const existingId = await findSupplierIdByName(supabase, companyId, supplierName);
+  if (existingId) return existingId;
+
+  const { data: inserted, error: insertError } = await supabase
     .from("suppliers")
     .insert({
       company_id: companyId,
@@ -133,11 +142,19 @@ async function findOrCreateSupplier(
     .select("id")
     .single();
 
-  return (inserted?.id as string | undefined) ?? null;
+  if (inserted?.id) return inserted.id as string;
+
+  // Bei paralleler Anlage kann die DB-Unique-Constraint gewinnen. Danach den
+  // jetzt vorhandenen Lieferanten erneut laden statt die Verknuepfung zu verlieren.
+  if (insertError) {
+    return findSupplierIdByName(supabase, companyId, supplierName);
+  }
+
+  return null;
 }
 
 export async function addCatalogItemToInventoryAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("inventory.edit", "/materials/inventory");
   const supabase = await createSupabaseServerClient();
   await ensureDefaultInventoryLocations(supabase, context.companyId);
 
@@ -164,11 +181,9 @@ export async function addCatalogItemToInventoryAction(formData: FormData) {
     }
 
     const item = catalogItem as unknown as MaterialCatalogItem;
-    const supplierId = await findOrCreateSupplier(
-      supabase,
-      context.companyId,
-      optionalString(formData, "supplier_name")
-    );
+    const supplierId = context.canManage
+      ? await findOrCreateSupplier(supabase, context.companyId, optionalString(formData, "supplier_name"))
+      : null;
 
     const { data: existing } = await supabase
       .from("inventory_items")
@@ -184,7 +199,6 @@ export async function addCatalogItemToInventoryAction(formData: FormData) {
       category_id: item.category_id,
       subcategory_id: item.subcategory_id,
       location_id: locationId,
-      supplier_id: supplierId,
       name: item.name,
       unit: item.unit,
       minimum_stock: minimumStock,
@@ -192,9 +206,14 @@ export async function addCatalogItemToInventoryAction(formData: FormData) {
       manufacturer: item.manufacturer,
       article_number: item.article_number,
       ean: item.ean,
-      purchase_price: optionalNumber(formData, "purchase_price") ?? item.purchase_price,
-      sales_price: item.sales_price,
-      notes: optionalString(formData, "notes")
+      notes: optionalString(formData, "notes"),
+      ...(context.canManage
+        ? {
+            supplier_id: supplierId,
+            purchase_price: optionalNumber(formData, "purchase_price") ?? item.purchase_price,
+            sales_price: item.sales_price
+          }
+        : {})
     };
 
     const existingItem = existing as { id: string } | null;
@@ -242,14 +261,14 @@ export async function addCatalogItemToInventoryAction(formData: FormData) {
 }
 
 export async function createCustomInventoryItemAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("inventory.edit", "/materials/inventory");
   const supabase = await createSupabaseServerClient();
   await ensureDefaultInventoryLocations(supabase, context.companyId);
 
   const returnTo = redirectTarget(formData);
-  const locationId = requiredString(formData, "location_id");
 
   try {
+    const locationId = requiredString(formData, "location_id");
     if (!(await assertCompanyLocation(supabase, context.companyId, locationId))) {
       throw new SafeActionError("Der Lagerort gehoert nicht zu deiner Firma.");
     }
@@ -264,8 +283,8 @@ export async function createCustomInventoryItemAction(formData: FormData) {
       package_unit: optionalString(formData, "package_unit"),
       manufacturer: optionalString(formData, "manufacturer"),
       article_number: optionalString(formData, "article_number"),
-      purchase_price: optionalNumber(formData, "purchase_price"),
-      sales_price: optionalNumber(formData, "sales_price"),
+      purchase_price: context.canManage ? optionalNumber(formData, "purchase_price") : null,
+      sales_price: context.canManage ? optionalNumber(formData, "sales_price") : null,
       notes: optionalString(formData, "notes"),
       created_by: context.userId
     });
@@ -282,7 +301,7 @@ export async function createCustomInventoryItemAction(formData: FormData) {
 }
 
 export async function adjustInventoryStockAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("inventory.edit", "/materials/inventory");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
 
@@ -308,7 +327,7 @@ export async function adjustInventoryStockAction(formData: FormData) {
 }
 
 export async function transferInventoryAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("inventory.edit", "/materials/inventory");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
 
@@ -424,7 +443,7 @@ export async function confirmMaterialUsageReportAction(formData: FormData) {
 }
 
 export async function reserveMaterialForJobsiteAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("inventory.edit", "/materials/inventory");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
   let jobsiteId: string | null = null;
@@ -461,19 +480,23 @@ export async function reserveMaterialForJobsiteAction(formData: FormData) {
 }
 
 export async function createInventoryLocationAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/materials/locations");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/materials/locations");
 
-  const { error } = await supabase.from("inventory_locations").insert({
-    company_id: context.companyId,
-    name: requiredString(formData, "name"),
-    location_type: toInventoryLocationType(formData.get("location_type")),
-    notes: optionalString(formData, "notes")
-  });
+  try {
+    const { error } = await supabase.from("inventory_locations").insert({
+      company_id: context.companyId,
+      name: requiredString(formData, "name"),
+      location_type: toInventoryLocationType(formData.get("location_type")),
+      notes: optionalString(formData, "notes")
+    });
 
-  if (error) {
-    redirect(`${returnTo}?error=${toQuery("Lagerort konnte nicht angelegt werden.")}`);
+    if (error) {
+      throw new SafeActionError("Lagerort konnte nicht angelegt werden.");
+    }
+  } catch (error) {
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Lagerort konnte nicht angelegt werden."))}`);
   }
 
   revalidateMaterialRoutes(context.companyId);
@@ -481,24 +504,28 @@ export async function createInventoryLocationAction(formData: FormData) {
 }
 
 export async function updateInventoryLocationAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/materials/locations");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/materials/locations");
-  const id = requiredString(formData, "location_id");
 
-  const { error } = await supabase
-    .from("inventory_locations")
-    .update({
-      name: requiredString(formData, "name"),
-      location_type: toInventoryLocationType(formData.get("location_type")),
-      notes: optionalString(formData, "notes"),
-      active: String(formData.get("active") ?? "true") === "true"
-    })
-    .eq("id", id)
-    .eq("company_id", context.companyId);
+  try {
+    const id = requiredString(formData, "location_id");
+    const { error } = await supabase
+      .from("inventory_locations")
+      .update({
+        name: requiredString(formData, "name"),
+        location_type: toInventoryLocationType(formData.get("location_type")),
+        notes: optionalString(formData, "notes"),
+        active: String(formData.get("active") ?? "true") === "true"
+      })
+      .eq("id", id)
+      .eq("company_id", context.companyId);
 
-  if (error) {
-    redirect(`${returnTo}?error=${toQuery("Lagerort konnte nicht aktualisiert werden.")}`);
+    if (error) {
+      throw new SafeActionError("Lagerort konnte nicht aktualisiert werden.");
+    }
+  } catch (error) {
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Lagerort konnte nicht aktualisiert werden."))}`);
   }
 
   revalidateMaterialRoutes(context.companyId);
@@ -506,19 +533,23 @@ export async function updateInventoryLocationAction(formData: FormData) {
 }
 
 export async function deactivateInventoryLocationAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/materials/locations");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/materials/locations");
-  const id = requiredString(formData, "location_id");
 
-  const { error } = await supabase
-    .from("inventory_locations")
-    .update({ active: false })
-    .eq("id", id)
-    .eq("company_id", context.companyId);
+  try {
+    const id = requiredString(formData, "location_id");
+    const { error } = await supabase
+      .from("inventory_locations")
+      .update({ active: false })
+      .eq("id", id)
+      .eq("company_id", context.companyId);
 
-  if (error) {
-    redirect(`${returnTo}?error=${toQuery("Lagerort konnte nicht deaktiviert werden.")}`);
+    if (error) {
+      throw new SafeActionError("Lagerort konnte nicht deaktiviert werden.");
+    }
+  } catch (error) {
+    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Lagerort konnte nicht deaktiviert werden."))}`);
   }
 
   revalidateMaterialRoutes(context.companyId);

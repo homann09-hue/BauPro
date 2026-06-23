@@ -1,6 +1,8 @@
 import "server-only";
-import { DEMO_CHEF_EMAIL, DEMO_COMPANY_NAME, DEMO_DEFAULT_PASSWORD, DEMO_EMAIL_DOMAIN } from "@/lib/demo/constants";
+import { DEMO_CHEF_EMAIL, DEMO_COMPANY_NAME, DEMO_CUSTOMER_PORTAL_TOKEN, DEMO_DEFAULT_PASSWORD, DEMO_EMAIL_DOMAIN } from "@/lib/demo/constants";
+import { contentHash, hashCustomerPortalToken } from "@/lib/customer-portal/tokens";
 import { SafeActionError } from "@/lib/security/errors";
+import { logServerError } from "@/lib/security/logging";
 import { isMissingSchemaError, isUnsupportedVorarbeiterRoleError } from "@/lib/supabase/errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import type { Role } from "@/types/app";
@@ -94,6 +96,44 @@ async function ensureDemoCompany(admin: AdminClient) {
   return data as { id: string; name: string };
 }
 
+async function markDemoCompanyReady(admin: AdminClient, companyId: string, chefId: string) {
+  const fullUpdate = await admin
+    .from("companies")
+    .update({
+      plan_id: "business",
+      subscription_status: "trialing",
+      contact_email: "demo@mueller-dachtechnik.example.invalid",
+      phone: "0221 555000",
+      address: "Werkstrasse 8, 50667 Koeln",
+      website: "https://mueller-dachtechnik.example.invalid",
+      onboarding_completed_at: new Date().toISOString(),
+      created_by: chefId
+    })
+    .eq("id", companyId);
+
+  if (!fullUpdate.error) return;
+  if (!isMissingSchemaError(fullUpdate.error)) throw new Error("demo_company_update_failed");
+
+  const billingFallback = await admin
+    .from("companies")
+    .update({
+      plan_id: "business",
+      subscription_status: "trialing",
+      onboarding_completed_at: new Date().toISOString()
+    })
+    .eq("id", companyId);
+
+  if (!billingFallback.error) return;
+  if (!isMissingSchemaError(billingFallback.error)) throw new Error("demo_company_update_failed");
+
+  const minimalFallback = await admin
+    .from("companies")
+    .update({ onboarding_completed_at: new Date().toISOString() })
+    .eq("id", companyId);
+
+  if (minimalFallback.error) throw new Error("demo_company_update_failed");
+}
+
 async function ensureDemoUser(admin: AdminClient, seed: DemoUserSeed, companyId: string, password: string, existingUsers: Awaited<ReturnType<typeof listAllUsers>>) {
   const existing = existingUsers.find((user) => user.email?.toLowerCase() === seed.email.toLowerCase());
   let finalRole = seed.role;
@@ -162,7 +202,7 @@ async function insertRows(admin: AdminClient, table: string, rows: Array<Record<
     if (isMissingSchemaError(error)) {
       throw new SafeActionError("Datenbank-Update fehlt. Bitte die aktuellen Supabase-Migrationen ausfuehren.");
     }
-    console.error(`Demo-Seed Insert fehlgeschlagen: ${table}`, error);
+    logServerError("demo-seed-insert-failed", error, { table });
     throw new Error(`demo_insert_${table}_failed`);
   }
 
@@ -174,7 +214,7 @@ async function insertOptionalRows(admin: AdminClient, table: string, rows: Array
   const { data, error } = await admin.from(table).insert(rows as never).select(select);
   if (error) {
     if (isMissingSchemaError(error)) return [];
-    console.error(`Demo-Seed optionaler Insert fehlgeschlagen: ${table}`, error);
+    logServerError("demo-seed-optional-insert-failed", error, { table });
     throw new Error(`demo_insert_${table}_failed`);
   }
 
@@ -720,8 +760,164 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
   ]);
 
   await insertRows(admin, "reports", [
-    { company_id: companyId, jobsite_id: jobSchmidt.id, report_date: todayOffset(0), weather: "Trocken, 18 Grad, leichter Wind", work_start: "07:00", work_end: "16:00", employee_ids: [users.v1.id, users.m1.id, users.m2.id], activities: "Demo: Unterspannbahn vorbereitet, Material kontrolliert, Aufmass geprueft.", material_usage: "Unterspannbahn 75 m2, Dachlatten 110 lfm.", issues: "Konterlattenbestand reicht voraussichtlich nicht.", signature_name: "Niklas Berger", created_by: users.v1.id },
-    { company_id: companyId, jobsite_id: jobRheinblick.id, report_date: todayOffset(-1), weather: "Bedeckt, trocken", work_start: "07:30", work_end: "14:30", employee_ids: [users.m5.id], activities: "Demo: Rinne demontiert, Ablaufstutzen korrodiert dokumentiert.", material_usage: "Rinnenhalter Muster, Schrauben.", issues: "Ablaufstutzen muss ersetzt werden.", signature_name: "Jan Hoffmann", created_by: users.m5.id }
+    {
+      company_id: companyId,
+      jobsite_id: jobSchmidt.id,
+      report_date: todayOffset(-1),
+      weather: "Trocken, 18 Grad, leichter Wind",
+      weather_summary: "Trocken, 18 °C, leichter Wind - gute Bedingungen fuer Dacharbeiten.",
+      weather_temperature_c: 18,
+      weather_precipitation_mm: 0,
+      weather_wind_kmh: 14,
+      weather_source: "open-meteo-demo",
+      weather_fetched_at: new Date().toISOString(),
+      work_start: "07:00",
+      work_end: "16:00",
+      employee_ids: [users.v1.id, users.m1.id, users.m2.id],
+      activities: "Unterspannbahn vorbereitet, Material kontrolliert, Aufmass geprueft und Ortgang links dokumentiert.",
+      material_usage: "Unterspannbahn 75 m2, Dachlatten 110 lfm.",
+      machine_usage: "Dachaufzug, Sprinter K-DT 210.",
+      issues: "Konterlattenbestand reicht voraussichtlich nicht. Chef-Warnung wurde erzeugt.",
+      report_status: "approved",
+      visible_to_customer: true,
+      customer_summary:
+        "Die Dachflaeche wurde vorbereitet. Unterspannbahn und erste Lattung sind begonnen, der Ortgang links wird gesondert geprueft. Fuer morgen ist zusaetzliches Material eingeplant.",
+      customer_released_at: new Date().toISOString(),
+      signature_name: "Niklas Berger",
+      created_by: users.v1.id
+    },
+    {
+      company_id: companyId,
+      jobsite_id: jobRheinblick.id,
+      report_date: todayOffset(-1),
+      weather: "Bedeckt, trocken",
+      weather_summary: "Bedeckt, trocken - Arbeiten an der Rinne ohne Niederschlag.",
+      work_start: "07:30",
+      work_end: "14:30",
+      employee_ids: [users.m5.id],
+      activities: "Demo: Rinne demontiert, Ablaufstutzen korrodiert dokumentiert.",
+      material_usage: "Rinnenhalter Muster, Schrauben.",
+      issues: "Ablaufstutzen muss ersetzt werden.",
+      report_status: "reviewed",
+      visible_to_customer: false,
+      signature_name: "Jan Hoffmann",
+      created_by: users.m5.id
+    }
+  ]);
+
+  const portalTokens = await insertRows(
+    admin,
+    "customer_portal_tokens",
+    [
+      {
+        company_id: companyId,
+        customer_id: schmidt.id,
+        jobsite_id: jobSchmidt.id,
+        token_hash: hashCustomerPortalToken(DEMO_CUSTOMER_PORTAL_TOKEN),
+        label: "Demo: Kundenportal Schmidt",
+        expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+        created_by: users.chef.id
+      }
+    ],
+    "id"
+  );
+  const [portalToken] = portalTokens;
+
+  await insertRows(admin, "customer_portal_events", [
+    {
+      company_id: companyId,
+      customer_id: schmidt.id,
+      jobsite_id: jobSchmidt.id,
+      event_type: "status",
+      title: "Baustelle gestartet",
+      body: "Geruest steht, Material wurde geprueft und die Dachflaeche ist fuer die naechsten Arbeitsschritte vorbereitet.",
+      visible_to_customer: true,
+      event_date: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString(),
+      created_by: users.chef.id
+    },
+    {
+      company_id: companyId,
+      customer_id: schmidt.id,
+      jobsite_id: jobSchmidt.id,
+      event_type: "appointment",
+      title: "Naechster Termin: Lattung und Ortgang",
+      body: "Das Team ist morgen ab ca. 7:00 Uhr vor Ort. Bitte Hofzufahrt freihalten.",
+      visible_to_customer: true,
+      event_date: new Date(Date.now() + 18 * 60 * 60 * 1000).toISOString(),
+      created_by: users.v1.id
+    },
+    {
+      company_id: companyId,
+      customer_id: schmidt.id,
+      jobsite_id: jobSchmidt.id,
+      event_type: "photo",
+      title: "Fotodokumentation vorbereitet",
+      body: "Beispiel-Fotos werden im echten Betrieb einzeln freigegeben. Interne Fotos bleiben verborgen.",
+      visible_to_customer: true,
+      event_date: new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
+      created_by: users.v1.id
+    },
+    {
+      company_id: companyId,
+      customer_id: schmidt.id,
+      jobsite_id: jobSchmidt.id,
+      event_type: "document",
+      title: "Dokumentenbereich bereit",
+      body: "Angebote, Arbeitsauftraege und Abnahmen koennen hier freigegeben und digital bestaetigt werden.",
+      visible_to_customer: true,
+      event_date: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
+      created_by: users.chef.id
+    },
+    {
+      company_id: companyId,
+      customer_id: schmidt.id,
+      jobsite_id: jobSchmidt.id,
+      event_type: "update",
+      title: "Wetterhinweis dokumentiert",
+      body: "Trocken, leichter Wind - gute Bedingungen. Falls Regen aufzieht, werden Material und Folien gesichert.",
+      visible_to_customer: true,
+      event_date: new Date(Date.now() - 16 * 60 * 60 * 1000).toISOString(),
+      created_by: users.v1.id
+    }
+  ]);
+
+  await insertRows(admin, "customer_portal_messages", [
+    {
+      company_id: companyId,
+      customer_id: schmidt.id,
+      jobsite_id: jobSchmidt.id,
+      portal_token_id: portalToken.id,
+      sender_name: "Anna Schmidt",
+      sender_email: "anna.schmidt@example.invalid",
+      message: "Koennen die Dachfenster waehrend der Arbeiten abgedeckt bleiben? Wir sind morgen nicht durchgehend zu Hause.",
+      status: "open"
+    }
+  ]);
+
+  const demoWorkOrderSnapshot = {
+    title: "Arbeitsauftrag: Steildachsanierung Schmidt",
+    scope_of_work:
+      "Unterspannbahn verlegen, Konterlattung und Dachlattung herstellen, Ortgang links pruefen und die naechsten Materialschritte dokumentieren.",
+    version: 1,
+    customer_id: schmidt.id,
+    jobsite_id: jobSchmidt.id
+  };
+  await insertRows(admin, "work_orders", [
+    {
+      company_id: companyId,
+      customer_id: schmidt.id,
+      jobsite_id: jobSchmidt.id,
+      order_id: orderSchmidt.id,
+      title: demoWorkOrderSnapshot.title,
+      description: "Demo-Arbeitsauftrag fuer die digitale Kundenfreigabe.",
+      scope_of_work: demoWorkOrderSnapshot.scope_of_work,
+      price_note: "Preisdetails stehen im Angebot. Interne EK-/Marge-Daten sind nicht Teil des Kundenportals.",
+      status: "sent",
+      version: 1,
+      content_hash: contentHash(demoWorkOrderSnapshot),
+      sent_at: new Date(Date.now() - 14 * 60 * 60 * 1000).toISOString(),
+      created_by: users.chef.id
+    }
   ]);
 
   await insertRows(admin, "tasks", [
@@ -787,19 +983,7 @@ export async function ensureDemoModeData() {
     await Promise.all(demoUsers.map(async (seed) => [seed.key, await ensureDemoUser(admin, seed, company.id, password, existingUsers)] as const))
   ) as Record<string, DemoUser>;
 
-  await admin
-    .from("companies")
-    .update({
-      plan_id: "business",
-      subscription_status: "trialing",
-      contact_email: "demo@mueller-dachtechnik.example.invalid",
-      phone: "0221 555000",
-      address: "Werkstrasse 8, 50667 Koeln",
-      website: "https://mueller-dachtechnik.example.invalid",
-      onboarding_completed_at: new Date().toISOString(),
-      created_by: users.chef.id
-    })
-    .eq("id", company.id);
+  await markDemoCompanyReady(admin, company.id, users.chef.id);
 
   await seedDemoData(admin, company.id, users);
 

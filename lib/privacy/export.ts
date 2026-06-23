@@ -25,7 +25,7 @@ const aiUsageLogExportSelect =
 const taskExportSelect =
   "id, company_id, jobsite_id, title, description, assigned_to, due_date, status, created_by, created_at, updated_at";
 const companyExportSelect =
-  "id, name, created_by, created_at, updated_at, contact_email, phone, address, website, tax_id, payment_terms, onboarding_completed_at";
+  "id, name, created_by, created_at, updated_at, contact_email, phone, address, website, tax_id, payment_terms, trade, logo_path, onboarding_completed_at";
 const orderExportSelect =
   "id, company_id, customer_id, jobsite_id, order_number, title, order_type, status, priority, jobsite_address, start_date, end_date, description, internal_notes, assigned_employee_ids, has_dimensions, created_by, created_at, updated_at, archived_at";
 const materialExportSelect =

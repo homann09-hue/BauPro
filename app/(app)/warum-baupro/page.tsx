@@ -35,7 +35,7 @@ export default function WhyBauProPage() {
     <>
       <PageHeader
         title="Warum BauPro?"
-        description="Die wichtigsten Wechselgruende für Dachdecker- und Handwerksbetriebe: Zeit sparen, Kosten senken, Fehler vermeiden und Abläufe automatisieren."
+        description="Die wichtigsten Wechselgründe für Dachdecker- und Handwerksbetriebe: Zeit sparen, Kosten senken, Fehler vermeiden und Abläufe automatisieren."
       />
 
       <section className="overflow-hidden rounded-lg border border-slate-800 bg-anthracite text-white shadow-lift">
@@ -58,7 +58,7 @@ export default function WhyBauProPage() {
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
               <Link href="/orders/new" className="btn-secondary border-white/20 bg-white/10 text-white hover:bg-white/15">
-                Auftrag mit Maßen vorfuehren
+                Auftrag mit Maßen vorführen
               </Link>
             </div>
           </div>
@@ -78,7 +78,7 @@ export default function WhyBauProPage() {
 
       <section className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <BenefitMetric icon={Clock3} title="Zeitersparnis" text="Weniger Suchen, Nachfragen und Nachtragen." />
-        <BenefitMetric icon={Coins} title="Geldersparnis" text="Weniger Fehlfahrten, Expresskaeufe und unbezahlte Nacharbeit." />
+        <BenefitMetric icon={Coins} title="Geldersparnis" text="Weniger Fehlfahrten, Expresskäufe und unbezahlte Nacharbeit." />
         <BenefitMetric icon={ShieldCheck} title="Fehlervermeidung" text="Pflichtfelder, Rollenrechte, RLS und klare Status." />
         <BenefitMetric icon={WandSparkles} title="Automatisierung" text="Berechnung, Warnungen, Exporte, Wetter und KI-Vorschläge." />
       </section>
@@ -86,7 +86,7 @@ export default function WhyBauProPage() {
       <section className="mt-6 dashboard-band">
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="section-kicker">Wechselgruende</p>
+            <p className="section-kicker">Wechselgründe</p>
             <h2 className="section-title">Kernfunktionen mit konkretem Nutzen</h2>
           </div>
           <p className="text-sm font-semibold text-slate-500">
@@ -133,7 +133,7 @@ export default function WhyBauProPage() {
       <section className="mt-6 grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="surface p-4 sm:p-5">
           <p className="section-kicker">Demo-Version</p>
-          <h2 className="section-title">So zeigst du BauPro im Verkaufsgespraech</h2>
+          <h2 className="section-title">So zeigst du BauPro im Verkaufsgespräch</h2>
           <ol className="mt-4 space-y-3">
             {whyBauProDemoFlow.map((step, index) => (
               <li key={step} className="flex gap-3 rounded-md border border-line bg-white p-3 text-sm font-semibold text-slate-700">

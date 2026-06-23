@@ -8,8 +8,9 @@ import { updateCompanyProfileAction } from "@/lib/actions/auth-actions";
 import { updatePricingSettingsAction } from "@/lib/actions/material-calculation-actions";
 import { loadCalculationSettings } from "@/lib/ai/job-drafts";
 import { aiRuntimeState, loadAiSettings } from "@/lib/ai/permissions";
-import { requireManager } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { companyPricingSettingsSelect } from "@/lib/data/selects";
+import { isMissingSchemaError } from "@/lib/supabase/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { searchParamMessage } from "@/lib/utils";
 import type { CompanyPricingSettings } from "@/types/app";
@@ -19,12 +20,12 @@ export default async function SettingsPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await requireManager();
+  const context = await requirePermission("settings.edit", "/dashboard");
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
 
-  const [{ data: company }, { data: pricing }, aiSettings, calculationSettings] = await Promise.all([
-    supabase.from("companies").select("id, name").eq("id", context.companyId).single(),
+  const [companyResult, { data: pricing }, aiSettings, calculationSettings] = await Promise.all([
+    supabase.from("companies").select("id, name, session_timeout_minutes").eq("id", context.companyId).single(),
     supabase
       .from("company_pricing_settings")
       .select(companyPricingSettingsSelect)
@@ -34,6 +35,13 @@ export default async function SettingsPage({
     loadCalculationSettings(supabase, context.companyId)
   ]);
 
+  let company = companyResult.data as { id: string; name: string; session_timeout_minutes?: number | null } | null;
+  const companyMissingSessionSetting = companyResult.error && isMissingSchemaError(companyResult.error);
+  if (!company && companyMissingSessionSetting) {
+    const fallback = await supabase.from("companies").select("id, name").eq("id", context.companyId).single();
+    company = fallback.data ? { ...fallback.data, session_timeout_minutes: context.company.session_timeout_minutes } : null;
+  }
+
   const settings = (pricing as CompanyPricingSettings | null) ?? {
     company_id: context.companyId,
     waste_percent: 20,
@@ -41,6 +49,7 @@ export default async function SettingsPage({
     auto_calculate_sales_price: true
   };
   const aiRuntime = aiRuntimeState(context, aiSettings);
+  const sessionTimeoutMinutes = Number(company?.session_timeout_minutes ?? context.company.session_timeout_minutes ?? 30);
 
   return (
     <>
@@ -61,16 +70,35 @@ export default async function SettingsPage({
               <h2 className="section-title">Firmenprofil</h2>
             </div>
           </div>
-          <form action={updateCompanyProfileAction} className="grid gap-3 sm:grid-cols-[1fr_auto]">
+          <form action={updateCompanyProfileAction} className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem_auto]">
             <input type="hidden" name="return_to" value="/settings" />
             <label>
               <span className="field-label">Firmenname</span>
               <input className="field-input" name="name" defaultValue={company?.name ?? context.companyName} required />
             </label>
+            <label>
+              <span className="field-label">Automatische Abmeldung nach</span>
+              <input
+                className="field-input"
+                defaultValue={Number.isFinite(sessionTimeoutMinutes) ? sessionTimeoutMinutes : 30}
+                inputMode="numeric"
+                max={1440}
+                min={0}
+                name="session_timeout_minutes"
+                step={1}
+                type="number"
+              />
+              <span className="field-help">Minuten, 0 = nie. Empfohlen für geteilte Tablets: 30 Minuten.</span>
+            </label>
             <button className="btn-primary self-end" type="submit">
               Speichern
             </button>
           </form>
+          {companyMissingSessionSetting ? (
+            <p className="mt-3 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm font-semibold text-amber-900">
+              Datenbank-Update fehlt: Bitte `supabase/migrations/20260623_session_timeout_setting.sql` ausführen.
+            </p>
+          ) : null}
           <p className="mt-3 rounded-md border border-line bg-fog p-3 text-sm text-slate-600">
             Weitere Firmenfelder wie Logo, Briefkopf, Steuernummer und Zahlungsbedingungen sind für die Angebots- und Rechnungsstrecke
             vorbereitet.
@@ -124,8 +152,8 @@ export default async function SettingsPage({
             <Calculator className="h-5 w-5" aria-hidden="true" />
           </div>
           <div>
-            <p className="meta-label">KI-Auftrag</p>
-            <h2 className="section-title">Kalkulationsgrundlagen</h2>
+            <p className="meta-label">Auftragskalkulation</p>
+            <h2 className="section-title">Standardwerte für Arbeit und Preise</h2>
           </div>
         </div>
         <form action={updateCalculationSettingsAction} className="grid gap-3 md:grid-cols-4">
@@ -180,6 +208,15 @@ export default async function SettingsPage({
             />
           </label>
           <label>
+            <span className="field-label">Kilometerpreis netto</span>
+            <input
+              className="field-input"
+              name="default_travel_rate_per_km"
+              inputMode="decimal"
+              defaultValue={calculationSettings.default_travel_rate_per_km}
+            />
+          </label>
+          <label>
             <span className="field-label">Fahrtpauschale netto</span>
             <input
               className="field-input"
@@ -196,7 +233,7 @@ export default async function SettingsPage({
                 defaultChecked={calculationSettings.allow_ai_job_creation}
                 className="h-4 w-4 rounded border-line text-moss"
               />
-              KI darf Auftragsentwuerfe vorbereiten
+              KI darf Auftragsentwürfe vorbereiten
             </label>
             <label className="flex items-center gap-3 rounded-md border border-line bg-white px-3 py-2 text-sm font-semibold text-ink">
               <input
@@ -209,7 +246,7 @@ export default async function SettingsPage({
             </label>
           </div>
           <button className="btn-primary md:col-span-4" type="submit">
-            KI-Kalkulation speichern
+            Kalkulationswerte speichern
           </button>
         </form>
       </section>
@@ -293,6 +330,11 @@ export default async function SettingsPage({
           <Users className="mb-3 h-5 w-5 text-moss" aria-hidden="true" />
           <h3 className="font-black text-ink">Mitarbeiter und Rollen</h3>
           <p className="mt-2 text-sm text-slate-600">Zugänge, Rollen und Aktivstatus verwalten.</p>
+        </Link>
+        <Link href="/settings/security" className="interactive-surface p-4">
+          <ShieldCheck className="mb-3 h-5 w-5 text-moss" aria-hidden="true" />
+          <h3 className="font-black text-ink">Sicherheit und 2FA</h3>
+          <p className="mt-2 text-sm text-slate-600">Zwei-Faktor-Authentifizierung für Admin- und Chef-Accounts einrichten.</p>
         </Link>
         <Link href="/materials/catalog" className="interactive-surface p-4">
           <Calculator className="mb-3 h-5 w-5 text-moss" aria-hidden="true" />

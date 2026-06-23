@@ -1,78 +1,91 @@
 import Link from "next/link";
-import { Building2, Clock3, Coins, ShieldCheck, Sparkles, type LucideIcon } from "lucide-react";
+import { Clock3, Coins, ShieldCheck, Sparkles, type LucideIcon } from "lucide-react";
 import { whyBauProSalesHighlights } from "@/lib/why-baupro";
+
+const salesIcons: LucideIcon[] = [Clock3, Coins, ShieldCheck, Sparkles];
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-dvh bg-fog px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-[calc(1.5rem+env(safe-area-inset-top))] sm:px-6 sm:py-6 lg:px-8">
-      <div className="mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-6xl items-center gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="hidden lg:block">
-          <div className="max-w-xl">
-            <div className="mb-7 inline-flex items-center gap-3 rounded-lg bg-anthracite p-3 text-white shadow-lift">
-              <div className="flex h-12 w-12 items-center justify-center rounded-md bg-primary">
-                <Building2 className="h-7 w-7" aria-hidden="true" />
-              </div>
-              <div>
-                <p className="text-2xl font-black">BauPro</p>
-                <p className="text-sm text-white/70">Betriebszentrale für Dachdecker</p>
-              </div>
-            </div>
-            <h1 className="text-4xl font-black tracking-normal text-ink">
-              Baustellen, Berichte und Material an einem Ort.
+    <main className="bp-auth-root min-h-dvh overflow-hidden bg-coal text-ink">
+      <div className="pointer-events-none absolute inset-0 opacity-75" aria-hidden="true">
+        <div className="absolute inset-0 bg-[repeating-linear-gradient(-8deg,rgba(240,235,224,0.045)_0_1px,transparent_1px_60px)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(212,88,10,0.14),transparent_42%),linear-gradient(90deg,transparent,rgba(212,88,10,0.06))]" />
+      </div>
+
+      <div className="relative grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_420px]">
+        <section className="flex min-h-[44vh] flex-col justify-between px-5 py-6 sm:px-8 lg:min-h-dvh lg:px-14 lg:py-12">
+          <Link href="/" className="flex w-fit items-center gap-3 text-2xl font-normal uppercase tracking-[0.22em] text-ink [font-family:var(--font-display)]">
+            <span className="h-2 w-2 rotate-45 bg-primary" aria-hidden="true" />
+            BauPro
+          </Link>
+
+          <div className="py-10 lg:py-14">
+            <p className="section-kicker mb-5">Betriebssoftware für Dachdecker</p>
+            <h1 className="max-w-3xl text-6xl font-normal uppercase leading-[0.92] tracking-wide text-ink [font-family:var(--font-display)] sm:text-7xl xl:text-[5rem]">
+              Baustelle.
+              <br />
+              Bericht.
+              <br />
+              <span className="text-primary">Fertig.</span>
             </h1>
-            <p className="mt-4 text-base leading-7 text-slate-600">
-              Ein ruhiges, schnelles Werkzeug für kleine Handwerksbetriebe: mobil auf der Baustelle und klar im Büro.
+            <p className="mt-7 max-w-md text-sm font-medium leading-7 text-ash">
+              Zeiten, Material und Berichte direkt vom Dach. Klar im Büro, schnell auf dem Gerüst, ohne Software-Theater.
             </p>
-            <div className="mt-8 grid gap-3">
-              {whyBauProSalesHighlights.map((highlight, index) => (
-                <AuthFeature key={highlight.label} icon={salesIcons[index] ?? Sparkles} title={highlight.label} text={highlight.value} />
+
+            <div className="mt-9 grid max-w-2xl grid-cols-3 gap-px bg-line">
+              <AuthStat value="0h" label="Nacharbeit" />
+              <AuthStat value="1×" label="Alles erfassen" />
+              <AuthStat value="∞" label="Kontrolle" />
+            </div>
+
+            <div className="mt-8 flex max-w-2xl flex-wrap gap-2.5">
+              {["Mitbringlisten", "Tagesberichte & PDF", "Materialwarnungen", "Chef-Ansicht & Margen", "Lagerabgleich", "Audit-Spuren"].map((label) => (
+                <span key={label} className="inline-flex min-h-9 items-center gap-2 border border-line bg-surface px-4 text-sm font-semibold text-slate-300">
+                  <span className="h-1.5 w-1.5 rotate-45 bg-primary" aria-hidden="true" />
+                  {label}
+                </span>
               ))}
             </div>
-            <div className="mt-5 rounded-lg border border-primary/15 bg-mint p-4">
-              <p className="text-sm font-black text-primary-dark">Demo-Gespraech</p>
-              <p className="mt-1 text-sm leading-6 text-primary-dark/80">
-                Zeige erst Dashboard, Materialwarnungen, Tagesstunden und Mitbringlisten. Danach oeffne einen Auftrag mit Maßen und
-                erklaere, wo Zeit, Geld, Fehler und Automatisierung zusammenkommen.
-              </p>
-            </div>
+          </div>
+
+          <div className="hidden text-xs font-semibold tracking-wide text-slate-700 lg:flex lg:items-center lg:gap-4">
+            <span>© 2026 BauPro</span>
+            <Link href="/legal/impressum" className="hover:text-ash">
+              Impressum
+            </Link>
+            <Link href="/legal/datenschutz" className="hover:text-ash">
+              Datenschutz
+            </Link>
           </div>
         </section>
 
-        <section>
-          <div className="mb-6 flex items-center justify-center gap-3 lg:hidden">
-            <div className="flex h-11 w-11 items-center justify-center rounded-md bg-anthracite text-white">
-              <Building2 className="h-6 w-6" aria-hidden="true" />
+        <section className="border-t border-line bg-basalt px-5 py-6 shadow-lift sm:px-8 lg:border-l lg:border-t-0 lg:px-10 lg:py-12">
+          <div className="mx-auto flex min-h-full max-w-md flex-col justify-center">
+            {children}
+
+            <div className="mt-6 border-t border-line pt-5 lg:hidden">
+              <h2 className="text-3xl font-normal uppercase text-ink [font-family:var(--font-display)]">Warum BauPro?</h2>
+              <div className="mt-3 grid gap-2">
+                {whyBauProSalesHighlights.slice(0, 3).map((highlight, index) => (
+                  <AuthFeature key={highlight.label} icon={salesIcons[index] ?? Sparkles} title={highlight.label} text={highlight.value} />
+                ))}
+              </div>
             </div>
-            <div>
-              <p className="text-2xl font-black text-ink">BauPro</p>
-              <p className="text-sm text-slate-500">Handwerker-App für Dachdecker</p>
+
+            <div className="mt-7 flex flex-wrap justify-between gap-3 border-t border-line pt-5 text-xs font-semibold text-slate-600">
+              <span>Noch Fragen?</span>
+              <div className="flex gap-3">
+                <Link href="/legal/impressum" className="hover:text-ash">
+                  Impressum
+                </Link>
+                <Link href="/legal/datenschutz" className="hover:text-ash">
+                  Datenschutz
+                </Link>
+                <Link href="/legal/agb" className="hover:text-ash">
+                  AGB
+                </Link>
+              </div>
             </div>
-          </div>
-          {children}
-          <div className="mt-5 rounded-lg border border-line bg-white p-4 shadow-sm lg:hidden">
-            <h2 className="text-lg font-black text-ink">Warum BauPro?</h2>
-            <div className="grid gap-2">
-              {whyBauProSalesHighlights.slice(0, 3).map((highlight) => (
-                <div key={highlight.label} className="rounded-md bg-fog p-3">
-                  <p className="text-sm font-black text-ink">{highlight.label}</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-600">{highlight.value}</p>
-                </div>
-              ))}
-            </div>
-            <p className="mt-3 rounded-md bg-mint px-3 py-2 text-xs font-bold leading-5 text-primary-dark">
-              Demo-Tipp: Dashboard zeigen, dann Auftrag mit Maßen, Mitbringliste und Tagesstunden öffnen.
-            </p>
-          </div>
-          <div className="mt-5 flex flex-wrap justify-center gap-3 text-xs font-semibold text-slate-500">
-            <Link href="/legal/impressum" className="hover:text-primary">
-              Impressum
-            </Link>
-            <Link href="/legal/datenschutz" className="hover:text-primary">
-              Datenschutz
-            </Link>
-            <Link href="/legal/agb" className="hover:text-primary">
-              AGB
-            </Link>
           </div>
         </section>
       </div>
@@ -80,7 +93,17 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   );
 }
 
-const salesIcons: LucideIcon[] = [Clock3, Coins, ShieldCheck, Sparkles];
+function AuthStat({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="bg-coal px-4 py-5 sm:px-6">
+      <p className="text-4xl font-normal leading-none text-ink [font-family:var(--font-display)]">
+        {value.replace(/[a-z×]/gi, "")}
+        <span className="text-primary">{value.replace(/[^a-z×]/gi, "")}</span>
+      </p>
+      <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-700">{label}</p>
+    </div>
+  );
+}
 
 function AuthFeature({
   icon: Icon,
@@ -92,13 +115,13 @@ function AuthFeature({
   text: string;
 }) {
   return (
-    <div className="flex gap-3 rounded-lg border border-white/70 bg-white/75 p-4 shadow-sm">
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+    <div className="flex gap-3 border border-line bg-surface p-3 shadow-sm">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center bg-mint text-primary">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </div>
       <div>
-        <p className="font-bold text-ink">{title}</p>
-        <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
+        <p className="font-black text-ink">{title}</p>
+        <p className="mt-1 text-xs leading-5 text-ash">{text}</p>
       </div>
     </div>
   );

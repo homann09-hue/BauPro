@@ -1,9 +1,11 @@
 import { AI_JOB_DRAFT_SCHEMA, jobDraftPrompt, roleAwareSystemPrompt } from "@/lib/ai/prompts";
-import { createStructuredAiResponse, getOpenAiModel } from "@/lib/ai/openai";
+import { createStructuredAiResponse, getOpenAiModel, isOpenAiConfigured } from "@/lib/ai/openai";
 import { calculationSettingsSelect } from "@/lib/data/selects";
 import { logAiUsage } from "@/lib/ai/usage-log";
+import { logServerWarning } from "@/lib/security/logging";
 import { calculateArea } from "@/lib/material-calculations";
 import { buildOrderMaterialRequirementRows, type OrderDimensionValues } from "@/lib/order-materials";
+import { customerDisplayName } from "@/lib/order-labels";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatQuantity } from "@/lib/inventory";
@@ -26,6 +28,7 @@ const DEFAULT_CALCULATION_SETTINGS: Omit<CalculationSettings, "company_id"> = {
   default_internal_hourly_cost: 38,
   default_profit_markup_percent: 10,
   default_overhead_percent: 12,
+  default_travel_rate_per_km: 0.75,
   default_travel_flat_rate: 0,
   allow_ai_job_creation: true,
   require_admin_confirmation: true
@@ -49,8 +52,173 @@ function clampConfidence(value: number) {
   return Math.max(0, Math.min(1, value));
 }
 
+function materialTypeValue(value: unknown): AiJobDraftParsed["material_type"] {
+  const candidate = String(value ?? "");
+  const allowed: NonNullable<AiJobDraftParsed["material_type"]>[] = [
+    "tonziegel",
+    "betondachstein",
+    "schiefer",
+    "bitumen",
+    "metall",
+    "gruen",
+    "sonstiges"
+  ];
+  return allowed.includes(candidate as NonNullable<AiJobDraftParsed["material_type"]>)
+    ? (candidate as NonNullable<AiJobDraftParsed["material_type"]>)
+    : null;
+}
+
 function compactJson(value: unknown) {
   return JSON.stringify(value, null, 2).slice(0, 10000);
+}
+
+function normalized(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/ß/g, "ss");
+}
+
+function decimalFromMatch(match: RegExpMatchArray | null) {
+  if (!match?.[1]) return null;
+  const parsed = Number(match[1].replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function firstKeywordNumber(input: string, keywords: string[]) {
+  for (const keyword of keywords) {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const after = decimalFromMatch(input.match(new RegExp(`${escaped}[^0-9]{0,24}(\\d+(?:[,.]\\d+)?)`, "i")));
+    if (after !== null) return after;
+    const before = decimalFromMatch(input.match(new RegExp(`(\\d+(?:[,.]\\d+)?)\\s*(?:m|meter|lfm|stk|stueck|stück)?[^\\n]{0,8}${escaped}`, "i")));
+    if (before !== null) return before;
+  }
+  return null;
+}
+
+function countKeywordNumber(input: string, keywords: string[]) {
+  for (const keyword of keywords) {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const after = decimalFromMatch(input.match(new RegExp(`${escaped}[^0-9]{0,16}(\\d+)`, "i")));
+    if (after !== null) return after;
+    const before = decimalFromMatch(input.match(new RegExp(`(\\d+)\\s+${escaped}`, "i")));
+    if (before !== null) return before;
+  }
+  return null;
+}
+
+function inferOrderType(input: string): OrderType {
+  const text = normalized(input);
+  if (text.includes("flachdach") || text.includes("bitumen") || text.includes("schweissbahn")) return "flachdach";
+  if (text.includes("dachrinne") || text.includes("rinne") || text.includes("fallrohr") || text.includes("entwaesser")) return "dachrinne";
+  if (text.includes("blech") || text.includes("attika") || text.includes("wandanschluss")) return "blech";
+  if (text.includes("reparatur") || text.includes("schaden") || text.includes("undicht")) return "reparatur";
+  if (text.includes("wartung")) return "wartung";
+  return "steildach";
+}
+
+function inferRoofForm(input: string): AiJobDraftParsed["roof_form"] {
+  const text = normalized(input);
+  if (text.includes("satteldach")) return "satteldach";
+  if (text.includes("flachdach")) return "flachdach";
+  if (text.includes("pultdach")) return "pultdach";
+  if (text.includes("walmdach")) return "walmdach";
+  if (text.includes("mansard")) return "mansarddach";
+  return null;
+}
+
+function inferMaterialType(input: string): AiJobDraftParsed["material_type"] {
+  const text = normalized(input);
+  if (text.includes("tonziegel") || text.includes("ziegel")) return "tonziegel";
+  if (text.includes("betondachstein") || text.includes("dachstein") || text.includes("pfanne")) return "betondachstein";
+  if (text.includes("schiefer")) return "schiefer";
+  if (text.includes("bitumen") || text.includes("schweissbahn") || text.includes("abdichtung")) return "bitumen";
+  if (text.includes("blech") || text.includes("zink") || text.includes("metall")) return "metall";
+  if (text.includes("gruen") || text.includes("gründach") || text.includes("gruendach")) return "gruen";
+  return null;
+}
+
+function inferCustomer(input: string, customers: Array<Pick<Customer, "id" | "company" | "first_name" | "last_name">>) {
+  const text = normalized(input);
+  const existing = customers.find((customer) => {
+    const label = customerDisplayName(customer);
+    return label !== "Kunde" && text.includes(normalized(label));
+  });
+  if (existing) return { customer_name: customerDisplayName(existing), existing_customer_id: existing.id };
+
+  const named = input.match(/kunde\s+([A-ZÄÖÜ][\p{L}\-]+(?:\s+[A-ZÄÖÜ][\p{L}\-]+)?)/iu)?.[1]?.trim() ?? null;
+  return { customer_name: named, existing_customer_id: null };
+}
+
+function inferAddress(input: string) {
+  const explicit = input.match(/(?:adresse|baustellenadresse)\s*[:\-]?\s*([^\n]+)/i)?.[1]?.trim();
+  if (explicit) return explicit.slice(0, 180);
+  const street = input.match(/([A-ZÄÖÜ][\p{L}\-]+(?:straße|strasse|weg|gasse|allee|platz)\s+\d+[^\n,]*)/u)?.[1]?.trim();
+  return street ?? null;
+}
+
+export function createFallbackJobDraft(
+  input: string,
+  customers: Array<Pick<Customer, "id" | "company" | "first_name" | "last_name">> = []
+): AiJobDraftParsed {
+  const orderType = inferOrderType(input);
+  const lengthWidth = input.match(/(\d+(?:[,.]\d+)?)\s*(?:x|mal|×)\s*(\d+(?:[,.]\d+)?)/i);
+  const length = decimalFromMatch(lengthWidth);
+  const width = lengthWidth?.[2] ? Number(lengthWidth[2].replace(",", ".")) : null;
+  const area = decimalFromMatch(input.match(/(\d+(?:[,.]\d+)?)\s*(?:m²|m2|qm|quadratmeter)/i));
+  const { customer_name, existing_customer_id } = inferCustomer(input, customers);
+  const roofForm = inferRoofForm(input) ?? (orderType === "flachdach" ? "flachdach" : null);
+  const materialType = inferMaterialType(input);
+  const title = [
+    orderType === "steildach" ? "Steildach-Auftrag" : orderType === "flachdach" ? "Flachdach-Auftrag" : "Dachdecker-Auftrag",
+    customer_name ? `für ${customer_name}` : null
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return {
+    customer_name,
+    existing_customer_id,
+    title,
+    order_type: orderType,
+    roof_form: roofForm,
+    material_type: materialType,
+    priority: normalized(input).includes("dringend") ? "hoch" : "normal",
+    jobsite_name: customer_name ? `Baustelle ${customer_name}` : null,
+    jobsite_address: inferAddress(input),
+    start_date: null,
+    end_date: null,
+    timeframe_text: input.match(/(morgen|nächste Woche|naechste Woche|kommende Woche|heute)/i)?.[1] ?? null,
+    description: input.slice(0, 900),
+    internal_notes: "Regelbasierter Fallback, weil OpenAI serverseitig nicht konfiguriert ist.",
+    customer_friendly_description: input.slice(0, 900),
+    internal_work_instructions:
+      "Entwurf fachlich prüfen. Sicherheits-, Gerüst- und Wettereinflüsse vor Ausführung separat bewerten.",
+    dimensions: {
+      length_m: length,
+      width_m: Number.isFinite(width) ? width : null,
+      area_m2: area,
+      roof_pitch: firstKeywordNumber(input, ["dachneigung", "neigung", "grad"]),
+      eaves_length_m: firstKeywordNumber(input, ["trauflänge", "trauflaenge", "traufe"]),
+      ridge_length_m: firstKeywordNumber(input, ["firstlänge", "firstlaenge", "first"]),
+      verge_length_m: firstKeywordNumber(input, ["ortganglänge", "ortganglaenge", "ortgang"]),
+      valley_length_m: firstKeywordNumber(input, ["kehle", "kehlen"]),
+      wall_connection_length_m: firstKeywordNumber(input, ["wandanschluss", "attika"]),
+      building_height_m: firstKeywordNumber(input, ["gebäudehöhe", "gebaeudehoehe", "höhe", "hoehe"]),
+      downpipe_length_m: firstKeywordNumber(input, ["fallrohrlänge", "fallrohrlaenge", "fallrohr"]),
+      roof_windows_count: Math.round(countKeywordNumber(input, ["dachfenster", "fenster"]) ?? 0),
+      penetrations_count: Math.round(countKeywordNumber(input, ["durchdringung", "durchdringungen"]) ?? 0),
+      roof_drains_count: Math.round(countKeywordNumber(input, ["ablauf", "abläufe", "ablaeufe"]) ?? 0),
+      emergency_overflows_count: Math.round(countKeywordNumber(input, ["notüberlauf", "notueberlauf", "notüberläufe"]) ?? 0)
+    },
+    material_system: materialType,
+    suggested_materials: [],
+    labor_hours_estimated: null,
+    missing_fields: [],
+    follow_up_questions: ["Bitte Kunde, Baustellenadresse, Maße und Materialsystem prüfen, bevor daraus ein Auftrag wird."],
+    confidence: 0.55
+  };
 }
 
 async function safeList<T>(query: PromiseLike<{ data: unknown; error: unknown }>) {
@@ -65,7 +233,7 @@ export async function loadCalculationSettings(supabase: SupabaseServerClient, co
     .eq("company_id", companyId)
     .maybeSingle();
   if (error && !isMissingSchemaError(error)) {
-    console.error("calculation-settings-load-failed", error.message);
+    logServerWarning("calculation-settings-load-failed", error, { companyId });
   }
   return {
     company_id: companyId,
@@ -90,6 +258,8 @@ function normalizeDraft(raw: AiJobDraftParsed, fallbackWastePercent: number): Ai
     confidence: clampConfidence(raw.confidence),
     title: safeString(raw.title) || "KI-Auftragsentwurf",
     priority: raw.priority ?? "normal",
+    roof_form: raw.roof_form ?? null,
+    material_type: raw.material_type ?? materialTypeValue(raw.material_system),
     description: safeString(raw.description) || safeString(raw.customer_friendly_description) || "Per KI vorbereitet.",
     internal_notes: safeString(raw.internal_notes),
     customer_friendly_description: safeString(raw.customer_friendly_description) || safeString(raw.description),
@@ -301,6 +471,30 @@ export async function createJobDraftFromAI({
   input: string;
 }) {
   const jobContext = await loadJobDraftContext(supabase, context.companyId);
+  if (!isOpenAiConfigured()) {
+    const parsed = createFallbackJobDraft(input, jobContext.customers);
+    const preview = await buildJobDraftPreviewFromParsed({ supabase, context, parsed, settings: jobContext.calculation_settings });
+    await logAiUsage({
+      supabase,
+      companyId: context.companyId,
+      userId: context.userId,
+      feature: "ai_job_draft",
+      model: "regel-fallback",
+      inputTokens: null,
+      outputTokens: null,
+      status: "disabled",
+      errorMessage: "OpenAI nicht konfiguriert; regelbasierter Entwurf genutzt."
+    });
+
+    return {
+      ok: true as const,
+      data: preview,
+      model: "regel-fallback",
+      inputTokens: null,
+      outputTokens: null
+    };
+  }
+
   const result = await createStructuredAiResponse<AiJobDraftParsed>({
     feature: "ai_job_draft",
     system: roleAwareSystemPrompt(context.profile.role, context.canManage),
@@ -358,11 +552,17 @@ export async function buildJobDraftPreviewFromParsed({
     dimensionId: null,
     jobsiteId: null,
     orderType: normalized.order_type,
-    dimensions
+    dimensions,
+    includePrices: context.canManage,
+    calculationContext: {
+      roof_form: normalized.roof_form,
+      material_type: normalized.material_type
+    }
   })) as unknown as JobMaterialRequirement[];
   const items = await previewItemsFromRequirements({ supabase, companyId: context.companyId, requirements });
   const estimate = calculateJobEstimate({ parsed: normalized, items, settings: calculationSettings });
   const warning = [
+    "Entwurf - fachlich pruefen. Keine automatische Bestellung und keine automatische Rechnung.",
     "KI kann Fehler machen. Bitte Maße, Materialbedarf und Preise vor Verwendung prüfen.",
     "Kalkulation basiert auf hinterlegten Regeln und Preisen. Vor Angebotsversand prüfen.",
     normalized.missing_fields.length ? `Unvollständig: ${normalized.missing_fields.join(", ")}` : null

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireManager } from "@/lib/auth";
 import { checkUserLimit } from "@/lib/billing/plans";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
+import { checkPasswordBreach } from "@/lib/security/password-breach-check";
 import { safeReturnPath } from "@/lib/security/redirects";
 import { isMissingSchemaError, isUnsupportedVorarbeiterRoleError } from "@/lib/supabase/errors";
 import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
@@ -142,6 +143,12 @@ export async function importOnboardingEmployeesAction(formData: FormData) {
 
   if (startPassword.length < 8) {
     redirectBack(returnTo, { error: "Startpasswort muss mindestens 8 Zeichen haben." });
+  }
+
+  if (await checkPasswordBreach(startPassword)) {
+    redirectBack(returnTo, {
+      error: "Dieses Passwort wurde in einem Datenleck gefunden. Bitte wähle ein anderes Passwort."
+    });
   }
 
   try {

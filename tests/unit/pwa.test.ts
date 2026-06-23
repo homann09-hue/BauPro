@@ -27,8 +27,8 @@ describe("installable PWA", () => {
     expect(manifest.start_url).toContain("/dashboard");
     expect(manifest.scope).toBe("/");
     expect(manifest.display).toBe("standalone");
-    expect(manifest.theme_color).toBe("#2E7D32");
-    expect(manifest.background_color).toBe("#F8FAFC");
+    expect(manifest.theme_color).toBe("#111110");
+    expect(manifest.background_color).toBe("#111110");
     expect(manifest.icons).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }),
@@ -61,6 +61,12 @@ describe("installable PWA", () => {
     expect(config).toContain('handler: "NetworkOnly"');
     expect(config).toContain("baupro-api-network-only");
     expect(config).toContain('{ url: "/offline", revision: null }');
+    expect(config).toContain('handler: "NetworkFirst"');
+    expect(config).toContain("baupro-app-shell-pages");
+    expect(config).toContain("networkTimeoutSeconds");
+    expect(config).not.toContain('{ url: "/dashboard", revision: null }');
+    expect(config).not.toContain('{ url: "/baustellen", revision: null }');
+    expect(config).not.toContain('{ url: "/berichte", revision: null }');
   });
 
   it("sets Apple PWA metadata and safe-area handling", () => {

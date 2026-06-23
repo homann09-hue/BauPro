@@ -30,22 +30,25 @@ describe("predictive prefetching", () => {
       expect.arrayContaining([
         "/dashboard",
         "/baustellen",
+        "/time-tracking/daily",
+        "/berichte",
+        "/materials/inventory",
         "/plantafel",
         "/orders",
         "/customers",
-        "/materials/inventory",
         "/materials/delivery-notes",
-        "/time-tracking/daily"
+        "/time-tracking/reports"
       ])
     );
     expect(prefetchScopesForRole("chef", true)).toEqual(
-      expect.arrayContaining(["dashboard", "jobsites", "tasks", "planning", "team", "materials", "bring-lists", "time", "weather"])
+      expect.arrayContaining(["dashboard", "jobsites", "time", "materials"])
     );
+    expect(prefetchScopesForRole("chef", true)).not.toContain("weather");
   });
 
   it("keeps employee and customer prefetch conservative", () => {
     expect(prefetchRoutesForRole("mitarbeiter", false)).toEqual(
-      expect.arrayContaining(["/dashboard", "/time/new", "/baustellen", "/berichte", "/bring-lists"])
+      expect.arrayContaining(["/dashboard", "/time-tracking", "/time/new", "/baustellen", "/berichte", "/bring-lists", "/material-melden"])
     );
     expect(prefetchRoutesForRole("mitarbeiter", false)).not.toContain("/team");
     expect(prefetchRoutesForRole("kunde", false)).toEqual([]);
@@ -79,6 +82,9 @@ describe("predictive prefetching", () => {
     const route = source("app/api/prefetch/route-data/route.ts");
     expect(route).toContain("stale-while-revalidate=300");
     expect(route).toContain('"X-BauPro-Prefetch"');
+    expect(route).toContain("checkRateLimit");
+    expect(route).toContain("getClientIp(request.headers)");
+    expect(route).toContain("`prefetch:${context.companyId}:${context.userId}:${clientIp}`");
     expect(route).not.toMatch(broadSelectPattern);
     expect(route).not.toMatch(/\b(purchase_price|sales_price|markup_percent|price_net|price_gross|margin_total)\b/);
     expect(route).toContain('scope === "weather"');
@@ -90,6 +96,7 @@ describe("predictive prefetching", () => {
     expect(route).toContain(`.or(\`assigned_to.eq.\${context.userId},created_by.eq.\${context.userId}\`)`);
     expect(route).toContain('.eq("assigned_to", context.userId)');
     expect(route).toContain('scope === "tasks"');
+    expect(route).toContain('scope === "time"');
     expect(route).toContain('scope === "planning"');
     expect(route).toContain('scope === "team"');
     expect(route).toContain('.limit(context.canManage ? 180 : 40)');
@@ -191,17 +198,19 @@ describe("predictive prefetching", () => {
   it("keeps operational list pages tenant- and assignment-scoped for non-managers", () => {
     const jobsitesPage = source("app/(app)/baustellen/page.tsx");
     const calendarPage = source("app/(app)/calendar/page.tsx");
+    const calendarData = source("lib/data/calendar-events.ts");
     const bringListsPage = source("app/(app)/bring-lists/page.tsx");
     const timePage = source("app/(app)/time-tracking/page.tsx");
 
-    for (const code of [jobsitesPage, calendarPage, bringListsPage, timePage]) {
+    for (const code of [jobsitesPage, calendarData, bringListsPage, timePage]) {
       expect(code).toContain('.eq("company_id", context.companyId)');
     }
 
     expect(jobsitesPage).toContain('.contains("assigned_employee_ids", [context.userId])');
     expect(jobsitesPage).toContain("activeCountQuery = activeCountQuery.contains");
-    expect(calendarPage).toContain('.contains("assigned_employee_ids", [context.userId])');
-    expect(calendarPage).toContain('.eq("employee_id", context.userId)');
+    expect(calendarPage).toContain("loadCalendarEvents");
+    expect(calendarData).toContain('.contains("assigned_employee_ids", [context.userId])');
+    expect(calendarData).toContain('.eq("employee_id", context.userId)');
     expect(bringListsPage).toContain(`.or(\`assigned_to.eq.\${context.userId},created_by.eq.\${context.userId}\`)`);
     expect(timePage).toContain('.eq("employee_id", context.userId)');
   });
@@ -210,7 +219,7 @@ describe("predictive prefetching", () => {
     for (const file of ["app/(app)/time-tracking/page.tsx", "app/(app)/time-tracking/daily/page.tsx"]) {
       const code = source(file);
       expect(code, file).toContain("selectTimeEntriesWithWeatherFallback");
-      expect(code, file).toContain(".select(select)");
+      expect(code, file).toMatch(/\.select\(select(?:,\s*\{\s*count:\s*"exact"\s*\})?\)/);
       expect(code, file).toContain("profilesById");
       expect(code, file).toContain("jobsitesById");
       expect(code, file).not.toContain("profiles!time_entries_employee_id_fkey");
@@ -374,11 +383,21 @@ describe("predictive prefetching", () => {
     expect(source("app/(app)/customers/page.tsx")).toContain("loadCustomerList");
     expect(source("app/(app)/berichte/page.tsx")).toContain("loadReportList");
 
-    for (const file of ["app/(app)/materials/inventory/page.tsx", "app/(app)/baustellen/page.tsx"]) {
+    for (const file of ["app/(app)/materials/inventory/page.tsx", "app/(app)/baustellen/page.tsx", "app/(app)/time-tracking/page.tsx"]) {
       const code = source(file);
       expect(code, file).toContain("pageSize");
       expect(code, file).toContain(".range(");
     }
+
+    const inventoryPage = source("app/(app)/materials/inventory/page.tsx");
+    const dashboardPage = source("app/(app)/dashboard/page.tsx");
+    const nextConfig = source("next.config.mjs");
+
+    expect(inventoryPage).toContain("lowStockScanLimit = 300");
+    expect(inventoryPage).not.toContain(".limit(1000)");
+    expect(dashboardPage).toContain("DashboardDetailsSkeleton");
+    expect(nextConfig).toContain('"/time-tracking"');
+    expect(nextConfig).toContain('"/material-melden"');
 
     for (const file of [
       "app/(app)/orders/loading.tsx",
@@ -396,8 +415,14 @@ describe("predictive prefetching", () => {
   it("keeps legacy navigation entry points as explicit redirects", () => {
     expect(source("app/(app)/material/page.tsx")).toContain('redirect("/materials/inventory")');
     expect(source("app/(app)/materials/page.tsx")).toContain('redirect("/materials/inventory")');
-    expect(source("app/(app)/mehr/page.tsx")).toContain('redirect("/team")');
     expect(source("app/(app)/time/new/page.tsx")).toContain('redirect("/time-tracking/new")');
+  });
+
+  it("keeps the mobile all-functions entry as a real navigation surface", () => {
+    const morePage = source("app/(app)/mehr/page.tsx");
+    expect(morePage).toContain("Alle Funktionen");
+    expect(morePage).toContain("Was möchtest du tun?");
+    expect(morePage).not.toContain("redirect(");
   });
 
   it("prefetches already-authorized portal assets for customers", () => {

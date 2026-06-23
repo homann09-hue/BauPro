@@ -16,6 +16,7 @@ import {
   Home,
   Layers3,
   ListChecks,
+  Menu,
   PackageSearch,
   ReceiptText,
   ShieldCheck,
@@ -53,7 +54,8 @@ const icons = {
   einstellungen: Cog,
   katalog: PackageSearch,
   warum: HelpCircle,
-  onboarding: Sparkles
+  onboarding: Sparkles,
+  mehr: Menu
 };
 
 type NavLinkProps = {
@@ -74,8 +76,8 @@ export function NavLink({ href, label, icon, variant = "desktop" }: NavLinkProps
         href={href}
         aria-label={label}
         className={cn(
-          "flex min-h-[62px] min-w-0 flex-col items-center justify-center gap-1 rounded-md px-0.5 py-2 text-center text-[10px] font-black leading-tight text-slate-500 transition",
-          active && "bg-primary text-white shadow-sm",
+          "flex min-h-[64px] min-w-0 flex-col items-center justify-center gap-1 rounded-md px-0.5 py-2 text-center text-[10px] font-black leading-tight text-slate-500 transition active:scale-[0.98]",
+          active && "bg-primary text-white shadow-soft",
           !active && "hover:bg-mint hover:text-ink"
         )}
       >
@@ -89,7 +91,7 @@ export function NavLink({ href, label, icon, variant = "desktop" }: NavLinkProps
     <Link
       href={href}
       className={cn(
-        "group flex items-center gap-3 rounded-md px-3 py-3 text-sm font-black text-slate-300 transition hover:bg-white/10 hover:text-white",
+        "group flex min-h-12 items-center gap-3 rounded-md px-3 py-3 text-sm font-black text-slate-300 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-4 focus:ring-white/10",
         active && "bg-primary text-white shadow-soft"
       )}
     >

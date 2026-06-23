@@ -55,7 +55,9 @@ export const test = base.extend({
 
 export { expect };
 
-export async function login(page: Page, user = testUser) {
+export type LoginLanding = "dashboard" | "onboarding";
+
+export async function login(page: Page, user = testUser): Promise<LoginLanding> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await page.goto("/login", { waitUntil: "domcontentloaded", timeout: E2E_NAVIGATION_TIMEOUT });
     await page.getByLabel("E-Mail").fill(user.email);
@@ -63,8 +65,8 @@ export async function login(page: Page, user = testUser) {
     await page.getByRole("button", { name: "Einloggen" }).click();
 
     try {
-      await expect(page).toHaveURL(/\/dashboard/, { timeout: E2E_NAVIGATION_TIMEOUT });
-      return;
+      await expect(page).toHaveURL(/\/(dashboard|onboarding)/, { timeout: E2E_NAVIGATION_TIMEOUT });
+      return page.url().includes("/onboarding") ? "onboarding" : "dashboard";
     } catch (error) {
       if (attempt === 0 && page.url().startsWith("chrome-error://")) {
         await page.waitForTimeout(1_000);
@@ -74,6 +76,8 @@ export async function login(page: Page, user = testUser) {
       throw error;
     }
   }
+
+  throw new Error("Login konnte nicht abgeschlossen werden.");
 }
 
 export async function logout(page: Page) {

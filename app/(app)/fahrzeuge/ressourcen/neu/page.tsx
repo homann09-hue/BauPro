@@ -2,7 +2,7 @@ import { ResourceForm } from "@/components/forms/resource-form";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { createPlanningResourceAction } from "@/lib/actions/planning-actions";
-import { requireManager } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { profileOptionSelect, vehicleOptionSelect } from "@/lib/data/selects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { searchParamMessage } from "@/lib/utils";
@@ -13,7 +13,7 @@ export default async function NewResourcePage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/fahrzeuge");
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
 
@@ -35,7 +35,7 @@ export default async function NewResourcePage({
 
   return (
     <>
-      <PageHeader title="Gerät oder Ressource anlegen" description="Maschinen, Werkzeuge, Anhaenger und Gerueste verwalten." />
+      <PageHeader title="Gerät oder Ressource anlegen" description="Maschinen, Werkzeuge, Anhänger und Gerüste verwalten." />
       <MessageBox error={error} success={success} />
       <ResourceForm
         action={createPlanningResourceAction}

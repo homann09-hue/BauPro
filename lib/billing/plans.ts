@@ -11,6 +11,7 @@ export type PlanLimits = {
   priceMonthlyEur: number;
   maxUsers: number | null;
   maxAiCallsPerMonth: number;
+  maxAiTokensPerMonth: number;
   hasAiFeatures: boolean;
   hasCustomerPortal: boolean;
   hasTimeReports: boolean;
@@ -33,6 +34,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     priceMonthlyEur: 0,
     maxUsers: 1,
     maxAiCallsPerMonth: 0,
+    maxAiTokensPerMonth: 0,
     hasAiFeatures: false,
     hasCustomerPortal: false,
     hasTimeReports: false,
@@ -44,6 +46,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     priceMonthlyEur: 29,
     maxUsers: 10,
     maxAiCallsPerMonth: 250,
+    maxAiTokensPerMonth: 500_000,
     hasAiFeatures: true,
     hasCustomerPortal: true,
     hasTimeReports: true,
@@ -55,6 +58,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     priceMonthlyEur: 79,
     maxUsers: null,
     maxAiCallsPerMonth: 1500,
+    maxAiTokensPerMonth: 3_000_000,
     hasAiFeatures: true,
     hasCustomerPortal: true,
     hasTimeReports: true,
@@ -118,6 +122,29 @@ export async function getMonthlyAiUsage(supabase: SupabaseServerClient, companyI
   return count ?? 0;
 }
 
+export async function getMonthlyAiTokenUsage(supabase: SupabaseServerClient, companyId: string) {
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from("ai_usage_logs")
+    .select("input_tokens, output_tokens")
+    .eq("company_id", companyId)
+    .eq("status", "success")
+    .gte("created_at", monthStart.toISOString());
+
+  if (error) {
+    if (isMissingSchemaError(error)) return 0;
+    throw new SafeActionError("KI-Token-Nutzung konnte nicht geprueft werden.");
+  }
+
+  return (data ?? []).reduce((sum, row) => {
+    const usageRow = row as { input_tokens?: number | null; output_tokens?: number | null };
+    return sum + (usageRow.input_tokens ?? 0) + (usageRow.output_tokens ?? 0);
+  }, 0);
+}
+
 export async function checkUserLimit(supabase: SupabaseServerClient, companyId: string) {
   const company = await loadCompanyPlan(supabase, companyId);
   const plan = getPlanLimits(company.plan_id);
@@ -147,25 +174,33 @@ export async function checkAiLimit(supabase: SupabaseServerClient, companyId: st
   if (!hasBillableStatus(company) || !plan.hasAiFeatures || plan.maxAiCallsPerMonth <= 0) {
     if (localBillingBypass) {
       const localPlan = PLAN_LIMITS.professional;
-      const used = await getMonthlyAiUsage(supabase, companyId);
+      const [used, usedTokens] = await Promise.all([getMonthlyAiUsage(supabase, companyId), getMonthlyAiTokenUsage(supabase, companyId)]);
       if (used >= localPlan.maxAiCallsPerMonth) {
         throw new SafeActionError("Lokales KI-Demo-Limit fuer diesen Monat erreicht.");
       }
 
-      return { allowed: true, used, limit: localPlan.maxAiCallsPerMonth, plan: localPlan };
+      if (usedTokens >= localPlan.maxAiTokensPerMonth) {
+        throw new SafeActionError("Lokales KI-Token-Limit fuer diesen Monat erreicht.");
+      }
+
+      return { allowed: true, used, limit: localPlan.maxAiCallsPerMonth, usedTokens, tokenLimit: localPlan.maxAiTokensPerMonth, plan: localPlan };
     }
 
     throw new SafeActionError("KI-Limit fuer diesen Monat erreicht. Upgrade auf Professional.");
   }
 
-  const used = await getMonthlyAiUsage(supabase, companyId);
+  const [used, usedTokens] = await Promise.all([getMonthlyAiUsage(supabase, companyId), getMonthlyAiTokenUsage(supabase, companyId)]);
   const allowed = used < plan.maxAiCallsPerMonth;
 
   if (!allowed) {
     throw new SafeActionError("KI-Limit fuer diesen Monat erreicht. Upgrade auf Professional.");
   }
 
-  return { allowed, used, limit: plan.maxAiCallsPerMonth, plan };
+  if (usedTokens >= plan.maxAiTokensPerMonth) {
+    throw new SafeActionError("KI-Token-Limit fuer diesen Monat erreicht. Bitte spaeter erneut versuchen oder Tarif pruefen.");
+  }
+
+  return { allowed, used, limit: plan.maxAiCallsPerMonth, usedTokens, tokenLimit: plan.maxAiTokensPerMonth, plan };
 }
 
 export function isFeatureEnabled(company: BillingCompany, feature: BillingFeature) {
