@@ -34,6 +34,8 @@ describe("Demo-Modus", () => {
     expect(demoMode).toContain("ensureDemoModeData");
     expect(demoMode).toContain("DEMO_RESEED_ON_START");
     expect(demoMode).toContain("if (!shouldReseedDemoDataOnStart()) return;");
+    expect(demoMode).toContain("hasPreparedDemoData");
+    expect(demoMode).toContain("forceUserSync");
   });
 
   it("starts the demo by seeding data, signing in and opening the two-minute tour", () => {
@@ -48,6 +50,8 @@ describe("Demo-Modus", () => {
     expect(demoStartRoute).toContain("Demo wurde zu oft gestartet");
     expect(demoStartRoute).toContain('message.includes("Zu viele Anfragen")');
     expect(demoStartRoute).toContain("demo-route-rate-limit-fallback");
+    expect(demoStartRoute).toContain("signInDemoUser");
+    expect(demoStartRoute).toContain("forceUserSync: true");
     expect(demoStartRoute).toContain("redirectWithCookies");
 
     const demoSeed = source("lib/demo/demo-mode.ts");
