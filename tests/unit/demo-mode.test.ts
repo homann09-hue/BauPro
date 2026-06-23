@@ -32,6 +32,8 @@ describe("Demo-Modus", () => {
     expect(demoMode).toContain("SUPABASE_SERVICE_ROLE_KEY");
     expect(demoMode).toContain("example.invalid");
     expect(demoMode).toContain("ensureDemoModeData");
+    expect(demoMode).toContain("DEMO_RESEED_ON_START");
+    expect(demoMode).toContain("if (!shouldReseedDemoDataOnStart()) return;");
   });
 
   it("starts the demo by seeding data, signing in and opening the two-minute tour", () => {
@@ -44,6 +46,8 @@ describe("Demo-Modus", () => {
     expect(demoStartRoute).toContain('process.env.NODE_ENV === "production"');
     expect(demoStartRoute).toContain("await checkRateLimit(demoStartRateLimitKey");
     expect(demoStartRoute).toContain("Demo wurde zu oft gestartet");
+    expect(demoStartRoute).toContain('message.includes("Zu viele Anfragen")');
+    expect(demoStartRoute).toContain("demo-route-rate-limit-fallback");
     expect(demoStartRoute).toContain("redirectWithCookies");
 
     const demoSeed = source("lib/demo/demo-mode.ts");

@@ -181,7 +181,7 @@ KI-Bautagesberichte laufen ueber `/api/ai/report-draft`, verlangen ein aktives N
 
 Der Demo-Modus ist lokal ueber `/demo` oder den Button auf `/login` erreichbar. Er legt serverseitig die Demo-Firma `Müller Dachtechnik GmbH` mit einem Chef, zwei Vorarbeitern, fuenf Mitarbeitern, Baustellen, Lagerbestand, Auftraegen, Aufmass, Zeiten, Berichten, Mitbringliste, Materialwarnungen und Einkaufsvorschlaegen an und loggt direkt als Chef ein.
 
-In Production ist die Demo nur aktiv, wenn `DEMO_MODE_ENABLED=true` gesetzt ist. `SUPABASE_SERVICE_ROLE_KEY` wird serverseitig benoetigt, damit Auth-User und Beispieldaten automatisch angelegt werden koennen.
+In Production ist die Demo nur aktiv, wenn `DEMO_MODE_ENABLED=true` gesetzt ist. `SUPABASE_SERVICE_ROLE_KEY` wird serverseitig benoetigt, damit Auth-User und Beispieldaten automatisch angelegt werden koennen. Der normale Demo-Start verwendet vorhandene Beispieldaten wieder, damit Interessenten nicht auf ein komplettes Neu-Seeding warten. Nur fuer Wartung/QA kannst du `DEMO_RESEED_ON_START=true` setzen; in Production sollte der Wert leer oder `false` bleiben.
 
 Optional kannst du die Demo-Firma auch per CLI vorgeladen:
 
