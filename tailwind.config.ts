@@ -1,5 +1,7 @@
 import type { Config } from "tailwindcss";
 
+const colorVar = (name: string) => `rgb(var(${name}) / <alpha-value>)`;
+
 const config: Config = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -9,30 +11,35 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#F0EBE0",
-        moss: "#D4580A",
-        fog: "#111110",
-        line: "#2E2E2B",
-        signal: "#D4580A",
-        clay: "#DC2626",
-        steel: "#7C8EA4",
-        mint: "#1E1E1C",
-        primary: "#D4580A",
-        "primary-dark": "#B8490A",
-        anthracite: "#111110",
-        warning: "#D4580A",
-        danger: "#DC2626",
-        info: "#7C8EA4",
-        surface: "#1A1918",
-        cream: "#F0EBE0",
-        ash: "#9A9589",
-        ember: "#D4580A",
-        coal: "#111110",
-        basalt: "#1A1918"
+        ink: colorVar("--color-ink"),
+        moss: colorVar("--color-moss"),
+        fog: colorVar("--color-fog"),
+        line: colorVar("--color-line"),
+        signal: colorVar("--color-signal"),
+        clay: colorVar("--color-clay"),
+        steel: colorVar("--color-steel"),
+        mint: colorVar("--color-mint"),
+        primary: colorVar("--color-primary"),
+        "primary-dark": colorVar("--color-primary-dark"),
+        anthracite: colorVar("--color-anthracite"),
+        warning: colorVar("--color-warning"),
+        danger: colorVar("--color-danger"),
+        info: colorVar("--color-info"),
+        surface: colorVar("--color-surface"),
+        cream: colorVar("--color-cream"),
+        ash: colorVar("--color-ash"),
+        ember: colorVar("--color-ember"),
+        coal: colorVar("--color-coal"),
+        basalt: colorVar("--color-basalt"),
+        ocher: colorVar("--color-ocher"),
+        "surface-container": colorVar("--color-surface-container"),
+        "surface-container-high": colorVar("--color-surface-container-high"),
+        "industrial-dark": colorVar("--color-industrial-dark"),
+        "industrial-panel": colorVar("--color-industrial-panel")
       },
       boxShadow: {
-        soft: "0 14px 34px rgba(0, 0, 0, 0.28)",
-        lift: "0 22px 60px rgba(0, 0, 0, 0.42)"
+        soft: "var(--bp-shadow-soft)",
+        lift: "var(--bp-shadow-lift)"
       }
     }
   },

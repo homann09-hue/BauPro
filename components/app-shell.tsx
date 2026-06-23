@@ -188,9 +188,9 @@ export function AppShell({
   return (
     <div className="app-shell-bg">
       <aside className="fixed inset-y-0 left-0 z-20 hidden border-r border-line bg-[var(--bp-sidebar)] px-4 py-5 shadow-lift lg:flex lg:w-72 xl:w-80 lg:flex-col">
-        <div className="mb-4 border border-line bg-surface p-4 text-white shadow-lift">
+        <div className="mb-4 border border-white/10 bg-white/[0.08] p-4 text-white shadow-lift">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center border border-line bg-coal text-primary ring-1 ring-primary/20">
+            <div className="flex h-12 w-12 items-center justify-center border border-white/10 bg-white/10 text-white ring-1 ring-white/15">
               <span className="h-3 w-3 rotate-45 bg-primary" aria-hidden="true" />
             </div>
             <div className="min-w-0">
@@ -204,7 +204,7 @@ export function AppShell({
               Einsatzbereit
             </div>
             <div className="flex items-center gap-2 rounded-md bg-white/10 px-3 py-2">
-              <ShieldCheck className="h-4 w-4 text-mint" aria-hidden="true" />
+              <ShieldCheck className="h-4 w-4 text-moss" aria-hidden="true" />
               {roleLabel}
             </div>
           </div>
@@ -212,7 +212,7 @@ export function AppShell({
 
         <div className="mb-4 border border-primary/30 bg-primary/10 p-3 text-sm text-white">
           <div className="flex items-start gap-2">
-            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-mint" aria-hidden="true" />
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-moss" aria-hidden="true" />
             <p className="font-semibold">{notice}</p>
           </div>
         </div>
@@ -232,7 +232,7 @@ export function AppShell({
           <div className="sidebar-panel mt-4 p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
               <p className="text-[11px] font-black uppercase tracking-normal text-slate-400">Schnellzugriff</p>
-              <span className="text-[11px] font-bold text-mint">sichtbar</span>
+              <span className="text-[11px] font-bold text-moss">sichtbar</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
               {quickLinks.map((item) => (
@@ -289,7 +289,7 @@ export function AppShell({
 
       <Link
         href="/ai-assistant"
-        className="fixed bottom-6 right-24 z-40 hidden min-h-14 items-center justify-center gap-2 border border-line bg-basalt px-4 text-sm font-black text-white shadow-lift transition hover:-translate-y-0.5 hover:border-primary/50 hover:bg-surface lg:inline-flex"
+        className="fixed bottom-6 right-24 z-40 hidden min-h-14 items-center justify-center gap-2 border border-white/10 bg-anthracite px-4 text-sm font-black text-white shadow-lift transition hover:-translate-y-0.5 hover:border-primary/50 hover:bg-primary lg:inline-flex"
         aria-label="KI fragen"
         title="KI fragen"
       >
@@ -325,7 +325,7 @@ function MobileActionLink({ action }: { action: MobileAction }) {
       className={
         action.primary
           ? "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md bg-primary px-2 py-2 text-center text-xs font-black text-white shadow-soft transition active:scale-[0.98]"
-          : "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md border border-white/10 bg-white/10 px-2 py-2 text-center text-xs font-black text-white transition active:scale-[0.98]"
+          : "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md border border-line bg-surface px-2 py-2 text-center text-xs font-black text-ink shadow-sm transition active:scale-[0.98]"
       }
     >
       <Icon className="h-5 w-5" aria-hidden="true" />
@@ -341,7 +341,7 @@ function QuickAccessLink({ item }: { item: NavItem }) {
       className="group flex min-h-12 items-center justify-between gap-2 rounded-md border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-white/15 focus:outline-none focus:ring-4 focus:ring-white/10"
     >
       <span className="line-clamp-2">{item.label}</span>
-      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-mint transition group-hover:translate-x-0.5" aria-hidden="true" />
+      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-moss transition group-hover:translate-x-0.5" aria-hidden="true" />
     </Link>
   );
 }

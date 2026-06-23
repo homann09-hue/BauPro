@@ -48,7 +48,7 @@ export const metadata: Metadata = {
     "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-capable": "yes",
     "apple-mobile-web-app-title": "BauPro",
-    "msapplication-TileColor": "#111110"
+    "msapplication-TileColor": "#131313"
   }
 };
 
@@ -56,8 +56,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#111110",
-  colorScheme: "dark"
+  themeColor: "#131313",
+  colorScheme: "dark light"
 };
 
 export default async function RootLayout({

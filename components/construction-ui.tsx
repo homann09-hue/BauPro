@@ -33,8 +33,8 @@ const toneStyles: Record<Tone, { card: string; icon: string; accent: string }> =
     accent: "bg-warning"
   },
   danger: {
-    card: "border-red-500/30 bg-red-950/30 text-red-100",
-    icon: "bg-red-500/15 text-red-300",
+    card: "border-danger/30 bg-danger/10 text-danger",
+    icon: "bg-danger/15 text-danger",
     accent: "bg-danger"
   },
   info: {
@@ -44,7 +44,7 @@ const toneStyles: Record<Tone, { card: string; icon: string; accent: string }> =
   },
   neutral: {
     card: "border-line bg-surface text-ink",
-    icon: "bg-mint text-slate-300",
+    icon: "bg-mint text-primary",
     accent: "bg-slate-300"
   },
   dark: {
@@ -249,7 +249,7 @@ export function TodayJobsiteFocus({
 
 function ConstructionHint({ icon: Icon, title, text }: { icon: LucideIcon; title: string; text: string }) {
   return (
-    <div className="min-h-24 border border-line bg-coal p-3 text-ink shadow-sm">
+    <div className="min-h-24 border border-line bg-basalt p-3 text-ink shadow-sm">
       <div className="flex items-center gap-2">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center border border-line bg-surface text-primary">
           <Icon className="h-4 w-4" aria-hidden="true" />

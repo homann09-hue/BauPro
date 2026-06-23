@@ -20,6 +20,21 @@ describe("Premium UI/UX Designsystem", () => {
     expect(css).toContain(".form-step-card");
   });
 
+  it("keeps the Stitch-inspired dark mode with an optional white mode", () => {
+    const css = source("app/globals.css");
+    const tailwind = source("tailwind.config.ts");
+    const toggle = source("components/theme/theme-toggle.tsx");
+
+    expect(css).toContain("color-scheme: dark");
+    expect(css).toContain('[data-theme="light"]');
+    expect(css).toContain("--color-primary: 46 125 50");
+    expect(css).toContain("--color-primary: 27 67 50");
+    expect(tailwind).toContain('primary: colorVar("--color-primary")');
+    expect(toggle).toContain("baupro-theme");
+    expect(toggle).toContain("White Mode aktivieren");
+    expect(toggle).toContain("Dark Mode aktivieren");
+  });
+
   it("keeps one consistent app chrome with top bar, sidebar and bottom navigation", () => {
     const shell = source("components/app-shell.tsx");
     const topBar = source("components/app-top-bar.tsx");
@@ -28,6 +43,7 @@ describe("Premium UI/UX Designsystem", () => {
     expect(shell).toContain("lg:ml-72");
     expect(shell).toContain("PredictivePrefetch");
     expect(topBar).toContain("native-topbar");
+    expect(topBar).toContain("<ThemeToggle");
     expect(topBar).toContain("Möchtest du dich wirklich abmelden?");
   });
 

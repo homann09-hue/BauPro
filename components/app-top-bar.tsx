@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft, LogOut, UserRound } from "lucide-react";
 import { signOutAction } from "@/lib/actions/auth-actions";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { cn, getInitials } from "@/lib/utils";
 
 type AppTopBarProps = {
@@ -131,6 +132,8 @@ export function AppTopBar({ userName, userEmail, roleLabel, companyName, canMana
         </div>
 
         <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">
+          <ThemeToggle compact />
+
           <div className="min-w-0 border border-line bg-surface px-1.5 py-1.5 shadow-sm sm:px-3">
             <div className="flex min-w-0 items-center gap-2">
               <div
@@ -153,7 +156,7 @@ export function AppTopBar({ userName, userEmail, roleLabel, companyName, canMana
             <button
               type="submit"
               aria-label="Abmelden"
-              className="inline-flex min-h-12 min-w-12 items-center justify-center gap-2 border border-line bg-coal px-3 text-sm font-black text-white shadow-sm transition hover:border-primary/50 hover:bg-surface focus:outline-none focus:ring-4 focus:ring-primary/20 sm:px-4"
+              className="inline-flex min-h-12 min-w-12 items-center justify-center gap-2 border border-line bg-primary px-3 text-sm font-black text-white shadow-sm transition hover:border-primary/50 hover:bg-primary-dark focus:outline-none focus:ring-4 focus:ring-primary/20 sm:px-4"
             >
               <LogOut className="h-5 w-5" aria-hidden="true" />
               <span className="hidden md:inline">Abmelden</span>

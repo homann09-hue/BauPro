@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowRight, Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const mainLinks = [
@@ -59,7 +60,7 @@ export function PublicNav({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <Link href="/" className="flex min-h-12 items-center gap-3" onClick={closeMenu}>
           <Image src="/icons/icon-192.png" alt="" width={36} height={36} className="border border-line bg-surface object-cover" priority />
-          <span className="text-3xl font-normal uppercase tracking-[0.18em] text-ink [font-family:var(--font-display)]">BauPro</span>
+          <span className="text-3xl font-normal uppercase tracking-[0.18em] text-white [font-family:var(--font-display)]">BauPro</span>
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex" aria-label="Hauptnavigation">
@@ -69,6 +70,7 @@ export function PublicNav({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
         </nav>
 
         <div className="hidden items-center gap-2 sm:flex">
+          <ThemeToggle compact />
           <Link href="/demo" className="btn-secondary min-h-11 px-4 py-2 text-xs">
             Demo starten
           </Link>
@@ -124,6 +126,11 @@ export function PublicNav({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-4">
+              <div className="mb-5">
+                <p className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-primary">Darstellung</p>
+                <ThemeToggle />
+              </div>
+
               <MobileNavGroup title="Wichtige Informationen">
                 {mainLinks.map((link) => (
                   <MobileNavLink key={link.href} href={link.href} label={link.label} active={isActive(pathname, link.href)} onClick={closeMenu} />
@@ -160,7 +167,7 @@ function PublicNavLink({ href, label, active }: { href: string; label: string; a
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={cn("px-3 py-2 text-sm font-black transition focus:outline-none focus:ring-4 focus:ring-primary/20", active ? "text-ink" : "text-ash hover:text-ink")}
+      className={cn("px-3 py-2 text-sm font-black transition focus:outline-none focus:ring-4 focus:ring-primary/20", active ? "text-white" : "text-white/65 hover:text-white")}
     >
       {label}
     </Link>
