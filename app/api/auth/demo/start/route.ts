@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { ensureDemoModeData } from "@/lib/demo/demo-mode";
 import { safeErrorMessage } from "@/lib/security/errors";
+import { logServerWarning } from "@/lib/security/logging";
 import { getClientIp } from "@/lib/security/origin";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { safeReturnPath } from "@/lib/security/redirects";
@@ -68,12 +69,17 @@ export async function POST(request: NextRequest) {
   if (process.env.NODE_ENV === "production") {
     try {
       await checkRateLimit(demoStartRateLimitKey(request), 30, 60_000);
-    } catch {
-      return redirectWithCookies(
-        request,
-        `${returnTo}?error=${encodeMessage("Demo wurde zu oft gestartet. Bitte warte kurz und versuche es erneut.")}`,
-        cookiesToSet
-      );
+    } catch (error) {
+      const message = safeErrorMessage(error, "Demo-Schutz konnte nicht geprüft werden.");
+      if (message.includes("Zu viele Anfragen")) {
+        return redirectWithCookies(
+          request,
+          `${returnTo}?error=${encodeMessage("Demo wurde zu oft gestartet. Bitte warte kurz und versuche es erneut.")}`,
+          cookiesToSet
+        );
+      }
+
+      logServerWarning("demo-route-rate-limit-fallback", error, { message });
     }
   }
 

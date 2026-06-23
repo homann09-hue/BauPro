@@ -59,6 +59,10 @@ function demoPassword() {
   return password;
 }
 
+function shouldReseedDemoDataOnStart() {
+  return process.env.DEMO_RESEED_ON_START === "true";
+}
+
 async function listAllUsers(admin: AdminClient) {
   const users = [];
   for (let page = 1; page <= 20; page += 1) {
@@ -389,6 +393,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
 
   if (existingError) throw new Error("demo_existing_lookup_failed");
   if ((existingJobsite ?? []).length > 0) {
+    if (!shouldReseedDemoDataOnStart()) return;
     await cleanupDemoData(admin, companyId);
   }
 
