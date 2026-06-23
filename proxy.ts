@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
@@ -8,7 +7,7 @@ function isUnsafeMethod(method: string) {
 }
 
 function createNonce() {
-  return randomBytes(16).toString("base64");
+  return crypto.randomUUID();
 }
 
 function buildContentSecurityPolicy(nonce: string) {
@@ -65,5 +64,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"]
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|css|map|json|txt|xml|webmanifest)$).*)"]
 };

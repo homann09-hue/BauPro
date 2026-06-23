@@ -44,6 +44,46 @@ export function PageSkeleton({ title = true }: { title?: boolean }) {
   );
 }
 
+export function DashboardDetailsSkeleton() {
+  return (
+    <div className="mt-6 space-y-6" aria-label="Dashboard-Details werden geladen">
+      <div className="surface-strong p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <SkeletonLine className="h-4 w-32" />
+            <SkeletonLine className="mt-3 h-7 w-64 max-w-full" />
+            <SkeletonLine className="mt-3 h-4 w-full max-w-xl" />
+          </div>
+          <SkeletonLine className="h-10 w-24" />
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <SkeletonLine className="h-24" />
+          <SkeletonLine className="h-24" />
+          <SkeletonLine className="h-24" />
+        </div>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="surface p-4">
+          <SkeletonLine className="h-6 w-52" />
+          <SkeletonLine className="mt-3 h-4 w-72 max-w-full" />
+          <div className="mt-5 space-y-3">
+            <SkeletonLine className="h-20" />
+            <SkeletonLine className="h-20" />
+          </div>
+        </div>
+        <div className="surface p-4">
+          <SkeletonLine className="h-6 w-48" />
+          <SkeletonLine className="mt-3 h-4 w-72 max-w-full" />
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <SkeletonLine className="h-20" />
+            <SkeletonLine className="h-20" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function FormSkeleton() {
   return (
     <div className="space-y-4" aria-label="Formular wird geladen">

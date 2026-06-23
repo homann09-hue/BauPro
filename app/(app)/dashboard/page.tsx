@@ -26,6 +26,7 @@ import {
   StatCard,
   TodayJobsiteFocus
 } from "@/components/construction-ui";
+import { DashboardDetailsSkeleton } from "@/components/loading-states";
 import { MessageBox } from "@/components/message-box";
 import { MfaRecommendationBanner } from "@/components/mfa-recommendation-banner";
 import { StatusBadge } from "@/components/status-badge";
@@ -229,7 +230,7 @@ export default async function DashboardPage({
         </section>
       ) : null}
 
-      <Suspense fallback={null}>
+      <Suspense fallback={context.canManage ? <DashboardDetailsSkeleton /> : null}>
         {context.canManage ? <DashboardManagedDetails supabase={supabase} context={context} summary={summary} /> : null}
       </Suspense>
 

@@ -19,6 +19,7 @@ import {
 } from "@/lib/data/selects";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { optionalFormString, requiredFormString, requiredFormUuid } from "@/lib/security/form-data";
+import { logServerWarning } from "@/lib/security/logging";
 import { publicAppOrigin } from "@/lib/security/origin";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { sanitizeUploadFileName, validateCustomerDocument } from "@/lib/security/uploads";
@@ -100,7 +101,7 @@ async function audit({
       new_values: newValues ?? null
     });
   } catch (error) {
-    console.warn("audit-log-write-failed", error);
+    logServerWarning("customer-portal-audit-write-failed", error, { companyId, entityType, entityId, action });
   }
 }
 

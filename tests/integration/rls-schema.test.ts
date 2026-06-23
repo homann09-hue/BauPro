@@ -299,6 +299,18 @@ describe("Supabase RLS and security schema", () => {
     expect(redteamMigration).toContain("r.id::text = (storage.foldername(name))[3]");
   });
 
+  it("binds report photo storage reads to report metadata and assignment rights", () => {
+    const policy = block('create policy "members can read company report photos"', 'drop policy if exists "members can upload company report photos"');
+
+    expect(policy).toContain("(storage.foldername(name))[1] = public.current_company_id()::text");
+    expect(policy).toContain("(storage.foldername(name))[2] = 'reports'");
+    expect(policy).toContain("rp.storage_path = storage.objects.name");
+    expect(policy).toContain("rp.archived_at is null");
+    expect(policy).toContain("r.archived_at is null");
+    expect(policy).toContain("public.can_manage_company()");
+    expect(policy).toContain("auth.uid() = any(r.employee_ids)");
+  });
+
   it("uses atomic inventory RPCs with row locks for stock movement and reservations", () => {
     const adjust = block("create or replace function public.adjust_inventory_stock", "create or replace function public.transfer_inventory_item");
     const transfer = block("create or replace function public.transfer_inventory_item", "create or replace function public.reserve_inventory_item");

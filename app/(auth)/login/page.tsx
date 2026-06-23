@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ArrowRight, PlayCircle } from "lucide-react";
-import { signInAction, startDemoModeAction } from "@/lib/actions/auth-actions";
 import { MessageBox } from "@/components/message-box";
 import { SubmitButton } from "@/components/submit-button";
 import { searchParamMessage } from "@/lib/utils";
@@ -21,7 +20,7 @@ export default async function LoginPage({
       <div className="mt-8">
         <MessageBox error={error} success={success} />
 
-        <form action={signInAction} className="space-y-4">
+        <form action="/api/auth/login" method="post" className="space-y-4">
           <div>
             <label className="field-label" htmlFor="email">
               E-Mail
@@ -60,7 +59,7 @@ export default async function LoginPage({
               </p>
             </div>
           </div>
-          <form action={startDemoModeAction} className="mt-3">
+          <form action="/api/auth/demo/start" method="post" className="mt-3">
             <input type="hidden" name="return_to" value="/login" />
             <SubmitButton className="w-full justify-between" variant="secondary">
               Demo-Modus starten

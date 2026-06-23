@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { createClient } from "@supabase/supabase-js";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -27,6 +28,7 @@ const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const COMPANY_NAME = "Müller Dachtechnik GmbH";
 const DEMO_PASSWORD = process.env.DEMO_USER_PASSWORD || "BauProDemo!2026";
 const EMAIL_DOMAIN = "mueller-dachtechnik.example";
+const DEMO_CUSTOMER_PORTAL_TOKEN = "demo-schmidt-kundenportal-2026-sicherer-beispiellink";
 const downgradedRoles = new Set();
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
@@ -50,6 +52,14 @@ function todayOffset(days) {
 function currentMonth() {
   const date = new Date();
   return { month: date.getMonth() + 1, year: date.getFullYear() };
+}
+
+function hashCustomerPortalToken(token) {
+  return crypto.createHash("sha256").update(token, "utf8").digest("hex");
+}
+
+function contentHash(value) {
+  return crypto.createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
 }
 
 function minutes(start, end, pause) {
@@ -1166,12 +1176,24 @@ async function main() {
       jobsite_id: jobSchmidt.id,
       report_date: todayOffset(-1),
       weather: "trocken, 21 Grad",
+      weather_summary: "Trocken, 21 °C, leichter Wind - gute Bedingungen fuer Dacharbeiten.",
+      weather_temperature_c: 21,
+      weather_precipitation_mm: 0,
+      weather_wind_kmh: 12,
+      weather_source: "open-meteo-demo",
+      weather_fetched_at: new Date().toISOString(),
       work_start: "06:45",
       work_end: "15:45",
       employee_ids: [users.v1.id, users.m1.id, users.m2.id],
       activities: "Material angenommen, Unterspannbahn begonnen, Ortgang und Traufe kontrolliert.",
       material_usage: "Unterspannbahn 75 m2, Dachlatten 110 lfm, Konterlatten 60 lfm.",
+      machine_usage: "Dachaufzug, Sprinter K-DT 210.",
       issues: "Konterlattenbestand knapp, Nachbestellung erforderlich.",
+      report_status: "approved",
+      visible_to_customer: true,
+      customer_summary:
+        "Die Dachflaeche wurde vorbereitet. Unterspannbahn und erste Lattung sind begonnen, der Ortgang links wird gesondert geprueft. Fuer morgen ist zusaetzliches Material eingeplant.",
+      customer_released_at: new Date().toISOString(),
       signature_name: "Niklas Berger",
       created_by: users.v1.id
     },
@@ -1186,8 +1208,126 @@ async function main() {
       activities: "Alte Rinne demontiert, Maße fuer neue Rinne und Fallrohre aufgenommen.",
       material_usage: "Rinnenhalter Muster, Schrauben.",
       issues: "Ein Ablaufstutzen stark korrodiert.",
+      report_status: "reviewed",
+      visible_to_customer: false,
       signature_name: "Jan Hoffmann",
       created_by: users.m5.id
+    }
+  ]);
+
+  const portalTokens = await insertOptionalRows(
+    "customer_portal_tokens",
+    [
+      {
+        company_id: company.id,
+        customer_id: schmidt.id,
+        jobsite_id: jobSchmidt.id,
+        token_hash: hashCustomerPortalToken(DEMO_CUSTOMER_PORTAL_TOKEN),
+        label: "Demo: Kundenportal Schmidt",
+        expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+        created_by: users.chef.id
+      }
+    ],
+    "id"
+  );
+  const portalToken = portalTokens[0] ?? null;
+
+  await insertOptionalRows("customer_portal_events", [
+    {
+      company_id: company.id,
+      customer_id: schmidt.id,
+      jobsite_id: jobSchmidt.id,
+      event_type: "status",
+      title: "Baustelle gestartet",
+      body: "Geruest steht, Material wurde geprueft und die Dachflaeche ist fuer die naechsten Arbeitsschritte vorbereitet.",
+      visible_to_customer: true,
+      event_date: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString(),
+      created_by: users.chef.id
+    },
+    {
+      company_id: company.id,
+      customer_id: schmidt.id,
+      jobsite_id: jobSchmidt.id,
+      event_type: "appointment",
+      title: "Naechster Termin: Lattung und Ortgang",
+      body: "Das Team ist morgen ab ca. 7:00 Uhr vor Ort. Bitte Hofzufahrt freihalten.",
+      visible_to_customer: true,
+      event_date: new Date(Date.now() + 18 * 60 * 60 * 1000).toISOString(),
+      created_by: users.v1.id
+    },
+    {
+      company_id: company.id,
+      customer_id: schmidt.id,
+      jobsite_id: jobSchmidt.id,
+      event_type: "photo",
+      title: "Fotodokumentation vorbereitet",
+      body: "Beispiel-Fotos werden im echten Betrieb einzeln freigegeben. Interne Fotos bleiben verborgen.",
+      visible_to_customer: true,
+      event_date: new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
+      created_by: users.v1.id
+    },
+    {
+      company_id: company.id,
+      customer_id: schmidt.id,
+      jobsite_id: jobSchmidt.id,
+      event_type: "document",
+      title: "Dokumentenbereich bereit",
+      body: "Angebote, Arbeitsauftraege und Abnahmen koennen hier freigegeben und digital bestaetigt werden.",
+      visible_to_customer: true,
+      event_date: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
+      created_by: users.chef.id
+    },
+    {
+      company_id: company.id,
+      customer_id: schmidt.id,
+      jobsite_id: jobSchmidt.id,
+      event_type: "update",
+      title: "Wetterhinweis dokumentiert",
+      body: "Trocken, leichter Wind - gute Bedingungen. Falls Regen aufzieht, werden Material und Folien gesichert.",
+      visible_to_customer: true,
+      event_date: new Date(Date.now() - 16 * 60 * 60 * 1000).toISOString(),
+      created_by: users.v1.id
+    }
+  ]);
+
+  if (portalToken) {
+    await insertOptionalRows("customer_portal_messages", [
+      {
+        company_id: company.id,
+        customer_id: schmidt.id,
+        jobsite_id: jobSchmidt.id,
+        portal_token_id: portalToken.id,
+        sender_name: "Anna Schmidt",
+        sender_email: "anna.schmidt@example.com",
+        message: "Koennen die Dachfenster waehrend der Arbeiten abgedeckt bleiben? Wir sind morgen nicht durchgehend zu Hause.",
+        status: "open"
+      }
+    ]);
+  }
+
+  const demoWorkOrderSnapshot = {
+    title: "Arbeitsauftrag: Steildachsanierung Schmidt",
+    scope_of_work:
+      "Unterspannbahn verlegen, Konterlattung und Dachlattung herstellen, Ortgang links pruefen und die naechsten Materialschritte dokumentieren.",
+    version: 1,
+    customer_id: schmidt.id,
+    jobsite_id: jobSchmidt.id
+  };
+  await insertOptionalRows("work_orders", [
+    {
+      company_id: company.id,
+      customer_id: schmidt.id,
+      jobsite_id: jobSchmidt.id,
+      order_id: orderSchmidt?.id ?? null,
+      title: demoWorkOrderSnapshot.title,
+      description: "Demo-Arbeitsauftrag fuer die digitale Kundenfreigabe.",
+      scope_of_work: demoWorkOrderSnapshot.scope_of_work,
+      price_note: "Preisdetails stehen im Angebot. Interne EK-/Marge-Daten sind nicht Teil des Kundenportals.",
+      status: "sent",
+      version: 1,
+      content_hash: contentHash(demoWorkOrderSnapshot),
+      sent_at: new Date(Date.now() - 14 * 60 * 60 * 1000).toISOString(),
+      created_by: users.chef.id
     }
   ]);
 

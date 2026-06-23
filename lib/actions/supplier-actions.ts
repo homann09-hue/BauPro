@@ -14,6 +14,7 @@ import type { SupplierOfferInput } from "@/lib/suppliers/types";
 import { SupplierIntegrationError } from "@/lib/suppliers/types";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { optionalFormUuid, requiredFormUuid } from "@/lib/security/form-data";
+import { logServerWarning } from "@/lib/security/logging";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { safeReturnPath } from "@/lib/security/redirects";
 import { assertInventoryItemInCompany, assertSupplierIntegrationInCompany } from "@/lib/security/tenant-guards";
@@ -148,7 +149,7 @@ function decryptApiKey(value: string | null) {
     decipher.setAuthTag(Buffer.from(tagValue, "base64"));
     return Buffer.concat([decipher.update(Buffer.from(encryptedValue, "base64")), decipher.final()]).toString("utf8");
   } catch (error) {
-    console.error("supplier-api-key-decrypt-failed", error);
+    logServerWarning("supplier-api-key-decrypt-failed", error);
     throw new SafeActionError("Gespeicherter API-Key konnte nicht verwendet werden. Bitte Key rotieren.");
   }
 }
@@ -452,6 +453,7 @@ export async function fetchSupplierOffersAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/suppliers");
+  let providerKey: string | null = null;
 
   try {
     const integrationId = requiredFormUuid(formData, "supplier_integration_id", "Lieferantenintegration");
@@ -466,6 +468,7 @@ export async function fetchSupplierOffersAction(formData: FormData) {
 
     if (error || !integration) throw new SafeActionError("Integration wurde nicht gefunden.");
     const typed = integration as SupplierIntegration;
+    providerKey = typed.provider_key;
     const adapter = createSupplierAdapter({
       providerKey: typed.provider_key,
       apiKey: decryptApiKey(typed.api_key_encrypted),
@@ -484,7 +487,7 @@ export async function fetchSupplierOffersAction(formData: FormData) {
 
     if (insertError) throw new SafeActionError("Angebote konnten nicht gespeichert werden.");
   } catch (error) {
-    console.warn("supplier-fetch-failed", error);
+    logServerWarning("supplier-fetch-failed", error, { providerKey });
     redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Angebotssuche fehlgeschlagen. Provider-Details wurden nicht angezeigt."))}`);
   }
 

@@ -1,6 +1,7 @@
 import { getOptionalAppContext } from "@/lib/auth";
 import { calendarTimeEntrySelect } from "@/lib/data/selects";
 import { downloadHeaders } from "@/lib/security/downloads";
+import { logServerError } from "@/lib/security/logging";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { parseDailyTimeFilters } from "@/lib/time-daily";
 import { buildDailyTimeCsv, buildDailyTimePdf, dailyTimeFilename } from "@/lib/time-daily-export";
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
       headers: downloadHeaders("application/pdf", dailyTimeFilename(exportData, "pdf"))
     });
   } catch (error) {
-    console.error("daily-time-export-failed", error);
+    logServerError("daily-time-export-failed", error);
     return new Response("Tagesstunden-Export konnte nicht erzeugt werden.", { status: 500 });
   }
 }

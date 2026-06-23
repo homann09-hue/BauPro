@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { logServerWarning } from "@/lib/security/logging";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
 import type {
@@ -191,7 +192,7 @@ async function signedJobsiteDocument(document: PortalJobsiteDocument): Promise<P
 
 function rowsOrEmpty<T>(result: { data: unknown; error: { message?: string } | null }, label: string): T[] {
   if (result.error) {
-    console.warn(`customer-portal-${label}-load-failed`, result.error.message ?? "unknown");
+    logServerWarning("customer-portal-load-section-failed", result.error, { section: label });
     return [];
   }
 

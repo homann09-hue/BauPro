@@ -41,7 +41,7 @@ export default async function OnboardingPage({
     companyResult.error && safeQueryErrorMessage(companyResult.error)
       ? await supabase
           .from("companies")
-          .select("id, name, session_timeout_minutes, onboarding_completed_at")
+          .select("id, name")
           .eq("id", context.companyId)
           .maybeSingle()
       : null;

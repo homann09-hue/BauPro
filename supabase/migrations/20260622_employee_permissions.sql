@@ -15,10 +15,6 @@ create table if not exists public.employee_permissions (
       'customers.edit',
       'customer_requests.view',
       'customer_requests.edit',
-      'quotes.view',
-      'quotes.create',
-      'prices.purchase.view',
-      'prices.sales.view',
       'inventory.view',
       'inventory.edit',
       'materials.order',
@@ -28,9 +24,7 @@ create table if not exists public.employee_permissions (
       'photos.delete',
       'reports.create',
       'reports.approve',
-      'vehicles.manage',
-      'settings.edit',
-      'users.permissions.manage'
+      'vehicles.manage'
     )
   ),
   granted boolean not null default true,
@@ -132,6 +126,14 @@ set search_path = public
 stable
 as $$
   select case
+    when p_permission_key in (
+      'quotes.view',
+      'quotes.create',
+      'prices.purchase.view',
+      'prices.sales.view',
+      'settings.edit',
+      'users.permissions.manage'
+    ) then public.can_manage_company()
     when public.current_role() in ('admin', 'chef') then true
     else exists (
       select 1

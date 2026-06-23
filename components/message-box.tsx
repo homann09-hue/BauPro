@@ -22,6 +22,14 @@ export function MessageBox({
     >
       <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <span>{error || success}</span>
+      {error ? (
+        <a
+          className="ml-auto shrink-0 rounded-md border border-current/30 px-2 py-1 text-xs font-black hover:bg-white/10"
+          href=""
+        >
+          Erneut laden
+        </a>
+      ) : null}
     </div>
   );
 }

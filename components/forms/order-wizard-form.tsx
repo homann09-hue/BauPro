@@ -32,6 +32,7 @@ type OrderWizardFormProps = {
   employees: Profile[];
   defaultCustomerId?: string;
   defaultWastePercent: number;
+  canManage: boolean;
   materialPriceOptions: RoofingMaterialPriceRow[];
   calculationDefaults: {
     vatRate: number;
@@ -73,6 +74,7 @@ export function OrderWizardForm({
   employees,
   defaultCustomerId,
   defaultWastePercent,
+  canManage,
   materialPriceOptions,
   calculationDefaults
 }: OrderWizardFormProps) {
@@ -539,6 +541,8 @@ export function OrderWizardForm({
 
       </section>
 
+      {canManage ? (
+        <>
       <section className="form-step-card">
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-mint text-moss">
@@ -943,6 +947,27 @@ export function OrderWizardForm({
           </SubmitButton>
         </div>
       </section>
+        </>
+      ) : (
+        <section className="form-step-card">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-mint text-moss">
+              <ClipboardCheck className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="meta-label">Abschluss</p>
+              <h2 className="section-title">Auftrag speichern</h2>
+              <p className="mt-1 text-sm font-semibold text-slate-600">
+                Maße und Materialmengen werden gespeichert. Kosten, EK/VK und Margen bleiben Chef/Admin vorbehalten.
+              </p>
+            </div>
+          </div>
+          <SubmitButton>
+            <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+            Auftrag speichern
+          </SubmitButton>
+        </section>
+      )}
     </form>
   );
 }

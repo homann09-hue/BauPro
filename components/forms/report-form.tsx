@@ -3,6 +3,7 @@ import { Trash2 } from "lucide-react";
 import { deleteReportPhotoAction } from "@/lib/actions/report-actions";
 import { ReportDraftAssistant } from "@/components/ai/report-draft-assistant";
 import { PhotoCaptureButton } from "@/components/forms/photo-capture-button";
+import { FormDraftAutosave } from "@/components/offline/form-draft-autosave";
 import { SubmitButton } from "@/components/submit-button";
 import { VoiceInputField } from "@/components/voice/VoiceInputField";
 import { VoiceTextarea } from "@/components/voice/VoiceTextarea";
@@ -49,7 +50,7 @@ export function ReportForm({
   const status = report?.report_status ?? "draft";
 
   return (
-    <form action={action} className="surface p-4 sm:p-5" data-testid="report-form">
+    <form id="report-form" action={action} className="surface p-4 sm:p-5" data-testid="report-form">
       {report ? <input type="hidden" name="id" value={report.id} /> : null}
       <ReportDraftAssistant existingPhotos={photos.map((photo) => ({ id: photo.id, fileName: photo.file_name }))} />
       <div className="mb-5 rounded-lg border border-line bg-fog p-4">
@@ -58,6 +59,13 @@ export function ReportForm({
         <p className="mt-1 text-sm font-semibold text-slate-600">
           Sprache, Arbeitszeiten, Wetter, Material, Fahrzeuge und Fotos in einem Bericht.
         </p>
+      </div>
+      <div className="mb-5">
+        <FormDraftAutosave
+          formId="report-form"
+          storageKey={`baupro:report:${report?.id ?? "new"}:${currentUserId}`}
+          description="Berichtstext, Zeiten, Wettervorschlag und Notizen werden lokal gesichert. Fotos bleiben im Dateifeld und müssen bei Bedarf erneut gewählt werden."
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

@@ -6,6 +6,7 @@ import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { requireAppContext } from "@/lib/auth";
 import { searchOrFilter } from "@/lib/data/shared";
+import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cn, searchParamMessage } from "@/lib/utils";
 import type { Jobsite, JobsiteStatus } from "@/types/app";
@@ -107,6 +108,11 @@ export default async function JobsitesPage({
   ]);
 
   const jobsites = (jobsitesResult.data ?? []) as Jobsite[];
+  const queryError =
+    safeQueryErrorMessage(jobsitesResult.error) ||
+    safeQueryErrorMessage(activeCountResult.error) ||
+    safeQueryErrorMessage(plannedCountResult.error) ||
+    safeQueryErrorMessage(doneCountResult.error);
   const totalCount = jobsitesResult.count ?? jobsites.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const activeCount = activeCountResult.count ?? 0;
@@ -122,7 +128,7 @@ export default async function JobsitesPage({
         actionLabel={context.canManage ? "Neue Baustelle" : undefined}
         actionIcon={Plus}
       />
-      <MessageBox error={error} success={success} />
+      <MessageBox error={error || queryError} success={success} />
 
       <section className="mb-5 grid gap-3 sm:grid-cols-3">
         <StatCard icon={HardHat} label="Aktiv" value={activeCount} tone="green" />

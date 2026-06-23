@@ -166,6 +166,14 @@ export const AI_JOB_DRAFT_SCHEMA = {
       type: "string",
       enum: ["steildach", "flachdach", "reparatur", "dachrinne", "blech", "wartung", "sonstiges"]
     },
+    roof_form: {
+      type: ["string", "null"],
+      enum: ["satteldach", "flachdach", "pultdach", "walmdach", "mansarddach", "sonstiges", null]
+    },
+    material_type: {
+      type: ["string", "null"],
+      enum: ["tonziegel", "betondachstein", "schiefer", "bitumen", "metall", "gruen", "sonstiges", null]
+    },
     priority: { type: "string", enum: ["niedrig", "normal", "hoch"] },
     jobsite_name: { type: ["string", "null"] },
     jobsite_address: { type: ["string", "null"] },
@@ -239,6 +247,8 @@ export const AI_JOB_DRAFT_SCHEMA = {
     "existing_customer_id",
     "title",
     "order_type",
+    "roof_form",
+    "material_type",
     "priority",
     "jobsite_name",
     "jobsite_address",
@@ -329,8 +339,11 @@ export function jobDraftPrompt(contextJson: string) {
     "Datumsangaben als YYYY-MM-DD, falls erkennbar. Relative Begriffe wie nächste Woche aus dem Kontextdatum ableiten, wenn möglich.",
     "Maße in Meter und Quadratmeter. Wenn Länge und Breite vorhanden sind, area_m2 berechnen.",
     "order_type muss einer App-Kategorie entsprechen: steildach, flachdach, reparatur, dachrinne, blech, wartung, sonstiges.",
+    "roof_form muss satteldach, flachdach, pultdach, walmdach, mansarddach, sonstiges oder null sein.",
+    "material_type muss tonziegel, betondachstein, schiefer, bitumen, metall, gruen, sonstiges oder null sein.",
     "Wichtige fehlende Angaben in missing_fields und als konkrete follow_up_questions aufnehmen.",
     "suggested_materials sind nur fachliche Vorschläge; Mengen werden danach regelbasiert von der App berechnet.",
+    "Sicherheits-, Gerüst- und Wetterhinweise nur als Hinweise formulieren, niemals als verbindliche Statik oder Fachplanung.",
     "Kontext aus der App:",
     contextJson
   ].join("\n");

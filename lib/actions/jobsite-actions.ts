@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireManager } from "@/lib/auth";
+import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { requiredFormUuid } from "@/lib/security/form-data";
 import { safeReturnPath } from "@/lib/security/redirects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -58,30 +59,36 @@ export async function createJobsiteAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const returnTo = safeReturnPath(formData.get("return_to"), "/baustellen");
-  const assignedEmployees = await getAssignableEmployeeIds(supabase, formData, context.companyId);
 
-  if (assignedEmployees.error) {
-    redirectWithMessage(returnTo === "/baustellen" ? "/baustellen/neu" : returnTo, "error", assignedEmployees.error);
-  }
+  try {
+    const assignedEmployees = await getAssignableEmployeeIds(supabase, formData, context.companyId);
+    if (assignedEmployees.error) throw new SafeActionError(assignedEmployees.error);
 
-  const { data, error } = await supabase
-    .from("jobsites")
-    .insert({
-      company_id: context.companyId,
-      name: requiredString(formData, "name"),
-      customer: requiredString(formData, "customer"),
-      address: requiredString(formData, "address"),
-      start_date: optionalDate(formData, "start_date"),
-      status: statusValue(formData.get("status")),
-      notes: optionalString(formData, "notes"),
-      assigned_employee_ids: assignedEmployees.ids,
-      created_by: context.userId
-    })
-    .select("id")
-    .maybeSingle();
+    const { data, error } = await supabase
+      .from("jobsites")
+      .insert({
+        company_id: context.companyId,
+        name: requiredString(formData, "name"),
+        customer: requiredString(formData, "customer"),
+        address: requiredString(formData, "address"),
+        start_date: optionalDate(formData, "start_date"),
+        status: statusValue(formData.get("status")),
+        notes: optionalString(formData, "notes"),
+        assigned_employee_ids: assignedEmployees.ids,
+        created_by: context.userId
+      })
+      .select("id")
+      .maybeSingle();
 
-  if (error || !data) {
-    redirectWithMessage(returnTo === "/baustellen" ? "/baustellen/neu" : returnTo, "error", "Baustelle konnte nicht angelegt werden.");
+    if (error || !data) {
+      throw new SafeActionError("Baustelle konnte nicht angelegt werden.");
+    }
+  } catch (error) {
+    redirectWithMessage(
+      returnTo === "/baustellen" ? "/baustellen/neu" : returnTo,
+      "error",
+      safeErrorMessage(error, "Baustelle konnte nicht angelegt werden.")
+    );
   }
 
   revalidatePath("/baustellen");

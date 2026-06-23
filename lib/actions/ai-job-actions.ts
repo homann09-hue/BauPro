@@ -52,6 +52,43 @@ function positiveInt(formData: FormData, key: string) {
   return Math.max(0, Math.round(optionalNumber(formData, key) ?? 0));
 }
 
+function safeChoice<T extends string>(value: FormDataEntryValue | null, allowed: readonly T[]): T | null {
+  const candidate = String(value ?? "");
+  return allowed.includes(candidate as T) ? (candidate as T) : null;
+}
+
+function structuredJobInput(formData: FormData) {
+  const lines = [
+    optionalString(formData, "customer_name") ? `Kunde: ${optionalString(formData, "customer_name")}` : null,
+    optionalString(formData, "jobsite_address") ? `Baustellenadresse: ${optionalString(formData, "jobsite_address")}` : null,
+    optionalString(formData, "jobsite_name") ? `Baustelle: ${optionalString(formData, "jobsite_name")}` : null,
+    safeChoice(formData.get("order_type"), ["steildach", "flachdach", "reparatur", "dachrinne", "blech", "wartung", "sonstiges"] as const)
+      ? `Dachart: ${safeChoice(formData.get("order_type"), ["steildach", "flachdach", "reparatur", "dachrinne", "blech", "wartung", "sonstiges"] as const)}`
+      : null,
+    safeChoice(formData.get("roof_form"), ["satteldach", "flachdach", "pultdach", "walmdach", "mansarddach", "sonstiges"] as const)
+      ? `Dachform: ${safeChoice(formData.get("roof_form"), ["satteldach", "flachdach", "pultdach", "walmdach", "mansarddach", "sonstiges"] as const)}`
+      : null,
+    safeChoice(formData.get("material_type"), ["tonziegel", "betondachstein", "schiefer", "bitumen", "metall", "gruen", "sonstiges"] as const)
+      ? `Materialtyp: ${safeChoice(formData.get("material_type"), ["tonziegel", "betondachstein", "schiefer", "bitumen", "metall", "gruen", "sonstiges"] as const)}`
+      : null,
+    optionalNumber(formData, "length_m") !== null ? `Länge: ${optionalNumber(formData, "length_m")} m` : null,
+    optionalNumber(formData, "width_m") !== null ? `Breite: ${optionalNumber(formData, "width_m")} m` : null,
+    optionalNumber(formData, "area_m2") !== null ? `Dachfläche: ${optionalNumber(formData, "area_m2")} m2` : null,
+    optionalNumber(formData, "roof_pitch") !== null ? `Dachneigung: ${optionalNumber(formData, "roof_pitch")} Grad` : null,
+    optionalNumber(formData, "ridge_length_m") !== null ? `Firstlänge: ${optionalNumber(formData, "ridge_length_m")} m` : null,
+    optionalNumber(formData, "eaves_length_m") !== null ? `Trauflänge: ${optionalNumber(formData, "eaves_length_m")} m` : null,
+    optionalNumber(formData, "verge_length_m") !== null ? `Ortganglänge: ${optionalNumber(formData, "verge_length_m")} m` : null,
+    optionalNumber(formData, "valley_length_m") !== null ? `Kehlen: ${optionalNumber(formData, "valley_length_m")} m` : null,
+    optionalNumber(formData, "downpipe_length_m") !== null ? `Fallrohrlänge: ${optionalNumber(formData, "downpipe_length_m")} m` : null,
+    optionalNumber(formData, "penetrations_count") !== null ? `Durchdringungen: ${positiveInt(formData, "penetrations_count")}` : null,
+    optionalNumber(formData, "roof_windows_count") !== null ? `Dachfenster: ${positiveInt(formData, "roof_windows_count")}` : null,
+    optionalNumber(formData, "roof_drains_count") !== null ? `Dachabläufe: ${positiveInt(formData, "roof_drains_count")}` : null
+  ].filter(Boolean);
+
+  const raw = optionalString(formData, "raw_input");
+  return [lines.join("\n"), raw ? `Zusatztext/Sprache:\n${raw}` : null].filter(Boolean).join("\n\n").trim();
+}
+
 async function nextOrderNumber(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   companyId: string
@@ -276,10 +313,12 @@ async function insertEstimate({
 export async function prepareAiJobDraftAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
-  const input = requiredString(formData, "raw_input");
+  const input = structuredJobInput(formData);
   let target = "/ai/job-wizard";
 
   try {
+    if (!input) throw new SafeActionError("Bitte mindestens Kunde, Baustelle, Maße oder eine Beschreibung eingeben.");
+    if (input.length > 5000) throw new SafeActionError("Eingabe ist zu lang. Bitte auf maximal 5000 Zeichen kuerzen.");
     const settings = await loadCalculationSettings(supabase, context.companyId);
     if (!settings.allow_ai_job_creation) throw new SafeActionError("KI-Auftragserstellung ist in den Einstellungen deaktiviert.");
 
@@ -391,6 +430,12 @@ export async function updateAiJobDraftPreviewAction(formData: FormData) {
       customer_name: optionalString(formData, "customer_name"),
       title: optionalString(formData, "title") ?? current.title,
       order_type: orderTypeValue(formData.get("order_type"), current.order_type),
+      roof_form:
+        safeChoice(formData.get("roof_form"), ["satteldach", "flachdach", "pultdach", "walmdach", "mansarddach", "sonstiges"] as const) ??
+        current.roof_form,
+      material_type:
+        safeChoice(formData.get("material_type"), ["tonziegel", "betondachstein", "schiefer", "bitumen", "metall", "gruen", "sonstiges"] as const) ??
+        current.material_type,
       priority: priorityValue(formData.get("priority"), current.priority),
       jobsite_name: optionalString(formData, "jobsite_name"),
       jobsite_address: optionalString(formData, "jobsite_address"),
@@ -527,7 +572,14 @@ export async function createOrderFromAiDraftAction(formData: FormData) {
           ...dimensions,
           company_id: context.companyId,
           order_id: createdOrderId,
-          notes: `Aus KI-Auftragsentwurf ${draft.id}`,
+          notes: [
+            `Aus KI-Auftragsentwurf ${draft.id}`,
+            parsed.roof_form ? `Dachform: ${parsed.roof_form}` : null,
+            parsed.material_type ? `Materialtyp: ${parsed.material_type}` : null,
+            "Entwurf - fachlich pruefen."
+          ]
+            .filter(Boolean)
+            .join("\n"),
           created_by: context.userId
         })
         .select("id")
@@ -542,7 +594,12 @@ export async function createOrderFromAiDraftAction(formData: FormData) {
         dimensionId: dimension.id as string,
         jobsiteId: jobsite.id as string,
         orderType: parsed.order_type,
-        dimensions
+        dimensions,
+        includePrices: context.canManage,
+        calculationContext: {
+          roof_form: parsed.roof_form,
+          material_type: parsed.material_type
+        }
       })) as unknown as JobMaterialRequirement[];
 
       if (requirements.length) {

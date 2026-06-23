@@ -30,23 +30,25 @@ describe("predictive prefetching", () => {
       expect.arrayContaining([
         "/dashboard",
         "/baustellen",
+        "/time-tracking/daily",
+        "/berichte",
+        "/materials/inventory",
         "/plantafel",
         "/orders",
         "/customers",
-        "/materials/inventory",
         "/materials/delivery-notes",
-        "/time-tracking/daily"
+        "/time-tracking/reports"
       ])
     );
     expect(prefetchScopesForRole("chef", true)).toEqual(
-      expect.arrayContaining(["dashboard", "jobsites", "tasks", "materials"])
+      expect.arrayContaining(["dashboard", "jobsites", "time", "materials"])
     );
     expect(prefetchScopesForRole("chef", true)).not.toContain("weather");
   });
 
   it("keeps employee and customer prefetch conservative", () => {
     expect(prefetchRoutesForRole("mitarbeiter", false)).toEqual(
-      expect.arrayContaining(["/dashboard", "/time/new", "/baustellen", "/berichte", "/bring-lists"])
+      expect.arrayContaining(["/dashboard", "/time-tracking", "/time/new", "/baustellen", "/berichte", "/bring-lists", "/material-melden"])
     );
     expect(prefetchRoutesForRole("mitarbeiter", false)).not.toContain("/team");
     expect(prefetchRoutesForRole("kunde", false)).toEqual([]);
@@ -80,6 +82,9 @@ describe("predictive prefetching", () => {
     const route = source("app/api/prefetch/route-data/route.ts");
     expect(route).toContain("stale-while-revalidate=300");
     expect(route).toContain('"X-BauPro-Prefetch"');
+    expect(route).toContain("checkRateLimit");
+    expect(route).toContain("getClientIp(request.headers)");
+    expect(route).toContain("`prefetch:${context.companyId}:${context.userId}:${clientIp}`");
     expect(route).not.toMatch(broadSelectPattern);
     expect(route).not.toMatch(/\b(purchase_price|sales_price|markup_percent|price_net|price_gross|margin_total)\b/);
     expect(route).toContain('scope === "weather"');
@@ -91,6 +96,7 @@ describe("predictive prefetching", () => {
     expect(route).toContain(`.or(\`assigned_to.eq.\${context.userId},created_by.eq.\${context.userId}\`)`);
     expect(route).toContain('.eq("assigned_to", context.userId)');
     expect(route).toContain('scope === "tasks"');
+    expect(route).toContain('scope === "time"');
     expect(route).toContain('scope === "planning"');
     expect(route).toContain('scope === "team"');
     expect(route).toContain('.limit(context.canManage ? 180 : 40)');
@@ -213,7 +219,7 @@ describe("predictive prefetching", () => {
     for (const file of ["app/(app)/time-tracking/page.tsx", "app/(app)/time-tracking/daily/page.tsx"]) {
       const code = source(file);
       expect(code, file).toContain("selectTimeEntriesWithWeatherFallback");
-      expect(code, file).toContain(".select(select)");
+      expect(code, file).toMatch(/\.select\(select(?:,\s*\{\s*count:\s*"exact"\s*\})?\)/);
       expect(code, file).toContain("profilesById");
       expect(code, file).toContain("jobsitesById");
       expect(code, file).not.toContain("profiles!time_entries_employee_id_fkey");
@@ -377,11 +383,21 @@ describe("predictive prefetching", () => {
     expect(source("app/(app)/customers/page.tsx")).toContain("loadCustomerList");
     expect(source("app/(app)/berichte/page.tsx")).toContain("loadReportList");
 
-    for (const file of ["app/(app)/materials/inventory/page.tsx", "app/(app)/baustellen/page.tsx"]) {
+    for (const file of ["app/(app)/materials/inventory/page.tsx", "app/(app)/baustellen/page.tsx", "app/(app)/time-tracking/page.tsx"]) {
       const code = source(file);
       expect(code, file).toContain("pageSize");
       expect(code, file).toContain(".range(");
     }
+
+    const inventoryPage = source("app/(app)/materials/inventory/page.tsx");
+    const dashboardPage = source("app/(app)/dashboard/page.tsx");
+    const nextConfig = source("next.config.mjs");
+
+    expect(inventoryPage).toContain("lowStockScanLimit = 300");
+    expect(inventoryPage).not.toContain(".limit(1000)");
+    expect(dashboardPage).toContain("DashboardDetailsSkeleton");
+    expect(nextConfig).toContain('"/time-tracking"');
+    expect(nextConfig).toContain('"/material-melden"');
 
     for (const file of [
       "app/(app)/orders/loading.tsx",

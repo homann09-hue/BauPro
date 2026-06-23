@@ -70,7 +70,12 @@ export default async function NewTimeEntryPage({
     <>
       <PageHeader title="Arbeitszeit eintragen" description="Schnell erfassen: Baustelle, Beginn, Ende, Pause und Tätigkeit." />
       <MessageBox
-        error={error || safeQueryErrorMessage(jobsitesResult.error) || safeQueryErrorMessage(employeesResult.error)}
+        error={
+          error ||
+          safeQueryErrorMessage(jobsitesResult.error) ||
+          safeQueryErrorMessage(employeesResult.error) ||
+          safeQueryErrorMessage(todayEntriesResult.error)
+        }
         success={success}
       />
       <ContextualHelpTip featureKey="time_entry_create" returnTo="/time-tracking/new" />

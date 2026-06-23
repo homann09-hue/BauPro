@@ -6,9 +6,10 @@ import { revalidatePath } from "next/cache";
 import { requireAppContext, requireManager, requirePermission } from "@/lib/auth";
 import { checkUserLimit } from "@/lib/billing/plans";
 import { ensureDemoModeData } from "@/lib/demo/demo-mode";
-import { allPermissionKeys, normalizePermissionKeys } from "@/lib/permissions";
+import { assignableEmployeePermissionKeys, isAssignableEmployeePermission, normalizePermissionKeys } from "@/lib/permissions";
 import { requiredFormUuid } from "@/lib/security/form-data";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
+import { logServerWarning } from "@/lib/security/logging";
 import { getClientIp, publicAppOrigin } from "@/lib/security/origin";
 import { checkPasswordBreach } from "@/lib/security/password-breach-check";
 import { checkRateLimit } from "@/lib/security/rate-limit";
@@ -161,7 +162,7 @@ export async function startDemoModeAction(formData: FormData) {
         redirect(`${errorPath}?error=${toQuery("Demo wurde zu oft gestartet. Bitte warte kurz und versuche es erneut.")}`);
       }
 
-      console.warn("Demo-Rate-Limit konnte nicht geprüft werden. Demo-Start wird im Fallback-Modus fortgesetzt.", message);
+      logServerWarning("demo-rate-limit-fallback", error, { message });
     }
   }
 
@@ -169,7 +170,7 @@ export async function startDemoModeAction(formData: FormData) {
   try {
     demo = await ensureDemoModeData();
   } catch (error) {
-    console.error("Demo-Modus konnte nicht vorbereitet werden", error);
+    logServerWarning("demo-mode-prepare-failed", error);
     redirect(`${errorPath}?error=${toQuery(safeErrorMessage(error, "Demo-Modus konnte nicht vorbereitet werden."))}`);
   }
 
@@ -391,7 +392,7 @@ export async function updateEmployeePermissionsAction(formData: FormData) {
     redirect(`/team?error=${toQuery("Chef/Admin hat automatisch alle Rechte und kann hier nicht eingeschränkt werden.")}`);
   }
 
-  const requestedPermissions = normalizePermissionKeys(formData.getAll("permission").map(String));
+  const requestedPermissions = normalizePermissionKeys(formData.getAll("permission").map(String)).filter(isAssignableEmployeePermission);
   const { data: currentRows, error: currentError } = await supabase
     .from("employee_permissions")
     .select("permission_key, granted")
@@ -410,9 +411,9 @@ export async function updateEmployeePermissionsAction(formData: FormData) {
     (currentRows ?? [])
       .filter((row) => Boolean((row as { granted?: boolean }).granted))
       .map((row) => String((row as { permission_key?: string }).permission_key ?? ""))
-  );
+  ).filter(isAssignableEmployeePermission);
 
-  const rows = allPermissionKeys.map((permissionKey) => ({
+  const rows = assignableEmployeePermissionKeys.map((permissionKey) => ({
     company_id: context.companyId,
     profile_id: id,
     permission_key: permissionKey,

@@ -10,6 +10,7 @@ import {
   profileOptionSelect
 } from "@/lib/data/selects";
 import { hasAppPermission } from "@/lib/permissions";
+import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { RoofingMaterialPriceRow } from "@/lib/roofing-material-estimate";
 import { searchParamMessage } from "@/lib/utils";
@@ -59,15 +60,21 @@ export default async function NewOrderPage({
           .select(calculationSettingsSelect)
           .eq("company_id", context.companyId)
           .maybeSingle()
-      : Promise.resolve({ data: null }),
+      : Promise.resolve({ data: null, error: null }),
     canSeeAnyPrices
       ? supabase
           .from("inventory_items")
           .select(inventoryItemCalculationSelect)
           .eq("company_id", context.companyId)
           .order("name", { ascending: true })
-      : Promise.resolve({ data: [] })
+      : Promise.resolve({ data: [], error: null })
   ]);
+  const queryError =
+    safeQueryErrorMessage(customersResult.error) ||
+    safeQueryErrorMessage(employeesResult.error) ||
+    safeQueryErrorMessage(settingsResult.error) ||
+    safeQueryErrorMessage(calculationSettingsResult.error) ||
+    safeQueryErrorMessage(inventoryResult.error);
 
   const settings = (settingsResult.data ?? {
     company_id: context.companyId,
@@ -92,12 +99,13 @@ export default async function NewOrderPage({
         title="Neuer Auftrag"
         description="Kunde wählen, Auftrag erfassen und Materialbedarf mit Verschnitt berechnen."
       />
-      <MessageBox error={error} success={success} />
+      <MessageBox error={error || queryError} success={success} />
       <OrderWizardForm
         customers={(customersResult.data ?? []) as Customer[]}
         employees={(employeesResult.data ?? []) as Profile[]}
         defaultCustomerId={defaultCustomerId(params)}
         defaultWastePercent={Number(settings.waste_percent ?? 20)}
+        canManage={context.canManage}
         materialPriceOptions={materialPriceOptions}
         calculationDefaults={{
           vatRate: Number(calculationSettingsResult.data?.default_vat_rate ?? 19),

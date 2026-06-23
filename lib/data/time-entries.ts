@@ -12,6 +12,7 @@ type SupabaseErrorLike = {
 type QueryResult<T = unknown> = {
   data: T | null;
   error: SupabaseErrorLike | null;
+  count?: number | null;
 };
 
 const weatherColumnKeys = [

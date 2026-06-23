@@ -5,7 +5,8 @@ import { withSentryConfig } from "@sentry/nextjs";
 const runtimeCaching = [
   {
     urlPattern: ({ request, url }) =>
-      request.mode === "navigate" && ["/", "/dashboard", "/baustellen", "/berichte"].includes(url.pathname),
+      request.mode === "navigate" &&
+      ["/", "/dashboard", "/baustellen", "/time-tracking", "/berichte", "/material-melden"].includes(url.pathname),
     handler: "NetworkFirst",
     options: {
       cacheName: "baupro-app-shell-pages",

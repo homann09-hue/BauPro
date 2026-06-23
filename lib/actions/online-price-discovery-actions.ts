@@ -6,6 +6,7 @@ import { requireManager } from "@/lib/auth";
 import { discoverOnlinePrices } from "@/lib/online-price-discovery/service";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { optionalFormUuid } from "@/lib/security/form-data";
+import { logServerWarning } from "@/lib/security/logging";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { safeReturnPath } from "@/lib/security/redirects";
 import { assertInventoryItemInCompany } from "@/lib/security/tenant-guards";
@@ -113,7 +114,7 @@ export async function runOnlinePriceDiscoveryAction(formData: FormData) {
         : "Keine aktuellen Online-Angebote gefunden.";
     successMessage = message;
   } catch (error) {
-    console.warn("online-price-discovery-failed", error);
+    logServerWarning("online-price-discovery-failed", error, { materialId: materialId ?? null });
     errorMessage = safeErrorMessage(error, "Online-Recherche konnte nicht ausgefuehrt werden.");
   }
 

@@ -45,6 +45,49 @@ describe("server action hardening", () => {
     expect(addCatalogAction).not.toContain("+ stock : stock");
   });
 
+  it("ignores inventory price FormData for non-manager inventory editors", () => {
+    const inventoryActions = source("lib/actions/inventory-actions.ts");
+    const addCatalogAction = actionBlock(inventoryActions, "addCatalogItemToInventoryAction", "createCustomInventoryItemAction");
+    const customItemAction = actionBlock(inventoryActions, "createCustomInventoryItemAction", "adjustInventoryStockAction");
+
+    expect(addCatalogAction).toContain("context.canManage");
+    expect(addCatalogAction).toContain('optionalString(formData, "supplier_name")');
+    expect(addCatalogAction).toContain("...(context.canManage");
+    expect(addCatalogAction).toContain('purchase_price: optionalNumber(formData, "purchase_price")');
+    expect(addCatalogAction).toContain("sales_price: item.sales_price");
+
+    expect(customItemAction).toContain('purchase_price: context.canManage ? optionalNumber(formData, "purchase_price") : null');
+    expect(customItemAction).toContain('sales_price: context.canManage ? optionalNumber(formData, "sales_price") : null');
+    expect(customItemAction).not.toContain('purchase_price: optionalNumber(formData, "purchase_price"),');
+    expect(customItemAction).not.toContain('sales_price: optionalNumber(formData, "sales_price"),');
+  });
+
+  it("keeps order cost and material price generation manager-only", () => {
+    const orderActions = source("lib/actions/order-actions.ts");
+    const orderPage = source("app/(app)/orders/new/page.tsx");
+    const orderForm = source("components/forms/order-wizard-form.tsx");
+    const createAction = actionBlock(orderActions, "createOrderAction", "updateOrderDimensionsAction");
+    const updateDimensionsAction = actionBlock(orderActions, "updateOrderDimensionsAction", "createOrderMeasurementItemAction");
+    const recalculateAction = actionBlock(orderActions, "recalculateOrderMaterialsAction", "updateOrderStatusAction");
+    const materials = source("lib/order-materials.ts");
+
+    expect(createAction).toContain("if (context.canManage)");
+    expect(createAction).toContain("saveOrderCostEstimate");
+    expect(createAction).toContain("includePrices: context.canManage");
+    expect(updateDimensionsAction).toContain("includePrices: context.canManage");
+    expect(recalculateAction).toContain("includePrices: context.canManage");
+
+    expect(materials).toContain("includePrices = true");
+    expect(materials).toContain('const inventorySource = includePrices ? "inventory_items" : "inventory_items_public"');
+    expect(materials).toContain("purchasePrice: null");
+    expect(materials).toContain("salesPrice: null");
+
+    expect(orderPage).toContain("canManage={context.canManage}");
+    expect(orderForm).toContain("canManage: boolean");
+    expect(orderForm).toContain("{canManage ? (");
+    expect(orderForm).toContain("Kosten, EK/VK und Margen bleiben Chef/Admin vorbehalten.");
+  });
+
   it("does not trust material usage FormData for company or actor ids", () => {
     const inventoryActions = source("lib/actions/inventory-actions.ts");
     const reportAction = actionBlock(inventoryActions, "reportMaterialUsageAction", "confirmMaterialUsageReportAction");

@@ -8,6 +8,7 @@ import { revalidateDashboardCache } from "@/lib/data/dashboard";
 import { defectDetailSelect } from "@/lib/data/selects";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { enumFormValue, optionalFormString, optionalFormUuid, requiredFormString, requiredFormUuid } from "@/lib/security/form-data";
+import { logServerWarning } from "@/lib/security/logging";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { assertProfilesInCompany } from "@/lib/security/tenant-guards";
 import { sanitizeUploadFileName, validateReportPhoto } from "@/lib/security/uploads";
@@ -104,7 +105,7 @@ async function writeAudit({
       new_values: newValues ?? null
     });
   } catch (error) {
-    console.warn("defect-audit-write-failed", error);
+    logServerWarning("defect-audit-write-failed", error, { companyId, actorId, entityId, action });
   }
 }
 

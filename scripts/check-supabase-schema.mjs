@@ -21,6 +21,10 @@ const sessionTimeoutSetting = fs.readFileSync(
   path.join(root, "supabase/migrations/20260623_session_timeout_setting.sql"),
   "utf8"
 );
+const pricePermissionHardening = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260712_price_permission_hardening.sql"),
+  "utf8"
+);
 
 const failures = [];
 
@@ -88,6 +92,15 @@ check(
     sessionTimeoutSetting.includes("check (session_timeout_minutes between 0 and 1440)"),
   "session timeout migration must add and constrain the company setting."
 );
+check(
+  pricePermissionHardening.includes("delete from public.employee_permissions") &&
+    pricePermissionHardening.includes("'prices.purchase.view'") &&
+    pricePermissionHardening.includes("'prices.sales.view'") &&
+    pricePermissionHardening.includes("'settings.edit'") &&
+    pricePermissionHardening.includes("'users.permissions.manage'") &&
+    pricePermissionHardening.includes("public.can_manage_company()"),
+  "price/manager permission hardening migration must remove delegated Chef-only permissions."
+);
 
 check(inventoryPublicView.includes("where i.company_id = public.current_company_id()"), "inventory_items_public must filter by current company.");
 check(
@@ -112,6 +125,24 @@ check(schema.includes("negative_stock_not_allowed"), "inventory RPC must reject 
 
 check(schema.includes("(storage.foldername(name))[2] = 'reports'"), "storage upload policy must enforce reports path segment.");
 check(schema.includes("r.id::text = (storage.foldername(name))[3]"), "storage upload policy must bind path report_id to reports table.");
+check(
+  block(schema, 'create policy "members can read company report photos"', 'drop policy if exists "members can upload company report photos"').includes(
+    "rp.storage_path = storage.objects.name"
+  ),
+  "storage read policy must bind report photo object path to report_photos metadata."
+);
+check(
+  block(schema, 'create policy "members can read company report photos"', 'drop policy if exists "members can upload company report photos"').includes(
+    "r.archived_at is null"
+  ),
+  "storage read policy must hide report photos behind archived reports."
+);
+check(
+  block(schema, 'create policy "members can read company report photos"', 'drop policy if exists "members can upload company report photos"').includes(
+    "auth.uid() = any(r.employee_ids)"
+  ),
+  "storage read policy must keep employee report photo access assignment-scoped."
+);
 
 check(schema.includes("audit_inventory_price_change"), "price changes must be audited.");
 check(schema.includes("audit_supplier_key_change"), "supplier key changes must be audited.");

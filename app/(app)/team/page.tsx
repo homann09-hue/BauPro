@@ -9,6 +9,7 @@ import { createEmployeeAction, updateEmployeeAction } from "@/lib/actions/auth-a
 import { requireManager } from "@/lib/auth";
 import { teamProfileSelect } from "@/lib/data/selects";
 import { effectivePermissionKeys, normalizePermissionKeys, type PermissionKey } from "@/lib/permissions";
+import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { searchParamMessage } from "@/lib/utils";
@@ -43,7 +44,7 @@ export default async function TeamPage({
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
 
-  const { data } = await supabase
+  const { data, error: profilesError } = await supabase
     .from("profiles")
     .select(teamProfileSelect)
     .eq("company_id", context.companyId)
@@ -69,6 +70,7 @@ export default async function TeamPage({
       ? "Datenbank-Update fehlt: Bitte supabase/migrations/20260622_employee_permissions.sql ausführen."
       : "Rechte konnten nicht geladen werden."
     : null;
+  const teamError = safeQueryErrorMessage(profilesError) || permissionsError;
   const hasServiceRole = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
   const activeProfiles = profiles.filter((profile) => profile.active).length;
   const foremen = profiles.filter((profile) => profile.role === "vorarbeiter").length;
@@ -77,7 +79,7 @@ export default async function TeamPage({
   return (
     <>
       <PageHeader title="Team" description="Mitarbeiter, Rollen und Zugänge direkt verwalten." />
-      <MessageBox error={error || permissionsError} success={success} />
+      <MessageBox error={error || teamError} success={success} />
 
       <section className="mb-5 grid gap-3 sm:grid-cols-3">
         <StatCard icon={ShieldCheck} label="Aktive Zugänge" value={activeProfiles} tone="green" />

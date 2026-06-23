@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
-import { allPermissionKeys, hasAppPermission, normalizePermissionKeys, type PermissionKey } from "@/lib/permissions";
+import { allPermissionKeys, effectivePermissionKeys, hasAppPermission, type PermissionKey } from "@/lib/permissions";
 import { canOperate, isManager } from "@/lib/utils";
 import type { Company, Profile } from "@/types/app";
 
@@ -33,6 +33,7 @@ export type AppContext = {
 
 export async function getOptionalAppContext(): Promise<AppContext | null> {
   const supabase = await createSupabaseServerClient();
+  let companyExtendedFieldsAvailable = true;
   const {
     data: { user }
   } = await supabase.auth.getUser();
@@ -48,6 +49,7 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
   let error = initialProfileResult.error;
 
   if (!profile && error && isMissingSchemaError(error)) {
+    companyExtendedFieldsAvailable = false;
     const fallback = await supabase.from("profiles").select(PROFILE_SELECT_FALLBACK).eq("id", user.id).maybeSingle();
     profile = fallback.data;
     error = fallback.error;
@@ -66,6 +68,7 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
     error = retry.error;
 
     if (!profile && error && isMissingSchemaError(error)) {
+      companyExtendedFieldsAvailable = false;
       const fallback = await supabase.from("profiles").select(PROFILE_SELECT_FALLBACK).eq("id", user.id).maybeSingle();
       profile = fallback.data;
       error = fallback.error;
@@ -78,6 +81,9 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
   const company = typedProfile.companies;
   const companyName = company?.name ?? "Meine Firma";
   const sessionTimeoutMinutes = Number(company?.session_timeout_minutes ?? 30);
+  const onboardingCompletedAt = companyExtendedFieldsAvailable
+    ? company?.onboarding_completed_at ?? null
+    : "1970-01-01T00:00:00.000Z";
   let permissions: PermissionKey[] = isManager(typedProfile.role) ? allPermissionKeys : [];
 
   if (!isManager(typedProfile.role)) {
@@ -89,7 +95,8 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
       .eq("granted", true);
 
     if (!permissionsResult.error) {
-      permissions = normalizePermissionKeys(
+      permissions = effectivePermissionKeys(
+        typedProfile.role,
         (permissionsResult.data ?? []).map((row) => String((row as { permission_key?: string }).permission_key ?? ""))
       );
     } else if (!isMissingSchemaError(permissionsResult.error)) {
@@ -108,7 +115,10 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
       id: typedProfile.company_id,
       name: companyName,
       session_timeout_minutes: Number.isFinite(sessionTimeoutMinutes) ? sessionTimeoutMinutes : 30,
-      onboarding_completed_at: company?.onboarding_completed_at ?? null
+      // Wenn die Onboarding-Spalte in einer alten DB noch fehlt, darf die App
+      // nicht in eine Redirect-Schleife laufen. /debug/system zeigt den
+      // Migrationsfehler separat an.
+      onboarding_completed_at: onboardingCompletedAt
     },
     companyId: typedProfile.company_id,
     companyName,

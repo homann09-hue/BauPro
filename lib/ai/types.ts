@@ -152,6 +152,8 @@ export type AiJobDraftParsed = {
   existing_customer_id: string | null;
   title: string;
   order_type: "steildach" | "flachdach" | "reparatur" | "dachrinne" | "blech" | "wartung" | "sonstiges";
+  roof_form: "satteldach" | "flachdach" | "pultdach" | "walmdach" | "mansarddach" | "sonstiges" | null;
+  material_type: "tonziegel" | "betondachstein" | "schiefer" | "bitumen" | "metall" | "gruen" | "sonstiges" | null;
   priority: "niedrig" | "normal" | "hoch";
   jobsite_name: string | null;
   jobsite_address: string | null;

@@ -142,6 +142,7 @@ describe("Redis rate limiter", () => {
   it("enthaelt keinen synchronen Worker-Pfad mehr", async () => {
     const source = await import("node:fs/promises").then((fs) => fs.readFile("lib/security/rate-limit.ts", "utf8"));
 
+    expect(source).not.toContain("assertRateLimit");
     expect(source).not.toContain("node:worker_threads");
     expect(source).not.toContain("SharedArrayBuffer");
     expect(source).not.toContain("Atomics.wait");

@@ -29,10 +29,6 @@ describe("employee permission management", () => {
         "Kunden bearbeiten",
         "Kundenanfragen ansehen",
         "Kundenanfragen bearbeiten",
-        "Angebote/Kalkulationen ansehen",
-        "Angebote/Kalkulationen erstellen",
-        "EK-Preise sehen",
-        "VK-Preise sehen",
         "Lager ansehen",
         "Lager bearbeiten",
         "Material bestellen",
@@ -42,11 +38,15 @@ describe("employee permission management", () => {
         "Fotos löschen",
         "Berichte erstellen",
         "Berichte freigeben",
-        "Fahrzeuge/Lagerorte verwalten",
-        "Einstellungen bearbeiten",
-        "Benutzer/Rechte verwalten"
+        "Fahrzeuge/Lagerorte verwalten"
       ])
     );
+    expect(labels).not.toContain("Angebote/Kalkulationen ansehen");
+    expect(labels).not.toContain("Angebote/Kalkulationen erstellen");
+    expect(labels).not.toContain("EK-Preise sehen");
+    expect(labels).not.toContain("VK-Preise sehen");
+    expect(labels).not.toContain("Einstellungen bearbeiten");
+    expect(labels).not.toContain("Benutzer/Rechte verwalten");
     expect(new Set(allPermissionKeys).size).toBe(allPermissionKeys.length);
   });
 
@@ -54,9 +54,15 @@ describe("employee permission management", () => {
     expect(effectivePermissionKeys("admin", [])).toEqual(allPermissionKeys);
     expect(effectivePermissionKeys("chef", ["orders.view"])).toEqual(allPermissionKeys);
     expect(effectivePermissionKeys("mitarbeiter", ["orders.view", "orders.view", "unknown"])).toEqual(["orders.view"]);
+    expect(effectivePermissionKeys("vorarbeiter", ["prices.purchase.view", "quotes.create", "settings.edit", "orders.view"])).toEqual([
+      "orders.view"
+    ]);
     expect(normalizePermissionKeys(["customers.edit", "unknown", "orders.view"])).toEqual(["customers.edit", "orders.view"]);
     expect(hasAppPermission("mitarbeiter", ["orders.create"], "orders.create")).toBe(true);
     expect(hasAppPermission("mitarbeiter", ["orders.create"], "prices.purchase.view")).toBe(false);
+    expect(hasAppPermission("vorarbeiter", ["prices.sales.view"], "prices.sales.view")).toBe(false);
+    expect(hasAppPermission("vorarbeiter", ["settings.edit"], "settings.edit")).toBe(false);
+    expect(hasAppPermission("mitarbeiter", ["quotes.create"], "quotes.create")).toBe(false);
   });
 
   it("adds Supabase RLS, helper function and audit log for employee permissions", () => {
@@ -66,6 +72,9 @@ describe("employee permission management", () => {
     expect(migration).toContain("create table if not exists public.employee_permission_audit_log");
     expect(migration).toContain("alter table public.employee_permissions force row level security");
     expect(migration).toContain("function public.has_employee_permission");
+    expect(migration).toContain("'prices.purchase.view'");
+    expect(migration).toContain("'settings.edit'");
+    expect(migration).toContain("'users.permissions.manage'");
     expect(migration).toContain("assert_employee_permission_change_allowed");
     expect(migration).toContain("target_profile_id = auth.uid()");
     expect(migration).toContain("target_role in ('admin', 'chef')");
@@ -86,6 +95,20 @@ describe("employee permission management", () => {
     expect(actions).toContain('.from("employee_permission_audit_log").insert');
     expect(actions).toContain("old_values: { permissions: oldPermissions }");
     expect(actions).toContain("new_values: { permissions: requestedPermissions }");
+    expect(actions).toContain("assignableEmployeePermissionKeys.map");
+    expect(actions).toContain("filter(isAssignableEmployeePermission)");
+  });
+
+  it("adds a follow-up migration that removes legacy delegated Chef and price permissions", () => {
+    const migration = source("supabase/migrations/20260712_price_permission_hardening.sql");
+
+    expect(migration).toContain("delete from public.employee_permissions");
+    expect(migration).toContain("'quotes.create'");
+    expect(migration).toContain("'prices.purchase.view'");
+    expect(migration).toContain("'settings.edit'");
+    expect(migration).toContain("'users.permissions.manage'");
+    expect(migration).toContain("employee_permissions_permission_key_check");
+    expect(migration).toContain("public.can_manage_company()");
   });
 
   it("offers desktop right-click, mobile long-press and a visible three-dot permissions entry", () => {

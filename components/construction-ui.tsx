@@ -1,5 +1,20 @@
 import Link from "next/link";
-import { ArrowRight, BellPlus, CalendarDays, Camera, ClipboardList, Clock3, MapPin, Mic2, Users, type LucideIcon } from "lucide-react";
+import {
+  ArrowRight,
+  BellPlus,
+  CalendarDays,
+  Camera,
+  ClipboardList,
+  Clock3,
+  CloudSun,
+  ListChecks,
+  MapPin,
+  Mic2,
+  Navigation,
+  ShieldAlert,
+  Users,
+  type LucideIcon
+} from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { cn, formatDate } from "@/lib/utils";
 import type { Jobsite } from "@/types/app";
@@ -180,6 +195,13 @@ export function TodayJobsiteFocus({
     );
   }
 
+  const mapsQuery = jobsite.latitude && jobsite.longitude ? `${jobsite.latitude},${jobsite.longitude}` : jobsite.address;
+  const mapsHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`;
+  const weatherText =
+    jobsite.latitude && jobsite.longitude
+      ? "Wettervorschlag wird beim Bericht passend zur Baustelle gespeichert."
+      : "Adresse ist da. Koordinaten fehlen noch, Wetter kann notfalls manuell ergänzt werden.";
+
   return (
     <section className="overflow-hidden border border-line bg-surface shadow-lift">
       <div className="grid gap-0 lg:grid-cols-[1.05fr_0.95fr]">
@@ -196,13 +218,23 @@ export function TodayJobsiteFocus({
               Baustelle öffnen
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
+            <a href={mapsHref} target="_blank" rel="noreferrer" className="btn-secondary w-full sm:w-auto">
+              <Navigation className="h-4 w-4" aria-hidden="true" />
+              Navigation starten
+            </a>
             <Link href="/bring-lists" className="btn-secondary w-full sm:w-auto">
               Mitbringliste
             </Link>
           </div>
+
+          <div className="mt-5 grid gap-2 sm:grid-cols-3">
+            <ConstructionHint icon={CloudSun} title="Wetter" text={weatherText} />
+            <ConstructionHint icon={ListChecks} title="Mitbringen" text="Material, Werkzeug und Hinweise für morgen direkt prüfen." />
+            <ConstructionHint icon={ShieldAlert} title="Nachweis" text="Fotos, Mängel und Besonderheiten direkt im Bericht sichern." />
+          </div>
         </div>
         <div className="border-t border-line bg-mint p-4 sm:p-5 lg:border-l lg:border-t-0">
-          <p className="mb-3 text-xs font-black uppercase tracking-normal text-slate-500">Direkt erledigen</p>
+          <p className="mb-3 text-xs font-black uppercase tracking-normal text-slate-500">Baustellenmodus</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <QuickActionButton href="/time/new" icon={Clock3} title="Arbeit starten" description="Zeit erfassen" primary />
             <QuickActionButton href="/berichte/neu" icon={Mic2} title="Bericht sprechen" description="Text oder Sprache" />
@@ -212,6 +244,20 @@ export function TodayJobsiteFocus({
         </div>
       </div>
     </section>
+  );
+}
+
+function ConstructionHint({ icon: Icon, title, text }: { icon: LucideIcon; title: string; text: string }) {
+  return (
+    <div className="min-h-24 border border-line bg-coal p-3 text-ink shadow-sm">
+      <div className="flex items-center gap-2">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center border border-line bg-surface text-primary">
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <p className="text-sm font-black text-ink">{title}</p>
+      </div>
+      <p className="mt-2 text-xs font-semibold leading-5 text-ash">{text}</p>
+    </div>
   );
 }
 

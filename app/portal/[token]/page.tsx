@@ -14,6 +14,7 @@ import {
   Download,
   FileSignature,
   FileText,
+  LockKeyhole,
   Mail,
   MapPin,
   MessageSquareText,
@@ -37,6 +38,7 @@ import {
 import { customerDisplayName } from "@/lib/order-labels";
 import { defectPriorityLabels, defectStatusLabels } from "@/lib/defects";
 import { SafeActionError } from "@/lib/security/errors";
+import { logServerWarning } from "@/lib/security/logging";
 import { getClientIp } from "@/lib/security/origin";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { formatDate, formatDateTime, formatMoney, searchParamMessage } from "@/lib/utils";
@@ -85,7 +87,7 @@ export default async function CustomerPortalPage({
   try {
     portal = await loadCustomerPortalData(token);
   } catch (loadError) {
-    console.error("customer-portal-load-failed", loadError);
+    logServerWarning("customer-portal-load-failed", loadError);
   }
 
   if (!portal) return <PortalAccessUnavailable />;
@@ -97,6 +99,8 @@ export default async function CustomerPortalPage({
     ...portal.jobsiteDocuments.map((document) => document.signedUrl).filter((url): url is string => Boolean(url))
   ];
   const signedOrOpenWorkOrders = portal.workOrders.filter((workOrder) => workOrder.status !== "draft");
+  const nextAppointment = portal.appointments[0] ?? null;
+  const latestUpdate = portal.events[0] ?? null;
 
   return (
     <main className="min-h-screen bg-fog text-ink">
@@ -112,7 +116,7 @@ export default async function CustomerPortalPage({
               <p className="text-sm font-bold uppercase tracking-normal text-mint">Sicherer Kundenbereich</p>
               <h1 className="mt-2 text-3xl font-black tracking-normal sm:text-4xl">{portal.jobsite?.name ?? "Ihr Auftrag"}</h1>
               <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-white/75">
-                Hallo {customerName}, hier sehen Sie freigegebene Baustellen-Updates, Fotos, Dokumente und Unterschriften.
+                Hallo {customerName}, hier sehen Sie den freigegebenen Projektstand, Termine, Fotos, Dokumente und offene Freigaben.
               </p>
             </div>
             <div className="rounded-lg border border-white/10 bg-white/10 p-4 lg:min-w-80">
@@ -130,6 +134,12 @@ export default async function CustomerPortalPage({
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-mint" aria-hidden="true" />
                 {portal.jobsite?.address ?? "Adresse wird vom Betrieb gepflegt"}
               </p>
+              {nextAppointment ? (
+                <p className="mt-2 flex gap-2 text-sm font-semibold text-white/80">
+                  <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-mint" aria-hidden="true" />
+                  Nächster Termin: {nextAppointment.title}
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -138,16 +148,41 @@ export default async function CustomerPortalPage({
       <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:px-8">
         <MessageBox error={error} success={success} />
 
+        <PortalQuickNav />
+
         <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard label="Status" value={portal.jobsite?.status ?? "offen"} icon={<ShieldCheck className="h-5 w-5" />} />
-          <MetricCard label="Fotos" value={String(portal.photos.length)} icon={<Camera className="h-5 w-5" />} />
+          <MetricCard label="Fortschritt" value={`${portal.progressPercent}%`} icon={<ShieldCheck className="h-5 w-5" />} />
+          <MetricCard label="Freigegebene Fotos" value={String(portal.photos.length)} icon={<Camera className="h-5 w-5" />} />
           <MetricCard label="Dokumente" value={String(portal.documents.length + portal.jobsiteDocuments.length)} icon={<FileText className="h-5 w-5" />} />
-          <MetricCard label="Berichte" value={String(portal.reports.length)} icon={<ClipboardList className="h-5 w-5" />} />
+          <MetricCard label="Bautagesberichte" value={String(portal.reports.length)} icon={<ClipboardList className="h-5 w-5" />} />
         </div>
+
+        <section className="mb-5 rounded-lg border border-primary/20 bg-mint p-4 text-primary-dark shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-white text-primary shadow-sm">
+                <LockKeyhole className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="font-black">Nur freigegebene Informationen</p>
+                <p className="mt-1 text-sm leading-6 text-primary-dark/80">
+                  Interne Notizen, Lagerdaten, EK-/VK-Preise und Mitarbeiterdetails bleiben im Betrieb.
+                  Dieses Portal zeigt nur Inhalte, die bewusst für Kunden freigegeben wurden.
+                </p>
+              </div>
+            </div>
+            {latestUpdate ? (
+              <div className="rounded-md bg-white/70 p-3 text-sm font-semibold text-primary-dark lg:min-w-72">
+                <span className="text-xs font-black uppercase tracking-normal text-primary/70">Letztes Update</span>
+                <p className="mt-1">{latestUpdate.title}</p>
+              </div>
+            ) : null}
+          </div>
+        </section>
 
         <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
           <section className="space-y-5">
-            <section className="surface p-4 sm:p-5">
+            <section id="freigaben" className="surface p-4 sm:p-5">
               <SectionTitle
                 icon={<FileSignature className="h-6 w-6 text-primary" aria-hidden="true" />}
                 title="Arbeitsaufträge unterschreiben"
@@ -164,7 +199,7 @@ export default async function CustomerPortalPage({
               )}
             </section>
 
-            <section className="surface p-4 sm:p-5">
+            <section id="berichte" className="surface p-4 sm:p-5">
               <SectionTitle
                 icon={<ClipboardList className="h-6 w-6 text-primary" aria-hidden="true" />}
                 title="Freigegebene Bautagesberichte"
@@ -181,7 +216,7 @@ export default async function CustomerPortalPage({
               )}
             </section>
 
-            <section className="surface p-4 sm:p-5">
+            <section id="maengel" className="surface p-4 sm:p-5">
               <SectionTitle
                 icon={<AlertTriangle className="h-6 w-6 text-primary" aria-hidden="true" />}
                 title="Freigegebene Mängel und offene Punkte"
@@ -198,7 +233,7 @@ export default async function CustomerPortalPage({
               )}
             </section>
 
-            <section className="surface p-4 sm:p-5">
+            <section id="fotos" className="surface p-4 sm:p-5">
               <SectionTitle
                 icon={<Camera className="h-6 w-6 text-primary" aria-hidden="true" />}
                 title="Freigegebene Fotos"
@@ -229,7 +264,7 @@ export default async function CustomerPortalPage({
               )}
             </section>
 
-            <section className="surface p-4 sm:p-5">
+            <section id="auftraege" className="surface p-4 sm:p-5">
               <SectionTitle
                 icon={<BriefcaseBusiness className="h-6 w-6 text-primary" aria-hidden="true" />}
                 title="Aufträge, Angebote und Rechnungen"
@@ -251,7 +286,7 @@ export default async function CustomerPortalPage({
           </section>
 
           <aside className="space-y-5">
-            <section className="surface p-4 sm:p-5">
+            <section id="termine" className="surface p-4 sm:p-5">
               <p className="meta-label">Projekt</p>
               <h2 className="mt-1 text-xl font-black text-ink">{portal.jobsite?.name ?? "Auftrag"}</h2>
               <div className="mt-4 space-y-3 text-sm font-semibold text-slate-700">
@@ -264,7 +299,7 @@ export default async function CustomerPortalPage({
               </div>
             </section>
 
-            <section className="surface p-4 sm:p-5">
+            <section id="updates" className="surface p-4 sm:p-5">
               <SectionTitle
                 icon={<UserRound className="h-5 w-5 text-primary" aria-hidden="true" />}
                 title="Ansprechpartner"
@@ -331,11 +366,11 @@ export default async function CustomerPortalPage({
               jobsiteDocuments={portal.jobsiteDocuments}
             />
 
-            <section className="surface p-4 sm:p-5">
+            <section id="fragen" className="surface p-4 sm:p-5">
               <SectionTitle
                 icon={<MessageSquareText className="h-5 w-5 text-primary" aria-hidden="true" />}
-                title="Frage senden"
-                description="Ihre Nachricht geht direkt an den Betrieb."
+                title="Fragen & Antworten"
+                description="Ihre Nachricht geht direkt an den Betrieb und bleibt beim Projekt."
               />
               <form action={sendCustomerPortalMessageAction} className="mt-4 grid gap-3">
                 <input type="hidden" name="token" value={token} />
@@ -371,8 +406,16 @@ export default async function CustomerPortalPage({
                   <p className="meta-label">Gesendete Fragen</p>
                   {portal.messages.slice(0, 4).map((message) => (
                     <div key={message.id} className="rounded-md border border-line bg-fog p-3">
-                      <p className="text-sm font-semibold text-ink">{message.message}</p>
-                      <p className="mt-2 text-xs font-semibold text-slate-500">{formatDateTime(message.created_at)}</p>
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm font-semibold text-ink">{message.message}</p>
+                        <span className="shrink-0 rounded-md bg-white px-2 py-1 text-xs font-black text-slate-600">
+                          {message.status === "answered" ? "Beantwortet" : "Offen"}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs font-semibold text-slate-500">
+                        Gesendet am {formatDateTime(message.created_at)}
+                        {message.answered_at ? ` · beantwortet am ${formatDateTime(message.answered_at)}` : ""}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -399,6 +442,28 @@ function PortalAccessUnavailable() {
         </Link>
       </section>
     </main>
+  );
+}
+
+function PortalQuickNav() {
+  const links = [
+    { href: "#freigaben", label: "Freigaben" },
+    { href: "#termine", label: "Termine" },
+    { href: "#berichte", label: "Berichte" },
+    { href: "#fotos", label: "Fotos" },
+    { href: "#fragen", label: "Frage senden" }
+  ];
+
+  return (
+    <nav className="mb-5 overflow-x-auto rounded-lg border border-line bg-white p-2 shadow-sm" aria-label="Kundenportal Bereiche">
+      <div className="flex min-w-max gap-2">
+        {links.map((link) => (
+          <a key={link.href} href={link.href} className="rounded-md bg-fog px-3 py-2 text-sm font-black text-slate-700 hover:bg-mint hover:text-primary">
+            {link.label}
+          </a>
+        ))}
+      </div>
+    </nav>
   );
 }
 

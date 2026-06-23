@@ -1,5 +1,6 @@
 import { getOptionalAppContext } from "@/lib/auth";
 import { downloadHeaders } from "@/lib/security/downloads";
+import { logServerError } from "@/lib/security/logging";
 import { buildTimeReportPdf, loadTimeReportExportData, timeReportFilename } from "@/lib/time-report-export";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -15,7 +16,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       headers: downloadHeaders("application/pdf", timeReportFilename(data, "pdf"))
     });
   } catch (error) {
-    console.error("time-report-pdf-export-failed", error);
+    logServerError("time-report-pdf-export-failed", error);
     return new Response("PDF konnte nicht erzeugt werden.", { status: 500 });
   }
 }

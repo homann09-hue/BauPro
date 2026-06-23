@@ -22,6 +22,7 @@ import { checkAiLimit } from "@/lib/billing/plans";
 import { searchOrFilter } from "@/lib/data/shared";
 import { aiActionSelect } from "@/lib/data/selects";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
+import { logServerWarning } from "@/lib/security/logging";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { isMissingSchemaError, migrationMissingMessage } from "@/lib/supabase/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -362,7 +363,7 @@ async function createAiActionProposal({
     .single();
 
   if (error) {
-    if (!isMissingSchemaError(error)) console.error("AI action proposal failed", error.message);
+    if (!isMissingSchemaError(error)) logServerWarning("ai-action-proposal-failed", error);
     return null;
   }
 
@@ -868,7 +869,7 @@ export async function markAiActionStatus({
     .eq("user_id", context.userId);
 
   if (error && !isMissingSchemaError(error)) {
-    console.error("AI action status update failed", error.message);
+    logServerWarning("ai-action-status-update-failed", error, { actionId });
   }
 }
 

@@ -29,6 +29,7 @@ import { requireAppContext } from "@/lib/auth";
 import { searchOrFilter } from "@/lib/data/shared";
 import { materialMovementSelect, materialUsageReportSelect } from "@/lib/data/selects";
 import { ensureDefaultInventoryLocations, formatQuantity, isLowStock } from "@/lib/inventory";
+import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cn, formatDateTime, formatMoney, searchParamMessage } from "@/lib/utils";
 import type {
@@ -45,6 +46,7 @@ import type {
 
 type InventoryListItem = InventoryItem | PublicInventoryItem;
 const pageSize = 24;
+const lowStockScanLimit = 300;
 
 function getSearchParam(params: Record<string, string | string[] | undefined>, key: string) {
   const value = params[key];
@@ -148,21 +150,21 @@ export default async function InventoryPage({
   }
 
   const [
-    { data, count },
-    { data: supplierRows },
-    { data: lowStockRows },
-    { data: jobsiteRows },
-    { data: usageReportRows },
-    { data: movementRows }
+    inventoryResult,
+    suppliersResult,
+    lowStockResult,
+    jobsitesResult,
+    usageReportsResult,
+    movementsResult
   ] = await Promise.all([
     inventoryQuery.order("name", { ascending: true }).range(onlyLowStock ? 0 : from, onlyLowStock ? 199 : to),
     context.canManage
       ? supabase.from("suppliers").select("id, company_id, name, contact_name, phone, email, notes, active").eq("company_id", context.companyId).eq("active", true).order("name")
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
     (context.canManage ? supabase.from("inventory_items") : supabase.from("inventory_items_public"))
       .select("id, name, unit, stock, minimum_stock, location_id")
       .eq("company_id", context.companyId)
-      .limit(1000),
+      .limit(lowStockScanLimit),
     jobsitesQuery.limit(100),
     supabase
       .from("material_usage_reports")
@@ -179,6 +181,7 @@ export default async function InventoryPage({
       .limit(12)
   ]);
 
+  const { data, count } = inventoryResult;
   const allItems = (data ?? []) as InventoryListItem[];
   const inventoryItems = allItems.filter((item) => {
     if (onlyLowStock && !isLowStock(item)) return false;
@@ -187,17 +190,25 @@ export default async function InventoryPage({
 
   const totalCount = onlyLowStock ? inventoryItems.length : count ?? inventoryItems.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-  const stockItems = (lowStockRows ?? []) as Array<
+  const stockItems = (lowStockResult.data ?? []) as Array<
     Pick<InventoryListItem, "id" | "name" | "unit" | "stock" | "minimum_stock" | "location_id">
   >;
   const inventoryItemById = new Map<string, Pick<InventoryListItem, "id" | "name" | "unit" | "stock" | "minimum_stock" | "location_id">>(
     [...stockItems, ...allItems].map((item) => [item.id, item])
   );
   const lowStockCount = stockItems.filter(isLowStock).length;
-  const suppliers = (supplierRows ?? []) as Supplier[];
-  const jobsites = (jobsiteRows ?? []) as Jobsite[];
-  const usageReports = (usageReportRows ?? []) as unknown as MaterialUsageReport[];
-  const movements = (movementRows ?? []) as unknown as MaterialMovement[];
+  const lowStockBadge = stockItems.length >= lowStockScanLimit ? `${lowStockCount}+` : String(lowStockCount);
+  const suppliers = (suppliersResult.data ?? []) as Supplier[];
+  const jobsites = (jobsitesResult.data ?? []) as Jobsite[];
+  const usageReports = (usageReportsResult.data ?? []) as unknown as MaterialUsageReport[];
+  const movements = (movementsResult.data ?? []) as unknown as MaterialMovement[];
+  const queryError =
+    safeQueryErrorMessage(inventoryResult.error) ||
+    safeQueryErrorMessage(suppliersResult.error) ||
+    safeQueryErrorMessage(lowStockResult.error) ||
+    safeQueryErrorMessage(jobsitesResult.error) ||
+    safeQueryErrorMessage(usageReportsResult.error) ||
+    safeQueryErrorMessage(movementsResult.error);
   const visibleLocations = context.canManage
     ? locations.map((location) => ({ id: location.id, name: location.name }))
     : [
@@ -223,7 +234,7 @@ export default async function InventoryPage({
         actionIcon={context.canManage ? Search : undefined}
       />
       <MaterialSubnav active="/materials/inventory" canManage={context.canManage} canOperate={context.canOperate} />
-      <MessageBox error={error} success={success} />
+      <MessageBox error={error || queryError} success={success} />
 
       <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_auto]">
         <form className="filter-bar grid gap-3 sm:grid-cols-[1fr_220px_auto]" action="/materials/inventory">
@@ -263,7 +274,7 @@ export default async function InventoryPage({
           )}
         >
           <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-          {lowStockCount} knapp
+          {lowStockBadge} knapp
         </Link>
       </div>
 

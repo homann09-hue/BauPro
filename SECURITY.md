@@ -11,7 +11,7 @@ Pruefpflichtige technische Arbeitsgrundlage, keine Rechtsberatung.
 - `vorarbeiter` und `mitarbeiter` sehen keine EK/VK-, Margen-, Aufschlags- oder Preisvergleichsdaten.
 - Server Actions und Export-Routen pruefen Auth-Kontext serverseitig.
 - OpenAI wird nur serverseitig genutzt; API-Keys duerfen nie `NEXT_PUBLIC_*` sein.
-- Report-Fotos liegen in privatem Supabase Storage Bucket `report-photos`.
+- Report-Fotos liegen im privaten Supabase Storage Bucket `report-photos`; Lesen ist an Firmenpfad, `report_photos`-Metadaten, nicht archivierte Berichte und Manager-/Ersteller-/Mitarbeiterzuordnung gebunden.
 - Foto-Uploads sind auf JPG, PNG, WebP, HEIC/HEIF und 10 MB begrenzt.
 - PDF-/CSV-Export ist managergeschuetzt.
 - Fehlerausgaben an API-Routen vermeiden rohe Provider-/DB-Details.
@@ -25,7 +25,7 @@ Wichtige Policies stehen in `supabase/schema.sql` und Delta-Migrationen:
 - Baustellen/Auftraege fuer Mitarbeiter nur bei Zuordnung.
 - Rollen-Eskalation wird per `assert_role_change_allowed` BEFORE-Trigger verhindert: `chef` darf keine Nutzer zu `admin` befoerdern und der letzte Firmen-Admin darf nicht herabgestuft werden.
 - Inventory-Preistabellen nur Chef/Admin; Mitarbeiter nutzen preisbereinigte Views.
-- Storage Delete fuer Report-Fotos: eigene Firma plus Chef/Admin oder Objektinhaber.
+- Storage fuer Report-Fotos: Uploadpfad muss `company_id/reports/report_id/...` entsprechen, Lesen muss zur `report_photos`-Metadatenzeile und einem berechtigten Bericht passen, Delete ist auf Chef/Admin oder Objektinhaber beschraenkt.
 - Datenschutzanfragen: eigene Anfrage oder Chef/Admin.
 
 ## Zwei-Faktor-Authentifizierung
@@ -42,7 +42,8 @@ Wichtige Policies stehen in `supabase/schema.sql` und Delta-Migrationen:
 - Service Role Key nur serverseitig speichern.
 - OpenAI-Key rotieren, wenn er jemals in Chat/Logs geteilt wurde.
 - Redis/KV Rate Limiting in Production verpflichtend konfigurieren (`UPSTASH_REDIS_REST_*` oder `KV_REST_API_*`); ohne Redis blockt die App rate-limitierte Aktionen.
-- Security Header/CSP fuer Production ergaenzen und mit Uploads/PDFs testen.
+- Rechtstexte, AVV/DPA und Anbieterkennzeichnung vor echter Vermarktung final juristisch pruefen; die App kennzeichnet diese Inhalte bewusst als pruefpflichtige Entwuerfe.
+- Security Header/CSP fuer Production regelmaessig mit Uploads, PDF, PWA und Vercel Analytics testen.
 - Backup-/Restore-Konzept und Incident-Prozess dokumentieren.
 
 ## Dependency Security Scanning

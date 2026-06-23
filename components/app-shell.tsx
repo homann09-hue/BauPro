@@ -7,8 +7,10 @@ import {
   CheckCircle2,
   ClipboardList,
   Clock3,
+  Settings,
   ShieldCheck,
   Sparkles,
+  Users,
   type LucideIcon
 } from "lucide-react";
 import { getInitials } from "@/lib/utils";
@@ -116,17 +118,18 @@ function getShellNavigation(context: AppContext) {
     return {
       primaryNav: managerPrimaryNav,
       mobileNav: [
-        managerPrimaryNav[0],
-        managerPrimaryNav[1],
-        managerPrimaryNav[2],
-        managerPrimaryNav[4],
+        { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+        { href: "/baustellen", label: "Baustellen", icon: "baustellen" },
+        { href: "/time-tracking/daily", label: "Zeiten", icon: "zeiten" },
+        { href: "/berichte", label: "Berichte", icon: "berichte" },
+        { href: "/materials/inventory", label: "Lager", icon: "lager" },
         { href: "/mehr", label: "Mehr", icon: "mehr" }
       ].filter(Boolean) as NavItem[],
       quickLinks: managerQuickLinks,
       mobileActions: [
         { href: "/orders/new", label: "Auftrag", icon: BriefcaseBusiness, primary: true },
-        { href: "/time-tracking/daily", label: "Zeiten", icon: Clock3 },
-        { href: "/ai-assistant", label: "KI", icon: Sparkles }
+        { href: "/team", label: "Team", icon: Users },
+        { href: "/settings", label: "Setup", icon: Settings }
       ] satisfies MobileAction[],
       notice: "Chef/Admin sieht Preise, Team, Einstellungen und operative Schnellzugriffe."
     };
@@ -136,17 +139,17 @@ function getShellNavigation(context: AppContext) {
     return {
       primaryNav: foremanPrimaryNav,
       mobileNav: [
-        foremanPrimaryNav[0],
-        foremanPrimaryNav[1],
-        foremanPrimaryNav[2],
-        foremanPrimaryNav[4],
-        { href: "/mehr", label: "Mehr", icon: "mehr" }
+        { href: "/dashboard", label: "Heute", icon: "dashboard" },
+        { href: "/baustellen", label: "Baustellen", icon: "baustellen" },
+        { href: "/time-tracking", label: "Zeiten", icon: "zeiten" },
+        { href: "/material-melden", label: "Material", icon: "materialMelden" },
+        { href: "/berichte", label: "Berichte", icon: "berichte" }
       ].filter(Boolean) as NavItem[],
       quickLinks: [...permittedQuickLinks, ...employeeQuickLinks],
       mobileActions: [
         { href: "/time/new", label: "Zeit", icon: Clock3, primary: true },
-        { href: "/berichte/neu", label: "Bericht", icon: ClipboardList },
-        { href: "/material-melden", label: "Material", icon: BellPlus }
+        { href: "/berichte/neu", label: "Foto", icon: Camera },
+        { href: "/bring-lists", label: "Mitbringen", icon: ClipboardList }
       ] satisfies MobileAction[],
       notice: "Vorarbeiter sieht operative Baustellen, Zeiten, Berichte und Mitbringlisten ohne Preisdetails."
     };
@@ -155,11 +158,11 @@ function getShellNavigation(context: AppContext) {
   return {
     primaryNav: employeePrimaryNav,
     mobileNav: [
-      employeePrimaryNav[0],
-      employeePrimaryNav[1],
-      employeePrimaryNav[2],
-      employeePrimaryNav[4],
-      { href: "/mehr", label: "Mehr", icon: "mehr" }
+      { href: "/dashboard", label: "Heute", icon: "dashboard" },
+      { href: "/baustellen", label: "Baustellen", icon: "baustellen" },
+      { href: "/time-tracking", label: "Zeiten", icon: "zeiten" },
+      { href: "/material-melden", label: "Material", icon: "materialMelden" },
+      { href: "/berichte", label: "Berichte", icon: "berichte" }
     ].filter(Boolean) as NavItem[],
     quickLinks: [...permittedQuickLinks, ...employeeQuickLinks],
     mobileActions: [
@@ -180,6 +183,7 @@ export function AppShell({
 }) {
   const { primaryNav, mobileNav, quickLinks, mobileActions, notice } = getShellNavigation(context);
   const roleLabel = roleLabels[context.profile.role];
+  const mobileNavGridClass = mobileNav.length === 6 ? "grid-cols-6" : "grid-cols-5";
 
   return (
     <div className="app-shell-bg">
@@ -302,7 +306,7 @@ export function AppShell({
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-basalt/95 px-2 pb-[calc(0.25rem+env(safe-area-inset-bottom))] pt-1 shadow-[0_-16px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl lg:hidden">
-        <div className="mx-auto grid max-w-3xl grid-cols-5 gap-1 pb-1">
+        <div className={`mx-auto grid max-w-3xl ${mobileNavGridClass} gap-1 pb-1`}>
           {mobileNav.map((item) => (
             <NavLink key={item.href} {...item} variant="mobile" />
           ))}

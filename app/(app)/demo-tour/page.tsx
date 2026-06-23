@@ -1,46 +1,54 @@
 import Link from "next/link";
-import { ArrowRight, BriefcaseBusiness, Clock3, FileText, PackageCheck, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, Clock3, FileText, PackageCheck, ShieldCheck, Sparkles, UserRoundCheck } from "lucide-react";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { requireAppContext } from "@/lib/auth";
-import { DEMO_COMPANY_NAME } from "@/lib/demo/constants";
+import { DEMO_COMPANY_NAME, DEMO_CUSTOMER_PORTAL_TOKEN } from "@/lib/demo/constants";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { searchParamMessage } from "@/lib/utils";
 
-const tourCards = [
+const baseTourCards = [
   {
-    title: "1. Betrieb heute verstehen",
+    title: "1. Dashboard: Betrieb heute verstehen",
     text: "Dashboard öffnen: aktive Baustellen, offene Zeiten, Materialwarnungen und Schnellaktionen zeigen sofort den Zustand.",
     href: "/dashboard",
     label: "Dashboard zeigen",
     icon: Sparkles
   },
   {
-    title: "2. Auftrag mit Aufmass öffnen",
+    title: "2. Baustelle öffnen",
     text: "Steildach Schmidt zeigt Maße, Aufmasspositionen, 20 % Verschnitt und automatisch erzeugte Materialliste.",
     href: "/orders",
     label: "Aufträge öffnen",
     icon: BriefcaseBusiness
   },
   {
-    title: "3. Lagerwarnung prüfen",
+    title: "3. Materialbedarf sehen",
     text: "Konterlatten und Spenglerschrauben sind knapp. Chef sieht Einkaufsvorschläge, Mitarbeiter keine Preise.",
     href: "/materials/control-center",
     label: "Material-Zentrale",
     icon: PackageCheck
   },
   {
-    title: "4. Tagesstunden freigeben",
-    text: "Eingereichte Zeiten zeigen Baustelle, Ort, Pause, Nettozeit und Freigabestatus ohne Tabellen-Chaos am Handy.",
+    title: "4. Zeit und Bericht erfassen",
+    text: "Eingereichte Zeiten zeigen Baustelle, Ort, Pause und Nettozeit. Berichte dokumentieren Wetter, Tätigkeit und Material.",
     href: "/time-tracking/daily",
     label: "Tagesstunden",
     icon: Clock3
   },
   {
-    title: "5. Bericht und Mitbringliste zeigen",
-    text: "Tagesbericht dokumentiert Wetter, Tätigkeit und Material. Mitbringliste zeigt, was morgen auf den Wagen muss.",
-    href: "/berichte",
-    label: "Berichte öffnen",
+    title: "5. Kundenportal zeigen",
+    text: "Der Kunde sieht nur freigegebene Updates, Berichte, Dokumente und Arbeitsaufträge. Keine internen Notizen, keine Preise.",
+    href: `/portal/${encodeURIComponent(DEMO_CUSTOMER_PORTAL_TOKEN)}`,
+    label: "Kundenportal öffnen",
+    icon: UserRoundCheck,
+    demoOnly: true
+  },
+  {
+    title: "6. Chef-Auswertung prüfen",
+    text: "Mitbringlisten, offene Zeiten, Materialwarnungen und Einkaufsvorschläge zeigen, wo der Betrieb heute handeln muss.",
+    href: "/bring-lists",
+    label: "Mitbringlisten",
     icon: FileText
   }
 ];
@@ -60,6 +68,15 @@ export default async function DemoTourPage({
     supabase.from("time_entries").select("id", { count: "exact", head: true }).eq("company_id", context.companyId)
   ]);
   const isDemoCompany = context.companyName === DEMO_COMPANY_NAME;
+  const tourCards = baseTourCards.map((card) =>
+    card.demoOnly && !isDemoCompany
+      ? {
+          ...card,
+          href: "/orders",
+          label: "Kundenportal am Auftrag"
+        }
+      : card
+  );
 
   return (
     <>
@@ -84,7 +101,7 @@ export default async function DemoTourPage({
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-white/70 sm:text-base">
               Folge den Karten von oben nach unten. Jede Station beantwortet eine Chef-Frage: Was ist heute los?
-              Was fehlt? Wer hat Stunden eingetragen? Was muss morgen mit?
+              Was fehlt? Was muss morgen mit? Was sieht der Kunde? Was muss ich freigeben?
             </p>
           </div>
           <aside className="border-t border-white/10 bg-slate-900 p-5 sm:p-7 lg:border-l lg:border-t-0">

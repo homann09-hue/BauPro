@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { getOptionalAppContext } from "@/lib/auth";
+import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
+import { logServerWarning } from "@/lib/security/logging";
+import { getClientIp } from "@/lib/security/origin";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchLiveWeather, selectActiveWeatherJobsite } from "@/lib/weather/live-weather";
 
@@ -27,6 +31,9 @@ export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
 
   try {
+    const clientIp = getClientIp(request.headers);
+    await checkRateLimit(`prefetch:${context.companyId}:${context.userId}:${clientIp}`, 120, 60_000);
+
     if (scope === "jobsites") {
       let query = supabase
         .from("jobsites")
@@ -142,7 +149,7 @@ export async function GET(request: Request) {
         .eq("company_id", context.companyId)
         .gte("date", todayIso)
         .order("date", { ascending: true })
-        .limit(context.canManage ? 80 : 20);
+        .limit(context.canManage ? 40 : 12);
       if (!context.canManage) query = query.eq("employee_id", context.userId);
       const { data } = await query;
 
@@ -315,7 +322,14 @@ export async function GET(request: Request) {
       materials: materialResult.data ?? []
     });
   } catch (error) {
-    console.warn("prefetch-route-data-failed", error);
-    return response({ ok: false, scope, message: "Prefetch konnte nicht vorbereitet werden." }, { status: 200 });
+    logServerWarning("prefetch-route-data-failed", error, {
+      companyId: context.companyId,
+      userId: context.userId,
+      scope
+    });
+    return response(
+      { ok: false, scope, message: safeErrorMessage(error, "Prefetch konnte nicht vorbereitet werden.") },
+      { status: error instanceof SafeActionError ? 429 : 200 }
+    );
   }
 }

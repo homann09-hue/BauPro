@@ -452,7 +452,8 @@ async function syncDimensionsFromMeasurements({
   userId,
   orderId,
   orderType,
-  jobsiteId
+  jobsiteId,
+  includePrices
 }: {
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
   companyId: string;
@@ -460,6 +461,7 @@ async function syncDimensionsFromMeasurements({
   orderId: string;
   orderType: OrderType;
   jobsiteId: string | null;
+  includePrices: boolean;
 }) {
   const [{ data: settings }, { data: itemsData, error: itemsError }] = await Promise.all([
     supabase.from("company_pricing_settings").select("waste_percent").eq("company_id", companyId).maybeSingle(),
@@ -520,7 +522,8 @@ async function syncDimensionsFromMeasurements({
     dimensionId: dimension.id as string,
     jobsiteId,
     orderType,
-    dimensions
+    dimensions,
+    includePrices
   });
 
   if (requirementRows.length > 0) {
@@ -718,29 +721,31 @@ export async function createOrderAction(formData: FormData) {
 
     createdOrderId = order.id as string;
 
-    try {
-      const roofingEstimate = await calculateRoofingMaterialsFromInventory({
-        supabase,
-        companyId: context.companyId,
-        input: roofingMaterialInput
-      });
-      const manualMaterialTotal = positiveFormNumber(formData, "material_manual_total_net");
-      const costInput = orderCostInputFromForm(formData, formAreaM2);
+    if (context.canManage) {
+      try {
+        const roofingEstimate = await calculateRoofingMaterialsFromInventory({
+          supabase,
+          companyId: context.companyId,
+          input: roofingMaterialInput
+        });
+        const manualMaterialTotal = positiveFormNumber(formData, "material_manual_total_net");
+        const costInput = orderCostInputFromForm(formData, formAreaM2);
 
-      await saveOrderCostEstimate({
-        supabase,
-        companyId: context.companyId,
-        userId: context.userId,
-        orderId: createdOrderId,
-        input: {
-          ...costInput,
-          materialCostPerM2: manualMaterialTotal > 0 || roofingEstimate.purchaseTotal > 0 ? 0 : costInput.materialCostPerM2,
-          materialManualTotalNet: manualMaterialTotal > 0 ? manualMaterialTotal : roofingEstimate.purchaseTotal
-        },
-        roofingEstimate
-      });
-    } catch {
-      costEstimateWarning = "Auftrag wurde gespeichert, aber die Kostenkalkulation konnte noch nicht gespeichert werden.";
+        await saveOrderCostEstimate({
+          supabase,
+          companyId: context.companyId,
+          userId: context.userId,
+          orderId: createdOrderId,
+          input: {
+            ...costInput,
+            materialCostPerM2: manualMaterialTotal > 0 || roofingEstimate.purchaseTotal > 0 ? 0 : costInput.materialCostPerM2,
+            materialManualTotalNet: manualMaterialTotal > 0 ? manualMaterialTotal : roofingEstimate.purchaseTotal
+          },
+          roofingEstimate
+        });
+      } catch {
+        costEstimateWarning = "Auftrag wurde gespeichert, aber die Kostenkalkulation konnte noch nicht gespeichert werden.";
+      }
     }
 
     if (shouldCreateDimensions) {
@@ -776,7 +781,8 @@ export async function createOrderAction(formData: FormData) {
           dimensionId: dimension.id as string,
           jobsiteId: jobsite.id as string,
           orderType,
-          dimensions
+          dimensions,
+          includePrices: context.canManage
         });
 
         if (requirementRows.length > 0) {
@@ -795,14 +801,19 @@ export async function createOrderAction(formData: FormData) {
   revalidatePath("/orders");
   revalidatePath("/customers");
   revalidatePath("/baustellen");
+  const successMessage =
+    costEstimateWarning ??
+    materialCalculationWarning ??
+    (context.canManage
+      ? hasDimensionInput(formData)
+        ? "Auftrag, Maße, Materialbedarf und Kostenkalkulation wurden gespeichert."
+        : "Auftrag und Kostenkalkulation wurden gespeichert."
+      : hasDimensionInput(formData)
+        ? "Auftrag, Maße und Materialbedarf wurden gespeichert."
+        : "Auftrag wurde gespeichert.");
+
   redirect(
-    `/orders/${createdOrderId}?success=${toQuery(
-      costEstimateWarning ??
-        materialCalculationWarning ??
-        (hasDimensionInput(formData)
-          ? "Auftrag, Maße, Materialbedarf und Kostenkalkulation wurden gespeichert."
-          : "Auftrag und Kostenkalkulation wurden gespeichert.")
-    )}`
+    `/orders/${createdOrderId}?success=${toQuery(successMessage)}`
   );
 }
 
@@ -865,7 +876,8 @@ export async function updateOrderDimensionsAction(formData: FormData) {
         dimensionId: dimension.id as string,
         jobsiteId: (order.jobsite_id as string | null) ?? null,
         orderType: order.order_type as OrderType,
-        dimensions
+        dimensions,
+        includePrices: context.canManage
       });
 
       if (requirementRows.length > 0) {
@@ -927,7 +939,8 @@ export async function createOrderMeasurementItemAction(formData: FormData) {
       userId: context.userId,
       orderId,
       orderType: order.order_type as OrderType,
-      jobsiteId: (order.jobsite_id as string | null) ?? null
+      jobsiteId: (order.jobsite_id as string | null) ?? null,
+      includePrices: context.canManage
     });
   } catch (error) {
     redirect(`/orders/${orderId}?error=${toQuery(safeErrorMessage(error, "Aufmassposition konnte nicht gespeichert werden."))}`);
@@ -976,7 +989,8 @@ export async function archiveOrderMeasurementItemAction(formData: FormData) {
       userId: context.userId,
       orderId,
       orderType: order.order_type as OrderType,
-      jobsiteId: (order.jobsite_id as string | null) ?? null
+      jobsiteId: (order.jobsite_id as string | null) ?? null,
+      includePrices: context.canManage
     });
   } catch (error) {
     redirect(`/orders/${orderId}?error=${toQuery(safeErrorMessage(error, "Aufmassposition konnte nicht archiviert werden."))}`);
@@ -1023,7 +1037,8 @@ export async function recalculateOrderMaterialsAction(formData: FormData) {
       dimensionId: dimensions.id as string,
       jobsiteId: (order.jobsite_id as string | null) ?? null,
       orderType: order.order_type as OrderType,
-      dimensions: dimensions as unknown as OrderDimensionValues
+      dimensions: dimensions as unknown as OrderDimensionValues,
+      includePrices: context.canManage
     });
 
     if (requirementRows.length > 0) {
