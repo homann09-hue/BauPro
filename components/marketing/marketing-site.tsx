@@ -67,29 +67,29 @@ export function MarketingShell({
 
 export function MarketingHero({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
   return (
-    <section className="relative min-h-[760px] overflow-hidden border-b border-line bg-coal lg:min-h-[820px]">
+    <section className="relative overflow-hidden border-b border-line bg-coal">
       <div className="absolute inset-0 z-0" aria-hidden="true">
         <div className="h-full w-full bg-cover bg-center opacity-55 grayscale" style={{ backgroundImage: `url(${heroImageUrl})` }} />
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(19,19,19,0.96)_0%,rgba(19,19,19,0.78)_46%,rgba(19,19,19,0.38)_100%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(19,19,19,0.04)_0%,rgba(19,19,19,0.9)_88%)]" />
       </div>
 
-      <div className="relative z-10 mx-auto flex min-h-[760px] max-w-7xl items-center px-4 py-16 sm:px-6 lg:min-h-[820px] lg:px-8">
+      <div className="relative z-10 mx-auto grid min-h-[680px] max-w-7xl items-center gap-8 px-4 pb-10 pt-10 sm:px-6 lg:min-h-[720px] lg:grid-cols-[minmax(0,1fr)_430px] lg:px-8">
         <div className="max-w-3xl">
           <div className="mb-5 inline-flex w-fit items-center gap-2 border border-moss/40 bg-moss/10 px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-moss">
             <HardHat className="h-4 w-4" aria-hidden="true" />
             Für Dachdecker und echte Handwerker
           </div>
-          <h1 className="max-w-4xl text-5xl font-extrabold leading-[0.98] tracking-tight text-white sm:text-7xl lg:text-8xl">
-            Die Software für <span className="text-ocher">echte</span> Handwerker.
+          <h1 className="max-w-4xl text-5xl font-extrabold leading-[0.98] tracking-tight text-white sm:text-7xl lg:text-[5.8rem]">
+            Weniger Zettel. Mehr <span className="text-ocher">Baustelle</span>.
           </h1>
-          <p className="mt-6 max-w-2xl text-base font-semibold leading-8 text-white/72 sm:text-lg">
-            BauPro digitalisiert Dachdeckerbetriebe von der Baustelle bis zum Büro, ohne Schnickschnack.
-            Robust, mobil und sofort mit Demo-Daten erlebbar.
+          <p className="mt-6 max-w-2xl text-base font-semibold leading-8 text-white/75 sm:text-lg">
+            BauPro digitalisiert Dachdeckerbetriebe von der Baustelle bis zum Büro:
+            Aufträge, Zeiten, Material, Berichte und Kundeninfos an einem Ort.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <Link href="/demo" className="btn-primary w-full bg-ocher text-coal hover:bg-signal sm:w-auto">
-              Kostenlose Demo
+              Demo als Chef starten
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
             <Link href={isLoggedIn ? "/dashboard" : "/features"} className="btn-secondary w-full border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white sm:w-auto">
@@ -97,25 +97,92 @@ export function MarketingHero({ isLoggedIn = false }: { isLoggedIn?: boolean }) 
             </Link>
           </div>
           <div className="mt-8 grid max-w-2xl gap-2 sm:grid-cols-3">
-            <TrustMini icon={Smartphone} label="Mobile First" />
-            <TrustMini icon={ShieldCheck} label="Rollen & Rechte" />
-            <TrustMini icon={Hammer} label="Baustellentauglich" />
+            <TrustMini icon={Smartphone} label="Handy auf der Baustelle" />
+            <TrustMini icon={ShieldCheck} label="Preise bleiben beim Chef" />
+            <TrustMini icon={Hammer} label="Abläufe statt Chaos" />
           </div>
         </div>
 
-        <div className="absolute bottom-10 right-4 hidden w-72 border border-line bg-surface/86 p-4 shadow-lift backdrop-blur-md lg:block">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase tracking-[0.16em] text-ash">Live Status</span>
-            <span className="h-2 w-2 rounded-full bg-moss" aria-hidden="true" />
-          </div>
-          <p className="text-lg font-black text-ink">Baustelle: Hauptstraße</p>
-          <p className="text-sm font-semibold text-ash">Fortschritt: 84%</p>
-          <div className="mt-3 h-1.5 overflow-hidden bg-surface-container-high">
-            <div className="h-full w-[84%] bg-ocher" />
-          </div>
+        <HeroOperationsPanel />
+      </div>
+
+      <div className="relative z-10 border-t border-white/10 bg-coal/82 backdrop-blur">
+        <div className="mx-auto grid max-w-7xl gap-px bg-white/10 px-4 sm:px-6 md:grid-cols-3 lg:px-8">
+          <HeroProof value="3 Klicks" label="zu Zeit, Bericht und Material" />
+          <HeroProof value="Heute" label="Baustellen, Team und Warnungen" />
+          <HeroProof value="Chefblick" label="Kosten und Rechte bleiben geschützt" />
         </div>
       </div>
     </section>
+  );
+}
+
+function HeroOperationsPanel() {
+  return (
+    <aside className="border border-white/12 bg-surface/88 p-4 shadow-lift backdrop-blur-md sm:p-5">
+      <div className="mb-5 flex items-start justify-between gap-4 border-b border-line pb-4">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-ocher">Heute im Betrieb</p>
+          <h2 className="mt-2 text-2xl font-black leading-tight text-ink">Dachsanierung Hauptstraße</h2>
+          <p className="mt-1 text-sm font-semibold text-ash">5 Mitarbeiter · Bericht offen · Wetter trocken</p>
+        </div>
+        <span className="border border-moss/35 bg-moss/10 px-2 py-1 text-[11px] font-black uppercase text-moss">Live</span>
+      </div>
+
+      <div className="grid gap-3">
+        <HeroPanelRow icon={Clock3} title="42 h heute erfasst" text="3 Zeiten warten auf Freigabe" tone="moss" />
+        <HeroPanelRow icon={PackageCheck} title="2 Materialwarnungen" text="Unterspannbahn und Dachlatten knapp" tone="ocher" />
+        <HeroPanelRow icon={FileText} title="Tagesbericht vorbereitet" text="Fotos, Wetter und Tätigkeiten gebündelt" tone="moss" />
+      </div>
+
+      <div className="mt-5 grid grid-cols-3 gap-px bg-line text-center">
+        <HeroMiniMetric value="7" label="Baustellen" />
+        <HeroMiniMetric value="18" label="Aufgaben" />
+        <HeroMiniMetric value="4" label="Berichte" />
+      </div>
+    </aside>
+  );
+}
+
+function HeroPanelRow({
+  icon: Icon,
+  title,
+  text,
+  tone
+}: {
+  icon: LucideIcon;
+  title: string;
+  text: string;
+  tone: "moss" | "ocher";
+}) {
+  return (
+    <div className="flex min-h-16 gap-3 border border-line bg-surface-container p-3">
+      <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center border", tone === "moss" ? "border-moss/30 bg-moss/10 text-moss" : "border-ocher/35 bg-ocher/10 text-ocher")}>
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </div>
+      <div>
+        <p className="text-sm font-black text-ink">{title}</p>
+        <p className="mt-1 text-xs font-semibold leading-5 text-ash">{text}</p>
+      </div>
+    </div>
+  );
+}
+
+function HeroMiniMetric({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="bg-surface-container p-3">
+      <p className="text-2xl font-black text-ocher">{value}</p>
+      <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-ash">{label}</p>
+    </div>
+  );
+}
+
+function HeroProof({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="bg-coal/72 py-4">
+      <p className="text-2xl font-black leading-none text-ocher">{value}</p>
+      <p className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-white/62">{label}</p>
+    </div>
   );
 }
 
