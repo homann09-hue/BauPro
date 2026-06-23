@@ -39,8 +39,8 @@ export default function PricingPage() {
           />
           <div className="grid gap-3 md:grid-cols-3">
             {["Faire Einstiegshürde für kleine Betriebe", "Team- und Lagerfunktionen für wachsende Betriebe", "Erweiterte Automatisierung für größere Abläufe"].map((item) => (
-              <div key={item} className="surface flex gap-3 p-4 text-sm font-semibold leading-6 text-ash">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+              <div key={item} className="border border-line bg-surface-container flex gap-3 p-4 text-sm font-semibold leading-6 text-ash">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-ocher" aria-hidden="true" />
                 {item}
               </div>
             ))}

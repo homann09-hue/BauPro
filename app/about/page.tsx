@@ -42,16 +42,16 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="border-y border-line bg-surface">
+      <section className="border-y border-line bg-basalt">
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-          <h2 className="text-5xl font-normal uppercase leading-none text-ink [font-family:var(--font-display)]">Wofür BauPro bewusst steht</h2>
+          <h2 className="text-4xl font-extrabold leading-tight tracking-tight text-ink sm:text-6xl">Wofür BauPro bewusst steht</h2>
           <div className="mt-6 grid gap-3 md:grid-cols-3">
             {[
               "Klare Sprache statt Software-Fachchinesisch.",
               "Mobile Nutzung zuerst, Desktop für Überblick und Auswertung.",
               "KI als Vorschlag, nicht als Ersatz für fachliche Prüfung."
             ].map((text) => (
-              <div key={text} className="border border-line bg-basalt p-4 text-sm font-semibold leading-6 text-ash">
+              <div key={text} className="border border-line bg-surface-container p-4 text-sm font-semibold leading-6 text-ash">
                 {text}
               </div>
             ))}
@@ -66,8 +66,8 @@ export default function AboutPage() {
 
 function MissionCard({ icon: Icon, title, text }: { icon: LucideIcon; title: string; text: string }) {
   return (
-    <article className="surface p-5">
-      <Icon className="mb-4 h-7 w-7 text-primary" aria-hidden="true" />
+    <article className="border border-line bg-surface-container p-5 shadow-soft">
+      <Icon className="mb-4 h-7 w-7 text-ocher" aria-hidden="true" />
       <h2 className="text-2xl font-black text-ink">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-ash">{text}</p>
     </article>

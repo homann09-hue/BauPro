@@ -33,12 +33,12 @@ export default async function MfaChallengePage({
 
   return (
     <div>
-      <div className="mb-5 inline-flex h-12 w-12 items-center justify-center border border-line bg-mint text-primary">
+      <div className="mb-5 inline-flex h-12 w-12 items-center justify-center border border-line bg-surface-container-high text-ocher">
         <ShieldCheck className="h-6 w-6" aria-hidden="true" />
       </div>
       <p className="section-kicker mb-7">Zweiter Faktor</p>
-      <h1 className="text-5xl font-normal uppercase leading-none tracking-wide text-ink [font-family:var(--font-display)]">2FA-Code</h1>
-      <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+      <h1 className="text-5xl font-extrabold leading-tight tracking-tight text-ink">2FA-Code</h1>
+      <p className="mt-2 text-sm font-semibold leading-6 text-ash">
         Öffne deine Authenticator-App und gib den 6-stelligen Code ein.
       </p>
 

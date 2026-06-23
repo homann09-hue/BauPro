@@ -47,8 +47,8 @@ export default async function HomePage() {
           description="BauPro bringt die wichtigsten Abläufe eines Handwerksbetriebs in eine gemeinsame Web-App: Auftrag anlegen, Baustelle planen, Mitarbeiter informieren, Zeiten erfassen, Material prüfen und Nachweise sauber ablegen."
         />
         <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="surface p-5 sm:p-6">
-            <h2 className="text-3xl font-normal uppercase leading-none text-ink [font-family:var(--font-display)]">
+          <div className="border border-line bg-surface-container p-5 shadow-lift sm:p-6">
+            <h2 className="text-3xl font-extrabold leading-tight text-ink">
               Für Chefs, die nicht mehr hinter jeder Info herlaufen wollen.
             </h2>
             <p className="mt-4 text-sm font-semibold leading-7 text-ash">
@@ -121,8 +121,8 @@ export default async function HomePage() {
 
 function TrustPillar({ icon: Icon, title, text }: { icon: LucideIcon; title: string; text: string }) {
   return (
-    <article className="surface p-5">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center border border-line bg-mint text-primary">
+    <article className="border border-line bg-surface-container p-5">
+      <div className="mb-4 flex h-12 w-12 items-center justify-center border border-line bg-surface-container-high text-ocher">
         <Icon className="h-6 w-6" aria-hidden="true" />
       </div>
       <h2 className="text-2xl font-black text-ink">{title}</h2>
@@ -133,8 +133,8 @@ function TrustPillar({ icon: Icon, title, text }: { icon: LucideIcon; title: str
 
 function MiniProof({ value, label }: { value: string; label: string }) {
   return (
-    <div className="surface flex min-h-36 flex-col justify-between p-4">
-      <p className="text-5xl font-normal uppercase leading-none text-primary [font-family:var(--font-display)]">{value}</p>
+    <div className="flex min-h-36 flex-col justify-between border border-line bg-surface-container p-4 shadow-soft">
+      <p className="text-5xl font-black leading-none text-ocher">{value}</p>
       <p className="text-sm font-black uppercase tracking-[0.14em] text-ash">{label}</p>
     </div>
   );

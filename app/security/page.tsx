@@ -31,10 +31,10 @@ export default function SecurityPage() {
 
       <section className="border-y border-line bg-basalt">
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-          <h2 className="text-5xl font-normal uppercase leading-none text-ink [font-family:var(--font-display)]">Wichtig: ehrlich statt vollmundig.</h2>
+          <h2 className="text-4xl font-extrabold leading-tight tracking-tight text-ink sm:text-6xl">Wichtig: ehrlich statt vollmundig.</h2>
           <div className="mt-6 grid gap-3 md:grid-cols-2">
             {marketingSecurityNotes.map((note) => (
-              <article key={note.title} className="surface p-5">
+              <article key={note.title} className="border border-line bg-surface-container p-5 shadow-soft">
                 <h3 className="font-black text-ink">{note.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-ash">{note.text}</p>
               </article>
@@ -61,8 +61,8 @@ export default function SecurityPage() {
 
 function SecurityPillar({ icon: Icon, title, text }: { icon: LucideIcon; title: string; text: string }) {
   return (
-    <article className="surface p-5">
-      <Icon className="mb-4 h-7 w-7 text-primary" aria-hidden="true" />
+    <article className="border border-line bg-surface-container p-5 shadow-soft">
+      <Icon className="mb-4 h-7 w-7 text-ocher" aria-hidden="true" />
       <h2 className="text-2xl font-black text-ink">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-ash">{text}</p>
     </article>

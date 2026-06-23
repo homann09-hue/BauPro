@@ -54,11 +54,11 @@ export default function FeaturesPage() {
 
 function FeatureCluster({ title, items }: { title: string; items: string[] }) {
   return (
-    <article className="surface p-5">
-      <h2 className="text-3xl font-normal uppercase text-ink [font-family:var(--font-display)]">{title}</h2>
+    <article className="border border-line bg-surface-container p-5 shadow-soft">
+      <h2 className="text-2xl font-black text-ink">{title}</h2>
       <ul className="mt-4 space-y-2">
         {items.map((item) => (
-          <li key={item} className="border border-line bg-mint px-3 py-2 text-sm font-semibold text-ash">
+          <li key={item} className="border border-line bg-surface-container-high px-3 py-2 text-sm font-semibold text-ash">
             {item}
           </li>
         ))}
