@@ -54,6 +54,16 @@ function createAuthRouteClient(request: NextRequest, cookiesToSet: CookieToSet[]
   });
 }
 
+async function signInDemoUser(
+  supabase: ReturnType<typeof createAuthRouteClient>,
+  demo: Awaited<ReturnType<typeof ensureDemoModeData>>
+) {
+  return supabase.auth.signInWithPassword({
+    email: demo.chefEmail,
+    password: demo.password
+  });
+}
+
 export async function POST(request: NextRequest) {
   const cookiesToSet: CookieToSet[] = [];
   let formData: FormData;
@@ -101,10 +111,16 @@ export async function POST(request: NextRequest) {
     return redirectWithCookies(request, `${returnTo}?error=${encodeMessage("Supabase ist nicht konfiguriert.")}`, cookiesToSet);
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: demo.chefEmail,
-    password: demo.password
-  });
+  let { data, error } = await signInDemoUser(supabase, demo);
+
+  if (error || !data.user) {
+    try {
+      demo = await ensureDemoModeData({ forceUserSync: true });
+      ({ data, error } = await signInDemoUser(supabase, demo));
+    } catch (syncError) {
+      logServerWarning("demo-mode-user-sync-failed", syncError);
+    }
+  }
 
   if (error || !data.user) {
     return redirectWithCookies(request, `${returnTo}?error=${encodeMessage("Demo-Login konnte nicht gestartet werden.")}`, cookiesToSet);

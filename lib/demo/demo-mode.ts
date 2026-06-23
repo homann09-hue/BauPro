@@ -17,6 +17,9 @@ type DemoUserSeed = {
 type DemoUser = DemoUserSeed & { id: string; role: DemoRole };
 type AdminClient = ReturnType<typeof createSupabaseAdminClient>;
 type DemoRow = Record<string, unknown> & { id: string };
+type EnsureDemoModeOptions = {
+  forceUserSync?: boolean;
+};
 
 const demoUsers: DemoUserSeed[] = [
   { key: "chef", email: DEMO_CHEF_EMAIL, fullName: "Sabine Müller", role: "chef" },
@@ -61,6 +64,47 @@ function demoPassword() {
 
 function shouldReseedDemoDataOnStart() {
   return process.env.DEMO_RESEED_ON_START === "true";
+}
+
+function hasRows(result: { data: unknown[] | null; error: unknown }) {
+  if (result.error) {
+    if (isMissingSchemaError(result.error)) return false;
+    throw new Error("demo_ready_lookup_failed");
+  }
+
+  return (result.data ?? []).length > 0;
+}
+
+async function hasPreparedDemoData(admin: AdminClient, companyId: string) {
+  const [chefProfile, jobsite, order, inventoryItem] = await Promise.all([
+    admin
+      .from("profiles")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("email", DEMO_CHEF_EMAIL)
+      .eq("active", true)
+      .limit(1),
+    admin
+      .from("jobsites")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("name", "Demo: Steildach Schmidt")
+      .limit(1),
+    admin
+      .from("orders")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("order_number", `DEMO-${new Date().getFullYear()}-0001`)
+      .limit(1),
+    admin
+      .from("inventory_items")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("name", "Konterlatte 40/60 impr.")
+      .limit(1)
+  ]);
+
+  return [chefProfile, jobsite, order, inventoryItem].every(hasRows);
 }
 
 async function listAllUsers(admin: AdminClient) {
@@ -969,7 +1013,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
   ]);
 }
 
-export async function ensureDemoModeData() {
+export async function ensureDemoModeData(options: EnsureDemoModeOptions = {}) {
   if (!demoModeEnabled()) {
     throw new SafeActionError("Demo-Modus ist in dieser Umgebung nicht aktiviert.");
   }
@@ -983,6 +1027,16 @@ export async function ensureDemoModeData() {
 
   const password = demoPassword();
   const company = await ensureDemoCompany(admin);
+
+  if (!options.forceUserSync && !shouldReseedDemoDataOnStart() && (await hasPreparedDemoData(admin, company.id))) {
+    return {
+      companyId: company.id,
+      companyName: DEMO_COMPANY_NAME,
+      chefEmail: DEMO_CHEF_EMAIL,
+      password
+    };
+  }
+
   const existingUsers = await listAllUsers(admin);
   const users = Object.fromEntries(
     await Promise.all(demoUsers.map(async (seed) => [seed.key, await ensureDemoUser(admin, seed, company.id, password, existingUsers)] as const))

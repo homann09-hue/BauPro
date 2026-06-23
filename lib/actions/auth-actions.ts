@@ -174,10 +174,22 @@ export async function startDemoModeAction(formData: FormData) {
     redirect(`${errorPath}?error=${toQuery(safeErrorMessage(error, "Demo-Modus konnte nicht vorbereitet werden."))}`);
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
+  let { data, error } = await supabase.auth.signInWithPassword({
     email: demo.chefEmail,
     password: demo.password
   });
+
+  if (error || !data.user) {
+    try {
+      demo = await ensureDemoModeData({ forceUserSync: true });
+      ({ data, error } = await supabase.auth.signInWithPassword({
+        email: demo.chefEmail,
+        password: demo.password
+      }));
+    } catch (syncError) {
+      logServerWarning("demo-mode-user-sync-failed", syncError);
+    }
+  }
 
   if (error || !data.user) {
     redirect(`${errorPath}?error=${toQuery("Demo-Login konnte nicht gestartet werden.")}`);
