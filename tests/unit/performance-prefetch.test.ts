@@ -1,7 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { prefetchRoutesForRole, prefetchScopesForRole } from "@/lib/performance/prefetch";
+import {
+  PREFETCH_FETCH_TIMEOUT_MS,
+  PREFETCH_PAYLOAD_MAX_CHARS,
+  PREFETCH_ROUTE_LIMIT,
+  PREFETCH_SCOPE_GAP_MS,
+  prefetchRoutesForRole,
+  prefetchScopesForRole
+} from "@/lib/performance/prefetch";
 
 const root = path.resolve(__dirname, "../..");
 
@@ -40,9 +47,7 @@ describe("predictive prefetching", () => {
         "/time-tracking/reports"
       ])
     );
-    expect(prefetchScopesForRole("chef", true)).toEqual(
-      expect.arrayContaining(["dashboard", "jobsites", "time", "materials"])
-    );
+    expect(prefetchScopesForRole("chef", true)).toEqual(["dashboard", "jobsites"]);
     expect(prefetchScopesForRole("chef", true)).not.toContain("weather");
   });
 
@@ -88,6 +93,8 @@ describe("predictive prefetching", () => {
     expect(route).not.toMatch(broadSelectPattern);
     expect(route).not.toMatch(/\b(purchase_price|sales_price|markup_percent|price_net|price_gross|margin_total)\b/);
     expect(route).toContain('scope === "weather"');
+    expect(route).toContain("weatherDeferred");
+    expect(route).not.toContain("fetchLiveWeather");
     expect(route).toContain("!context.canManage");
     expect(route).toContain('.eq("company_id", context.companyId)');
     expect(route).toContain('.is("archived_at", null)');
@@ -99,16 +106,29 @@ describe("predictive prefetching", () => {
     expect(route).toContain('scope === "time"');
     expect(route).toContain('scope === "planning"');
     expect(route).toContain('scope === "team"');
-    expect(route).toContain('.limit(context.canManage ? 180 : 40)');
+    expect(route).toContain('.limit(context.canManage ? 80 : 24)');
   });
 
   it("keeps warm prefetch payloads small and connection-aware in the client", () => {
     const client = source("components/performance/PredictivePrefetch.tsx");
     expect(client).toContain("PREFETCH_PAYLOAD_MAX_CHARS");
+    expect(PREFETCH_PAYLOAD_MAX_CHARS).toBeLessThanOrEqual(48_000);
+    expect(PREFETCH_ROUTE_LIMIT).toBeLessThanOrEqual(4);
+    expect(PREFETCH_SCOPE_GAP_MS).toBeGreaterThanOrEqual(900);
+    expect(PREFETCH_FETCH_TIMEOUT_MS).toBeLessThanOrEqual(2_500);
     expect(client).toContain("cachePrefetchPayload");
     expect(client).toContain("shouldReduceBackgroundWork");
     expect(client).toContain("connection?.saveData");
     expect(client).toContain("effectiveType");
+    expect(client).toContain("AbortController");
+    expect(client).toContain("document.visibilityState");
+    expect(client).toContain("PREFETCH_FETCH_TIMEOUT_MS");
+  });
+
+  it("loads heavy password strength scoring only after password input", () => {
+    const component = source("components/forms/password-strength-indicator.tsx");
+    expect(component).toContain('import("zxcvbn")');
+    expect(component).not.toContain('import zxcvbn from "zxcvbn";');
   });
 
   it("avoids unbounded child-row reads on heavy material pages", () => {

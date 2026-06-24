@@ -53,11 +53,17 @@ export function prefetchRoutesForRole(role: Role, canManage: boolean) {
 }
 
 export function prefetchScopesForRole(role: Role, canManage: boolean) {
-  if (canManage) return ["dashboard", "jobsites", "time", "materials"] as const;
-  if (role === "vorarbeiter") return ["dashboard", "jobsites", "time", "bring-lists"] as const;
+  if (canManage) return ["dashboard", "jobsites"] as const;
+  if (role === "vorarbeiter") return ["dashboard", "jobsites"] as const;
   if (role === "kunde") return [] as const;
-  return ["dashboard", "jobsites", "time", "bring-lists"] as const;
+  return ["dashboard", "jobsites"] as const;
 }
 
 export const PREFETCH_CACHE_TTL_MS = 120_000;
-export const PREFETCH_PAYLOAD_MAX_CHARS = 90_000;
+export const PREFETCH_PAYLOAD_MAX_CHARS = 48_000;
+export const PREFETCH_ROUTE_LIMIT = 4;
+export const PREFETCH_ROUTE_LIMIT_REDUCED = 1;
+export const PREFETCH_SCOPE_LIMIT = 2;
+export const PREFETCH_SCOPE_LIMIT_REDUCED = 1;
+export const PREFETCH_SCOPE_GAP_MS = 900;
+export const PREFETCH_FETCH_TIMEOUT_MS = 2_500;

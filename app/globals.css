@@ -330,6 +330,15 @@ select {
     box-shadow: var(--bp-shadow-lift);
   }
 
+  @supports (content-visibility: auto) {
+    .bp-motion-card,
+    .dashboard-band,
+    .bp-image-card {
+      content-visibility: auto;
+      contain-intrinsic-size: 320px;
+    }
+  }
+
   .bp-image-card {
     position: relative;
     min-height: 18rem;
@@ -781,6 +790,15 @@ select {
   }
 
   @media (max-width: 767px) {
+    .bp-parallax-image {
+      animation: none;
+      transform: scale(1.04);
+    }
+
+    .bp-motion-card:hover {
+      transform: none;
+    }
+
     .bp-fullcalendar .fc-toolbar {
       flex-direction: column;
     }

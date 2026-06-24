@@ -4,23 +4,30 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   PREFETCH_CACHE_TTL_MS,
+  PREFETCH_FETCH_TIMEOUT_MS,
   PREFETCH_PAYLOAD_MAX_CHARS,
+  PREFETCH_ROUTE_LIMIT,
+  PREFETCH_ROUTE_LIMIT_REDUCED,
+  PREFETCH_SCOPE_GAP_MS,
+  PREFETCH_SCOPE_LIMIT,
+  PREFETCH_SCOPE_LIMIT_REDUCED,
   prefetchRoutesForRole,
   prefetchScopesForRole
 } from "@/lib/performance/prefetch";
 import type { Role } from "@/types/app";
 
-const PREFETCH_ROUTE_LIMIT = 6;
-const PREFETCH_ROUTE_LIMIT_REDUCED = 3;
-const PREFETCH_SCOPE_LIMIT = 4;
-const PREFETCH_SCOPE_LIMIT_REDUCED = 2;
-const PREFETCH_SCOPE_GAP_MS = 450;
-
 function scheduleIdle(work: () => void) {
   if (typeof window === "undefined") return;
 
-  const idleCallback = window.requestIdleCallback ?? ((callback: IdleRequestCallback) => window.setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 1 }), 350));
-  idleCallback(work, { timeout: 1800 });
+  const idleCallback = window.requestIdleCallback ?? ((callback: IdleRequestCallback) => window.setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 1 }), 500));
+  idleCallback((deadline) => {
+    if (document.visibilityState !== "visible") return;
+    if (!deadline.didTimeout && deadline.timeRemaining() < 4) {
+      window.setTimeout(work, 250);
+      return;
+    }
+    work();
+  }, { timeout: 2400 });
 }
 
 function recentlyPrefetched(key: string) {
@@ -47,8 +54,18 @@ function wait(ms: number) {
 
 function shouldReduceBackgroundWork() {
   if (typeof navigator === "undefined") return false;
+  const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string }; deviceMemory?: number }).connection;
+  const effectiveType = connection?.effectiveType;
+  const isSlowConnection = effectiveType === "slow-2g" || effectiveType === "2g" || effectiveType === "3g";
+  const isSmallDevice = (navigator.hardwareConcurrency ?? 8) <= 4 || ((navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8) <= 4;
+  return Boolean(connection?.saveData || isSlowConnection || isSmallDevice);
+}
+
+function canRunBackgroundPrefetch() {
+  if (typeof document !== "undefined" && document.visibilityState !== "visible") return false;
+  if (typeof navigator === "undefined") return true;
   const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
-  return Boolean(connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g");
+  return !(connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g");
 }
 
 function cachePrefetchPayload(scope: string, payload: unknown) {
@@ -63,16 +80,22 @@ function cachePrefetchPayload(scope: string, payload: unknown) {
 }
 
 async function prefetchDataScope(scope: string) {
+  if (!canRunBackgroundPrefetch()) return;
   const key = `baupro-prefetch:data:${scope}`;
   if (recentlyPrefetched(key)) return;
   markPrefetched(key);
 
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), PREFETCH_FETCH_TIMEOUT_MS);
   const response = await fetch(`/api/prefetch/route-data?scope=${encodeURIComponent(scope)}`, {
     method: "GET",
     credentials: "same-origin",
     cache: "no-store",
-    priority: "low" as RequestPriority
-  }).catch(() => null);
+    priority: "low" as RequestPriority,
+    signal: controller.signal
+  })
+    .catch(() => null)
+    .finally(() => window.clearTimeout(timeout));
 
   if (!response?.ok) return;
   const payload = await response.json().catch(() => null);
@@ -92,10 +115,12 @@ export function PredictivePrefetch({ role, canManage }: { role: Role; canManage:
   const pathname = usePathname();
 
   useEffect(() => {
+    if (!canRunBackgroundPrefetch()) return;
     const routes = prefetchRoutesForRole(role, canManage).filter((route) => route !== pathname && !pathname.startsWith(`${route}/`));
     const scopes = prefetchScopesForRole(role, canManage);
 
     scheduleIdle(() => {
+      if (!canRunBackgroundPrefetch()) return;
       const routeLimit = shouldReduceBackgroundWork() ? PREFETCH_ROUTE_LIMIT_REDUCED : PREFETCH_ROUTE_LIMIT;
       for (const route of routes.slice(0, routeLimit)) {
         const key = `baupro-prefetch:route:${route}`;
@@ -110,6 +135,7 @@ export function PredictivePrefetch({ role, canManage }: { role: Role; canManage:
 
   useEffect(() => {
     function handlePointerOver(event: PointerEvent) {
+      if (!canRunBackgroundPrefetch()) return;
       const target = event.target instanceof Element ? event.target.closest("a[href]") : null;
       if (!(target instanceof HTMLAnchorElement)) return;
       if (target.origin !== window.location.origin) return;

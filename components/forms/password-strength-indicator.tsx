@@ -1,12 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import zxcvbn from "zxcvbn";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import type zxcvbn from "zxcvbn";
 
 export type PasswordStrengthIndicatorProps = {
   password: string;
 };
+
+type PasswordStrengthResult = ReturnType<typeof zxcvbn>;
+type PasswordStrengthState = {
+  password: string;
+  result: PasswordStrengthResult;
+} | null;
 
 const scoreMeta = {
   0: { label: "Zu schwach", color: "bg-danger", text: "text-danger", activeSegments: 1 },
@@ -53,9 +59,37 @@ function translateFeedback(value: string) {
 }
 
 export function PasswordStrengthIndicator({ password }: PasswordStrengthIndicatorProps) {
-  const result = useMemo(() => (password.length > 0 ? zxcvbn(password) : null), [password]);
+  const [strength, setStrength] = useState<PasswordStrengthState>(null);
 
-  if (!result) return null;
+  useEffect(() => {
+    if (password.length === 0) return;
+
+    let cancelled = false;
+    const timeout = window.setTimeout(async () => {
+      try {
+        const { default: scorePassword } = await import("zxcvbn");
+        if (!cancelled) setStrength({ password, result: scorePassword(password) });
+      } catch {
+        if (!cancelled) setStrength(null);
+      }
+    }, 120);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [password]);
+
+  if (password.length === 0) return null;
+  const result = strength?.password === password ? strength.result : null;
+
+  if (!result) {
+    return (
+      <div className="mt-2 rounded-md border border-line bg-fog p-3 text-xs font-semibold text-slate-600" aria-live="polite">
+        Passwort-Stärke wird geprüft...
+      </div>
+    );
+  }
 
   const meta = scoreMeta[result.score as keyof typeof scoreMeta];
   const feedback = [result.feedback.warning, ...result.feedback.suggestions].filter(Boolean).map(translateFeedback);
