@@ -317,7 +317,7 @@ export async function createDeliveryNoteFromPhotoAction(formData: FormData) {
       }
     }
 
-    target = `/materials/delivery-notes/${noteId}?success=${toQuery("Lieferschein wurde erkannt. Bitte pruefen und bestaetigen.")}`;
+    target = `/materials/delivery-notes/${noteId}?success=${toQuery("Lieferschein wurde erkannt. Bitte prüfen und bestätigen.")}`;
   } catch (error) {
     target = `${returnTo}?error=${toQuery(safeErrorMessage(error, "Lieferschein konnte nicht erkannt werden."))}`;
   }

@@ -163,7 +163,7 @@ export async function createCommercialDocumentFromOrderAction(formData: FormData
         document_id: document.id,
         position: 1,
         title: order.title,
-        description: "Pauschalposition aus Auftrag. Bitte Preis und Leistungsbeschreibung pruefen.",
+        description: "Pauschalposition aus Auftrag. Bitte Preis und Leistungsbeschreibung prüfen.",
         quantity: 1,
         unit: "Pauschal",
         unit_price_net: 0,

@@ -108,9 +108,9 @@ function firstVehicleForJobsite(assignments: PlanningAssignment[]) {
 }
 
 function equipmentNote(status: PlanningResourceStatus | undefined) {
-  if (status === "defekt") return "Geraet ist als defekt markiert. Ersatz pruefen.";
-  if (status === "werkstatt") return "Geraet ist in der Werkstatt. Ersatz pruefen.";
-  if (status === "reserviert") return "Geraet ist bereits reserviert. Verfuegbarkeit pruefen.";
+  if (status === "defekt") return "Gerät ist als defekt markiert. Ersatz prüfen.";
+  if (status === "werkstatt") return "Gerät ist in der Werkstatt. Ersatz prüfen.";
+  if (status === "reserviert") return "Gerät ist bereits reserviert. Verfügbarkeit prüfen.";
   return null;
 }
 
@@ -163,7 +163,7 @@ function itemsFromPlanningAssignment(assignment: PlanningAssignment): AutomaticB
       sourceRef: assignment.id,
       vehicleId: assignment.vehicle_id,
       requiredVehicleId: assignment.vehicle_id,
-      notes: "Aus Plantafel uebernommen."
+      notes: "Aus Plantafel übernommen."
     };
   }
 

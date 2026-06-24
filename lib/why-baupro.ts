@@ -38,7 +38,7 @@ export const bauProValueDrivers: BauProValueDriver[] = [
     title: "Materialberechnung aus Auftragsmaßen",
     category: "Auftrag und Kalkulation",
     switchReason: "Vor-Kalkulation und Materialbedarf entstehen im Auftrag statt in getrennten Tabellen.",
-    timeSaving: "Laenge, Breite und Dachdetails erzeugen schnell eine Materialliste inklusive Standard-Verschnitt.",
+    timeSaving: "Länge, Breite und Dachdetails erzeugen schnell eine Materialliste inklusive Standard-Verschnitt.",
     moneySaving: "Chef sieht EK/VK/Marge und erkennt frueh, ob Materialbedarf und Verkaufspreis zusammenpassen.",
     errorPrevention: "Mitarbeiter sehen keine Preise; Mengen werden nachvollziehbar mit Grundmenge, Zuschlag und Gesamtmenge dargestellt.",
     automation: "Aus Maßen entstehen Materialpositionen, Lagerabgleich und Mitbringlisten-Vorbereitung.",

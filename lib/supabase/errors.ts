@@ -30,5 +30,5 @@ export function isUnsupportedVorarbeiterRoleError(error: unknown) {
 }
 
 export function migrationMissingMessage(feature: string) {
-  return `${feature} ist im Code vorbereitet, aber die Supabase-Migration fehlt noch. Die App laeuft weiter; bitte Migration spaeter im Supabase SQL Editor ausfuehren.`;
+  return `${feature} ist im Code vorbereitet, aber die Supabase-Migration fehlt noch. Die App läuft weiter; bitte Migration später im Supabase SQL Editor ausführen.`;
 }

@@ -197,7 +197,7 @@ export async function checkAiLimit(supabase: SupabaseServerClient, companyId: st
   }
 
   if (usedTokens >= plan.maxAiTokensPerMonth) {
-    throw new SafeActionError("KI-Token-Limit fuer diesen Monat erreicht. Bitte spaeter erneut versuchen oder Tarif pruefen.");
+    throw new SafeActionError("KI-Token-Limit für diesen Monat erreicht. Bitte später erneut versuchen oder Tarif prüfen.");
   }
 
   return { allowed, used, limit: plan.maxAiCallsPerMonth, usedTokens, tokenLimit: plan.maxAiTokensPerMonth, plan };

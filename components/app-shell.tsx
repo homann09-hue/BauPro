@@ -35,7 +35,6 @@ const managerPrimaryNav: NavItem[] = [
 const managerQuickLinks: NavItem[] = [
   { href: "/onboarding", label: "Startassistent", icon: "onboarding" },
   { href: "/demo-tour", label: "Demo-Tour", icon: "warum" },
-  { href: "/warum-baupro", label: "Warum BauPro?", icon: "warum" },
   { href: "/customers", label: "Kunden", icon: "kunden" },
   { href: "/orders", label: "Aufträge", icon: "auftraege" },
   { href: "/fahrzeuge", label: "Fahrzeuge/Geräte", icon: "fahrzeuge" },
@@ -74,7 +73,6 @@ const employeePrimaryNav: NavItem[] = [
 ];
 
 const employeeQuickLinks: NavItem[] = [
-  { href: "/warum-baupro", label: "Warum BauPro?", icon: "warum" },
   { href: "/checklists", label: "Checklisten", icon: "checklisten" },
   { href: "/maengel", label: "Mängel", icon: "maengel" },
   { href: "/material-melden", label: "Material melden", icon: "materialMelden" },

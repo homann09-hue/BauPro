@@ -183,7 +183,7 @@ function invoicePdfDocument(data: InvoicePdfData) {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Leistungsbeschreibung</Text>
-          <Text>{invoice.orders?.title || invoice.notes || "Leistungen gemaess Positionen."}</Text>
+          <Text>{invoice.orders?.title || invoice.notes || "Leistungen gemäß Positionen."}</Text>
         </View>
 
         <View style={styles.table}>

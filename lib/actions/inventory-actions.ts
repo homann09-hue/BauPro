@@ -22,7 +22,7 @@ function redirectTarget(formData: FormData, fallback = "/materials/inventory") {
 function positiveNumber(formData: FormData, key: string) {
   const value = numberOrZero(formData, key);
   if (value <= 0) {
-    throw new SafeActionError("Die Menge muss groesser als 0 sein.");
+    throw new SafeActionError("Die Menge muss größer als 0 sein.");
   }
 
   return value;

@@ -22,17 +22,17 @@ describe("time tracking calculations", () => {
       "Arbeitsende muss nach Arbeitsbeginn liegen."
     );
     expect(() => calculateTimeMinutes({ startTime: "07:00", endTime: "08:00", breakMinutes: 90 })).toThrow(
-      "Pause darf nicht groesser als die Arbeitszeit sein."
+      "Pause darf nicht größer als die Arbeitszeit sein."
     );
   });
 
   it("formats hours and warns for risky entries", () => {
     expect(formatMinutesAsHours(465)).toBe("7,75 h");
     expect(timeEntryWarnings({ gross_minutes: 660, net_minutes: 630, break_minutes: 30 })).toContain(
-      "Hinweis: Nettoarbeitszeit liegt ueber 10 Stunden."
+      "Hinweis: Nettoarbeitszeit liegt über 10 Stunden."
     );
     expect(timeEntryWarnings({ gross_minutes: 420, net_minutes: 420, break_minutes: 0 })).toContain(
-      "Hinweis: Bei laengerer Arbeitszeit fehlt eine Pause."
+      "Hinweis: Bei längerer Arbeitszeit fehlt eine Pause."
     );
   });
 

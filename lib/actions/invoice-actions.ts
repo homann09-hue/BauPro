@@ -78,7 +78,7 @@ function parseItems(formData: FormData) {
   if (items.length === 0) throw new SafeActionError("Bitte mindestens eine Position erfassen.");
 
   for (const item of items) {
-    if (!Number.isFinite(item.quantity) || item.quantity <= 0) throw new SafeActionError("Mengen muessen groesser als 0 sein.");
+    if (!Number.isFinite(item.quantity) || item.quantity <= 0) throw new SafeActionError("Mengen müssen größer als 0 sein.");
     if (!Number.isFinite(item.unit_price_eur) || item.unit_price_eur < 0) throw new SafeActionError("Einzelpreise duerfen nicht negativ sein.");
   }
 

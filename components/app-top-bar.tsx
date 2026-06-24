@@ -56,7 +56,6 @@ const routeTitles: Array<{ prefix: string; title: string; fallback: string }> = 
   { prefix: "/suppliers", title: "Lieferanten", fallback: "/materials" },
   { prefix: "/onboarding", title: "Startassistent", fallback: "/dashboard" },
   { prefix: "/demo-tour", title: "Demo-Tour", fallback: "/dashboard" },
-  { prefix: "/warum-baupro", title: "Warum BauPro?", fallback: "/dashboard" },
   { prefix: "/hilfe", title: "Hilfe", fallback: "/dashboard" },
   { prefix: "/faq", title: "FAQ", fallback: "/hilfe" },
   { prefix: "/mehr", title: "Alle Funktionen", fallback: "/dashboard" },

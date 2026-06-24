@@ -59,7 +59,7 @@ export function calculateTimeMinutes({
   }
 
   if (breakMinutes > grossMinutes) {
-    throw new Error("Pause darf nicht groesser als die Arbeitszeit sein.");
+    throw new Error("Pause darf nicht größer als die Arbeitszeit sein.");
   }
 
   return {
@@ -90,11 +90,11 @@ export function timeEntryWarnings(entry: Pick<TimeEntry, "gross_minutes" | "net_
   const warnings: string[] = [];
 
   if (entry.net_minutes > 600) {
-    warnings.push("Hinweis: Nettoarbeitszeit liegt ueber 10 Stunden.");
+    warnings.push("Hinweis: Nettoarbeitszeit liegt über 10 Stunden.");
   }
 
   if (entry.gross_minutes >= 360 && entry.break_minutes === 0) {
-    warnings.push("Hinweis: Bei laengerer Arbeitszeit fehlt eine Pause.");
+    warnings.push("Hinweis: Bei längerer Arbeitszeit fehlt eine Pause.");
   }
 
   return warnings;

@@ -448,12 +448,12 @@ export default async function PlanningBoardPage({
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="section-title">Planungen im Zeitraum</h2>
-              <p className="mt-1 text-sm text-slate-500">Archivieren entfernt den Block aus der Plantafel, loescht ihn aber nicht hart.</p>
+              <p className="mt-1 text-sm text-slate-500">Archivieren entfernt den Block aus der Plantafel, löscht ihn aber nicht hart.</p>
             </div>
           </div>
           {assignments.length === 0 ? (
             <p className="rounded-md border border-dashed border-line bg-white p-4 text-sm font-semibold text-slate-500">
-              Noch keine Planungen im gewaehlten Zeitraum.
+              Noch keine Planungen im gewählten Zeitraum.
             </p>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

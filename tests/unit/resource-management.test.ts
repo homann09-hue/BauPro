@@ -27,17 +27,17 @@ function equipmentAssignment(overrides: Partial<PlanningAssignment>): PlanningAs
   };
 }
 
-describe("Geraete- und Fahrzeugverwaltung", () => {
-  it("enthaelt praxisnahe Ressourcenarten und Statuswerte", () => {
+describe("Geräte- und Fahrzeugverwaltung", () => {
+  it("enthält praxisnahe Ressourcenarten und Statuswerte", () => {
     expect(resourceKindLabels).toMatchObject({
       fahrzeug: "Fahrzeug",
-      anhaenger: "Anhaenger",
+      anhaenger: "Anhänger",
       maschine: "Maschine",
       werkzeug: "Werkzeug",
-      geruest_leiter: "Geruest / Leiter"
+      geruest_leiter: "Gerüst / Leiter"
     });
     expect(resourceStatusLabels).toMatchObject({
-      verfuegbar: "Verfuegbar",
+      verfuegbar: "Verfügbar",
       auf_baustelle: "Auf Baustelle",
       im_fahrzeug: "Im Fahrzeug",
       defekt: "Defekt",
@@ -46,7 +46,7 @@ describe("Geraete- und Fahrzeugverwaltung", () => {
     });
   });
 
-  it("erkennt faellige und bald faellige Pruef- oder Wartungstermine", () => {
+  it("erkennt fällige und bald fällige Prüf- oder Wartungstermine", () => {
     const isoInDays = (days: number) => {
       const date = new Date();
       date.setUTCDate(date.getUTCDate() + days);
@@ -59,7 +59,7 @@ describe("Geraete- und Fahrzeugverwaltung", () => {
     expect(maintenanceDueState(null, null)).toBe("none");
   });
 
-  it("markiert doppelt gebuchte Geraete als kritischen Konflikt", () => {
+  it("markiert doppelt gebuchte Geräte als kritischen Konflikt", () => {
     const assignments = [
       equipmentAssignment({ id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", planning_resource_id: "resource-1" }),
       equipmentAssignment({ id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", planning_resource_id: "resource-1", start_date: "2026-06-20" })

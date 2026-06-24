@@ -19,7 +19,7 @@ describe("material movement validation", () => {
   it("rejects invalid quantities before movement persistence", () => {
     expect(validateMaterialMovement({ ...baseDraft, movementType: "consume", quantity: 0 })).toEqual({
       ok: false,
-      message: "Menge muss groesser als 0 sein."
+      message: "Menge muss größer als 0 sein."
     });
   });
 });

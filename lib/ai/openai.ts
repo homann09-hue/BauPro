@@ -157,10 +157,10 @@ export async function createStructuredAiResponse<T>({
 
       const message =
         response.status === 401 || response.status === 403
-          ? "OpenAI-Zugang wurde abgelehnt. Bitte serverseitigen OPENAI_API_KEY pruefen."
+          ? "OpenAI-Zugang wurde abgelehnt. Bitte serverseitigen OPENAI_API_KEY prüfen."
           : response.status === 429
-            ? "OpenAI-Limit erreicht. Bitte spaeter erneut versuchen oder OpenAI-Abrechnung pruefen."
-            : "KI-Anfrage konnte nicht verarbeitet werden. Bitte spaeter erneut versuchen.";
+            ? "OpenAI-Limit erreicht. Bitte später erneut versuchen oder OpenAI-Abrechnung prüfen."
+            : "KI-Anfrage konnte nicht verarbeitet werden. Bitte später erneut versuchen.";
 
       return {
         ok: false,

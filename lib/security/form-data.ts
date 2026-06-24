@@ -65,7 +65,7 @@ export function positiveFormNumber(formData: FormData, key: string, label = key)
   const raw = entryToString(formData.get(key)).replace(",", ".");
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new SafeActionError(`${label} muss groesser als 0 sein.`);
+    throw new SafeActionError(`${label} muss größer als 0 sein.`);
   }
 
   return parsed;

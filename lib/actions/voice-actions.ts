@@ -76,7 +76,7 @@ async function parseConfirmedInput(formData: FormData, rawText: string) {
 
   if (Number(action.confidence) < 0.7) {
     const questions = action.parsed_json.follow_up_questions.join(" ");
-    throw new SafeActionError(`KI ist noch unsicher. Bitte zuerst pruefen: ${questions || "Angaben fehlen."}`);
+    throw new SafeActionError(`KI ist noch unsicher. Bitte zuerst prüfen: ${questions || "Angaben fehlen."}`);
   }
 
   return { parsed: parsedFromAi(action.parsed_json), aiActionId };

@@ -87,7 +87,7 @@ function reportStatusLabel(status: string) {
   const labels: Record<string, string> = {
     draft: "Entwurf",
     submitted: "Eingereicht",
-    reviewed: "Geprueft",
+    reviewed: "Geprüft",
     approved: "Freigegeben"
   };
 

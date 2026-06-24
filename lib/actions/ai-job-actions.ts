@@ -161,7 +161,7 @@ async function resolveCustomer({
     if (data) return data as unknown as Customer;
   }
 
-  if (!parsed.customer_name) throw new SafeActionError("Kunde fehlt. Bitte Entwurf ergaenzen.");
+  if (!parsed.customer_name) throw new SafeActionError("Kunde fehlt. Bitte Entwurf ergänzen.");
   const parts = parsed.customer_name.split(/\s+/).filter(Boolean);
   const { data, error } = await supabase
     .from("customers")
@@ -325,7 +325,7 @@ export async function prepareAiJobDraftAction(formData: FormData) {
     const result = await createJobDraftFromAI({ supabase, context, input });
     if (!result.ok) {
       throw new SafeActionError(
-        result.disabled ? result.message : "KI-Auftrag konnte nicht vorbereitet werden. Bitte Text pruefen oder spaeter erneut versuchen."
+        result.disabled ? result.message : "KI-Auftrag konnte nicht vorbereitet werden. Bitte Text prüfen oder später erneut versuchen."
       );
     }
 
@@ -576,7 +576,7 @@ export async function createOrderFromAiDraftAction(formData: FormData) {
             `Aus KI-Auftragsentwurf ${draft.id}`,
             parsed.roof_form ? `Dachform: ${parsed.roof_form}` : null,
             parsed.material_type ? `Materialtyp: ${parsed.material_type}` : null,
-            "Entwurf - fachlich pruefen."
+            "Entwurf - fachlich prüfen."
           ]
             .filter(Boolean)
             .join("\n"),

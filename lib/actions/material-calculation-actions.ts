@@ -383,7 +383,7 @@ export async function createMaterialCalculationAction(formData: FormData) {
       .filter(notNull);
 
     if (calculatedItems.length === 0) {
-      throw new SafeActionError("Keine Materialmenge berechnet. Bitte Flaeche oder passende Laengen eintragen.");
+      throw new SafeActionError("Keine Materialmenge berechnet. Bitte Fläche oder passende Längen eintragen.");
     }
 
     const useAi = String(formData.get("use_ai") ?? "off") === "on";

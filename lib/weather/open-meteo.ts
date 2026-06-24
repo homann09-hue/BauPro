@@ -253,7 +253,7 @@ export function buildWeatherSummary({
     return `Kalt, aber trocken${suffix}.`;
   }
 
-  return `Trocken${suffix} - gute Bedingungen fuer Dacharbeiten.`;
+  return `Trocken${suffix} - gute Bedingungen für Dacharbeiten.`;
 }
 
 export function emptyWeatherSuggestion(reason = "Keine aktuellen Wetterdaten gefunden.") {

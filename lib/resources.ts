@@ -14,16 +14,16 @@ export const resourceStatuses = [
 
 export const resourceKindLabels: Record<PlanningResourceKind, string> = {
   fahrzeug: "Fahrzeug",
-  anhaenger: "Anhaenger",
+  anhaenger: "Anhänger",
   maschine: "Maschine",
   werkzeug: "Werkzeug",
-  geruest_leiter: "Geruest / Leiter",
-  geraet: "Geraet",
+  geruest_leiter: "Gerüst / Leiter",
+  geraet: "Gerät",
   sonstiges: "Sonstiges"
 };
 
 export const resourceStatusLabels: Record<PlanningResourceStatus, string> = {
-  verfuegbar: "Verfuegbar",
+  verfuegbar: "Verfügbar",
   auf_baustelle: "Auf Baustelle",
   im_fahrzeug: "Im Fahrzeug",
   defekt: "Defekt",

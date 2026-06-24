@@ -96,7 +96,7 @@ describe("order measurement items", () => {
     const actions = source("lib/actions/order-actions.ts");
 
     expect(page).toContain("MeasurementItemsPanel");
-    expect(page).toContain("Praxis-Aufmass");
+    expect(page).toContain("Praxis-Aufmaß");
     expect(actions).toContain("createOrderMeasurementItemAction");
     expect(actions).toContain("archiveOrderMeasurementItemAction");
     expect(actions).toContain(".from(\"order_measurement_items\")");

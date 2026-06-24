@@ -66,10 +66,11 @@ describe("mobile construction workflows", () => {
 
   it("turns the Heute card into a mobile construction mode", () => {
     const ui = source("components/construction-ui.tsx");
+    const maps = source("lib/maps/google-maps.ts");
 
     expect(ui).toContain("Baustellenmodus");
-    expect(ui).toContain("Navigation starten");
-    expect(ui).toContain("https://www.google.com/maps/search/");
+    expect(ui).toContain("In Google Maps öffnen");
+    expect(maps).toContain("https://www.google.com/maps/search/");
     expect(ui).toContain("Material fehlt");
     expect(ui).toContain("Foto hochladen");
   });

@@ -429,18 +429,18 @@ function measurementDraftFromForm(formData: FormData): MeasurementDraft {
   };
 
   if ((itemType === "roof_area" || itemType === "deduction_area") && (!(draft.length_m && draft.length_m > 0) || !(draft.width_m && draft.width_m > 0))) {
-    throw new SafeActionError("Fuer Flaechen bitte Laenge und Breite groesser 0 eintragen.");
+    throw new SafeActionError("Für Flächen bitte Länge und Breite größer 0 eintragen.");
   }
 
   if (
     ["eaves_length", "ridge_length", "verge_length", "valley_length", "wall_connection_length", "downpipe_length"].includes(itemType) &&
     !(draft.length_m && draft.length_m > 0)
   ) {
-    throw new SafeActionError("Fuer laufende Meter bitte eine Laenge groesser 0 eintragen.");
+    throw new SafeActionError("Für laufende Meter bitte eine Länge größer 0 eintragen.");
   }
 
   if (["roof_window", "penetration", "roof_drain", "emergency_overflow"].includes(itemType) && draft.quantity <= 0) {
-    throw new SafeActionError("Fuer Stueckzahlen bitte eine Anzahl groesser 0 eintragen.");
+    throw new SafeActionError("Für Stückzahlen bitte eine Anzahl größer 0 eintragen.");
   }
 
   return draft;
@@ -499,7 +499,7 @@ async function syncDimensionsFromMeasurements({
     userId,
     orderId,
     dimensions,
-    notes: "Automatisch aus Aufmasspositionen erzeugt."
+    notes: "Automatisch aus Aufmaßpositionen erzeugt."
   });
 
   const { data: updatedOrder, error: updateOrderError } = await supabase
@@ -943,19 +943,19 @@ export async function createOrderMeasurementItemAction(formData: FormData) {
       includePrices: context.canManage
     });
   } catch (error) {
-    redirect(`/orders/${orderId}?error=${toQuery(safeErrorMessage(error, "Aufmassposition konnte nicht gespeichert werden."))}`);
+    redirect(`/orders/${orderId}?error=${toQuery(safeErrorMessage(error, "Aufmaßposition konnte nicht gespeichert werden."))}`);
   }
 
   revalidatePath(`/orders/${orderId}`);
   revalidatePath("/orders");
-  redirect(`/orders/${orderId}?success=${toQuery("Aufmass wurde gespeichert und Material neu berechnet.")}`);
+  redirect(`/orders/${orderId}?success=${toQuery("Aufmaß wurde gespeichert und Material neu berechnet.")}`);
 }
 
 export async function archiveOrderMeasurementItemAction(formData: FormData) {
   const context = await requirePermission("orders.edit", "/orders");
   const supabase = await createSupabaseServerClient();
   const orderId = requiredFormUuid(formData, "order_id", "Auftrag");
-  const itemId = requiredFormUuid(formData, "item_id", "Aufmassposition");
+  const itemId = requiredFormUuid(formData, "item_id", "Aufmaßposition");
 
   try {
     const { data: order } = await supabase
@@ -980,7 +980,7 @@ export async function archiveOrderMeasurementItemAction(formData: FormData) {
       .maybeSingle();
 
     if (archiveError || !archivedItem) {
-      throw new SafeActionError("Aufmassposition wurde nicht gefunden.");
+      throw new SafeActionError("Aufmaßposition wurde nicht gefunden.");
     }
 
     await syncDimensionsFromMeasurements({
@@ -993,12 +993,12 @@ export async function archiveOrderMeasurementItemAction(formData: FormData) {
       includePrices: context.canManage
     });
   } catch (error) {
-    redirect(`/orders/${orderId}?error=${toQuery(safeErrorMessage(error, "Aufmassposition konnte nicht archiviert werden."))}`);
+    redirect(`/orders/${orderId}?error=${toQuery(safeErrorMessage(error, "Aufmaßposition konnte nicht archiviert werden."))}`);
   }
 
   revalidatePath(`/orders/${orderId}`);
   revalidatePath("/orders");
-  redirect(`/orders/${orderId}?success=${toQuery("Aufmassposition wurde archiviert und Material neu berechnet.")}`);
+  redirect(`/orders/${orderId}?success=${toQuery("Aufmaßposition wurde archiviert und Material neu berechnet.")}`);
 }
 
 export async function recalculateOrderMaterialsAction(formData: FormData) {

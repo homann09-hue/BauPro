@@ -217,7 +217,7 @@ export function createMarketReferenceAdapter(): OnlinePriceSource {
               priceGross: row.price_gross ?? row.price ?? row.market_price,
               shippingCost: row.shipping_cost ?? 0,
               deliveryTimeText: row.delivery_time_text ?? null,
-              sourceNote: "Markt-Richtpreis, kein Live-Angebot. Vor Bestellung pruefen."
+              sourceNote: "Markt-Richtpreis, kein Live-Angebot. Vor Bestellung prüfen."
             })
           )
           .filter((offer) => offer !== null);

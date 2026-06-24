@@ -150,16 +150,16 @@ export function evaluatePlanningWeatherRisk(metrics: ForecastMetrics): {
     if (thunderstorm) return { riskLevel, ruleCodes, summary: "Gewitterrisiko - Dacharbeiten wahrscheinlich verschieben." };
     if (gust >= 60 || wind >= 50) return { riskLevel, ruleCodes, summary: "Starker Wind - Arbeiten am Dach wahrscheinlich verschieben." };
     if (precipitation >= 5 || probability >= 85) return { riskLevel, ruleCodes, summary: "Regen/Starkregen - Material sichern und Arbeit wahrscheinlich verschieben." };
-    if (minTemperature <= -3) return { riskLevel, ruleCodes, summary: "Frost - Abdichtung, Kleben und sichere Begehung kritisch pruefen." };
-    return { riskLevel, ruleCodes, summary: "Hitze - Team, Pausen und Materialverarbeitung kritisch pruefen." };
+    if (minTemperature <= -3) return { riskLevel, ruleCodes, summary: "Frost - Abdichtung, Kleben und sichere Begehung kritisch prüfen." };
+    return { riskLevel, ruleCodes, summary: "Hitze - Team, Pausen und Materialverarbeitung kritisch prüfen." };
   }
 
   if (riskLevel === "yellow") {
-    if (ruleCodes.includes("strong_wind")) return { riskLevel, ruleCodes, summary: "Windig - Dacharbeiten und Sicherung vor Start pruefen." };
-    if (ruleCodes.includes("rain")) return { riskLevel, ruleCodes, summary: "Regen moeglich - Folien, Material und Tagesbericht im Blick behalten." };
-    if (ruleCodes.includes("frost")) return { riskLevel, ruleCodes, summary: "Frost/Kälte - Abdichtung und Rutschgefahr vor Ort pruefen." };
-    if (ruleCodes.includes("heat")) return { riskLevel, ruleCodes, summary: "Heiss - Pausen, Trinken und Materialverarbeitung einplanen." };
-    return { riskLevel, ruleCodes, summary: "Wetterlage pruefen, bevor das Team startet." };
+    if (ruleCodes.includes("strong_wind")) return { riskLevel, ruleCodes, summary: "Windig - Dacharbeiten und Sicherung vor Start prüfen." };
+    if (ruleCodes.includes("rain")) return { riskLevel, ruleCodes, summary: "Regen möglich - Folien, Material und Tagesbericht im Blick behalten." };
+    if (ruleCodes.includes("frost")) return { riskLevel, ruleCodes, summary: "Frost/Kälte - Abdichtung und Rutschgefahr vor Ort prüfen." };
+    if (ruleCodes.includes("heat")) return { riskLevel, ruleCodes, summary: "Heiß - Pausen, Trinken und Materialverarbeitung einplanen." };
+    return { riskLevel, ruleCodes, summary: "Wetterlage prüfen, bevor das Team startet." };
   }
 
   return { riskLevel, ruleCodes, summary: "Unkritisch - Wetter spricht aktuell nicht gegen die Planung." };
@@ -328,7 +328,7 @@ export async function loadPlanningWeatherRisks({
       if (!forecast) {
         risks[assignment.id] = {
           ...missingLocationRisk(assignment.id),
-          summary: "Wetterdaten konnten gerade nicht abgerufen werden - bitte spaeter erneut pruefen.",
+          summary: "Wetterdaten konnten gerade nicht abgerufen werden - bitte später erneut prüfen.",
           missingLocation: false
         };
         return;

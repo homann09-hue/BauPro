@@ -27,7 +27,7 @@ export const legalPages: LegalPage[] = [
           "Vertreten durch: [Geschaeftsfuehrung/Inhaber eintragen]"
         ]
       },
-      { heading: "Register und Aufsicht", body: ["Registergericht, Registernummer, Umsatzsteuer-ID und berufsrechtliche Angaben final ergaenzen, falls erforderlich."] }
+      { heading: "Register und Aufsicht", body: ["Registergericht, Registernummer, Umsatzsteuer-ID und berufsrechtliche Angaben final ergänzen, falls erforderlich."] }
     ]
   },
   {

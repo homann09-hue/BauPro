@@ -237,7 +237,7 @@ export default async function BringListDetailPage({
       <section className="surface mb-5 p-4 sm:p-5">
         <div className="mb-4 flex items-center gap-2">
           <PlusCircle className="h-5 w-5 text-moss" aria-hidden="true" />
-          <h2 className="text-lg font-black text-ink">Manuell ergaenzen</h2>
+          <h2 className="text-lg font-black text-ink">Manuell ergänzen</h2>
         </div>
         <form action={addBringListItemAction} className="grid gap-3 lg:grid-cols-[1.4fr_0.5fr_0.6fr_0.8fr_auto] lg:items-end">
           <input type="hidden" name="bring_list_id" value={list.id} />
@@ -316,8 +316,8 @@ export default async function BringListDetailPage({
               ) : null}
 
               <div className="mt-4 grid gap-2 sm:grid-cols-4">
-                <Metric label="Benoetigt" value={`${formatQuantity(item.quantity)} ${item.unit}`} />
-                <Metric label="Verfuegbar" value={inventory ? `${formatQuantity(check.available)} ${item.unit}` : "-"} />
+                <Metric label="Benötigt" value={`${formatQuantity(item.quantity)} ${item.unit}`} />
+                <Metric label="Verfügbar" value={inventory ? `${formatQuantity(check.available)} ${item.unit}` : "-"} />
                 <Metric label="Reserviert" value={`${formatQuantity(reserved)} ${item.unit}`} />
                 <Metric label="Fehlt" value={`${formatQuantity(check.missing)} ${item.unit}`} />
               </div>

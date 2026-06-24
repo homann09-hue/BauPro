@@ -490,25 +490,25 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
       company_id: companyId,
       name: "Demo: Steildach Schmidt",
       customer: "Anna Schmidt",
-      address: "Hauptstrasse 12, 50667 Koeln",
+      address: "Hauptstraße 12, 50667 Köln",
       latitude: 50.9375,
       longitude: 6.9603,
       start_date: todayOffset(0),
       status: "aktiv",
-      notes: "Demo in 2 Minuten: Materialwarnung, Mitbringliste, Aufmass und Tagesstunden sind vorbereitet.",
+      notes: "Demo in 2 Minuten: Materialwarnung, Mitbringliste, Aufmaß und Tagesstunden sind vorbereitet.",
       assigned_employee_ids: [users.v1.id, users.m1.id, users.m2.id, users.m3.id],
       created_by: users.chef.id
     },
     {
       company_id: companyId,
-      name: "Demo: Flachdach Baeckerei Kranz",
-      customer: "Baeckerei Kranz GmbH",
-      address: "Marktallee 7, 40213 Duesseldorf",
+      name: "Demo: Flachdach Bäckerei Kranz",
+      customer: "Bäckerei Kranz GmbH",
+      address: "Marktallee 7, 40213 Düsseldorf",
       latitude: 51.2254,
       longitude: 6.7763,
       start_date: todayOffset(2),
       status: "geplant",
-      notes: "Demo: Angebot, Daemmung und Schweissbahn-Bedarf pruefen.",
+      notes: "Demo: Angebot, Dämmung und Schweißbahn-Bedarf prüfen.",
       assigned_employee_ids: [users.v2.id, users.m4.id, users.m5.id],
       created_by: users.chef.id
     },
@@ -542,7 +542,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
       start_date: todayOffset(0),
       end_date: todayOffset(4),
       description: "Unterspannbahn, Konterlattung, Dachlattung und Tonziegel erneuern.",
-      internal_notes: "Demo-Fokus: Aufmass pruefen, Materialliste uebernehmen, Mitbringliste erzeugen.",
+      internal_notes: "Demo-Fokus: Aufmaß prüfen, Materialliste übernehmen, Mitbringliste erzeugen.",
       assigned_employee_ids: [users.v1.id, users.m1.id, users.m2.id, users.m3.id],
       has_dimensions: true,
       created_by: users.chef.id
@@ -552,13 +552,13 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
       customer_id: kranz.id,
       jobsite_id: jobKranz.id,
       order_number: `DEMO-${year}-0002`,
-      title: "Demo: Flachdach Baeckerei Kranz",
+      title: "Demo: Flachdach Bäckerei Kranz",
       order_type: "flachdach",
       status: "angebot",
       priority: "normal",
       jobsite_address: jobKranz.address,
       start_date: todayOffset(2),
-      description: "Vor-Kalkulation fuer Flachdach mit Dampfsperre, Daemmung und Oberlage.",
+      description: "Vor-Kalkulation für Flachdach mit Dampfsperre, Dämmung und Oberlage.",
       internal_notes: "Demo-Fokus: Chef-Preise und XRechnung/DATEV-Funktionen zeigen.",
       assigned_employee_ids: [users.v2.id, users.m4.id, users.m5.id],
       has_dimensions: true,
@@ -602,7 +602,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
       roof_drains_count: 0,
       emergency_overflows_count: 0,
       waste_percent: 20,
-      notes: "Demo-Aufmass: zwei Dachflaechen, Abzug Dachfenster/Gaube, Ortgang links beschaedigt.",
+      notes: "Demo-Aufmaß: zwei Dachflächen, Abzug Dachfenster/Gaube, Ortgang links beschädigt.",
       created_by: users.chef.id
     },
     {
@@ -731,8 +731,8 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
         chimneys_count: 1,
         waste_percent: 20,
         ai_enabled: false,
-        review_notice: "Demo: Vorschlag aus Aufmass und Dachdecker-Regeln. Vor Bestellung fachlich pruefen.",
-        notes: "Ziegel ca. 11,5 Stueck/m2, Lattung grob aus Dachflaeche geschaetzt.",
+        review_notice: "Demo: Vorschlag aus Aufmaß und Dachdecker-Regeln. Vor Bestellung fachlich prüfen.",
+        notes: "Ziegel ca. 11,5 Stück/m2, Lattung grob aus Dachfläche geschätzt.",
         created_by: users.chef.id
       },
       {
@@ -752,8 +752,8 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
         chimneys_count: 0,
         waste_percent: 20,
         ai_enabled: false,
-        review_notice: "Demo: Flachdach-Materialliste ist ein Angebotsvorschlag und muss vor Ausfuehrung geprueft werden.",
-        notes: "Dampfsperre, Daemmung und Oberlage jeweils mit 20 Prozent Zuschlag.",
+        review_notice: "Demo: Flachdach-Materialliste ist ein Angebotsvorschlag und muss vor Ausführung geprüft werden.",
+        notes: "Dampfsperre, Dämmung und Oberlage jeweils mit 20 Prozent Zuschlag.",
         created_by: users.chef.id
       },
       {
@@ -814,7 +814,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
       jobsite_id: jobSchmidt.id,
       report_date: todayOffset(-1),
       weather: "Trocken, 18 Grad, leichter Wind",
-      weather_summary: "Trocken, 18 °C, leichter Wind - gute Bedingungen fuer Dacharbeiten.",
+      weather_summary: "Trocken, 18 °C, leichter Wind - gute Bedingungen für Dacharbeiten.",
       weather_temperature_c: 18,
       weather_precipitation_mm: 0,
       weather_wind_kmh: 14,
@@ -823,7 +823,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
       work_start: "07:00",
       work_end: "16:00",
       employee_ids: [users.v1.id, users.m1.id, users.m2.id],
-      activities: "Unterspannbahn vorbereitet, Material kontrolliert, Aufmass geprueft und Ortgang links dokumentiert.",
+      activities: "Unterspannbahn vorbereitet, Material kontrolliert, Aufmaß geprüft und Ortgang links dokumentiert.",
       material_usage: "Unterspannbahn 75 m2, Dachlatten 110 lfm.",
       machine_usage: "Dachaufzug, Sprinter K-DT 210.",
       issues: "Konterlattenbestand reicht voraussichtlich nicht. Chef-Warnung wurde erzeugt.",
@@ -879,7 +879,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
       jobsite_id: jobSchmidt.id,
       event_type: "status",
       title: "Baustelle gestartet",
-      body: "Geruest steht, Material wurde geprueft und die Dachflaeche ist fuer die naechsten Arbeitsschritte vorbereitet.",
+      body: "Gerüst steht, Material wurde geprüft und die Dachfläche ist für die nächsten Arbeitsschritte vorbereitet.",
       visible_to_customer: true,
       event_date: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString(),
       created_by: users.chef.id
@@ -946,7 +946,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
   const demoWorkOrderSnapshot = {
     title: "Arbeitsauftrag: Steildachsanierung Schmidt",
     scope_of_work:
-      "Unterspannbahn verlegen, Konterlattung und Dachlattung herstellen, Ortgang links pruefen und die naechsten Materialschritte dokumentieren.",
+      "Unterspannbahn verlegen, Konterlattung und Dachlattung herstellen, Ortgang links prüfen und die nächsten Materialschritte dokumentieren.",
     version: 1,
     customer_id: schmidt.id,
     jobsite_id: jobSchmidt.id
@@ -958,7 +958,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
       jobsite_id: jobSchmidt.id,
       order_id: orderSchmidt.id,
       title: demoWorkOrderSnapshot.title,
-      description: "Demo-Arbeitsauftrag fuer die digitale Kundenfreigabe.",
+      description: "Demo-Arbeitsauftrag für die digitale Kundenfreigabe.",
       scope_of_work: demoWorkOrderSnapshot.scope_of_work,
       price_note: "Preisdetails stehen im Angebot. Interne EK-/Marge-Daten sind nicht Teil des Kundenportals.",
       status: "sent",
@@ -970,13 +970,13 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
   ]);
 
   await insertRows(admin, "tasks", [
-    { company_id: companyId, jobsite_id: jobSchmidt.id, title: "Demo: Konterlatten nachbestellen", description: "Mindestens 150 lfm fuer Schmidt reservieren.", assigned_to: users.chef.id, due_date: todayOffset(0), status: "offen", created_by: users.v1.id },
-    { company_id: companyId, jobsite_id: jobKranz.id, title: "Demo: Brenner und Gas pruefen", description: "Vor Flachdachtermin Gasbrennerzubehoer kontrollieren.", assigned_to: users.v2.id, due_date: todayOffset(1), status: "in_arbeit", created_by: users.chef.id }
+    { company_id: companyId, jobsite_id: jobSchmidt.id, title: "Demo: Konterlatten nachbestellen", description: "Mindestens 150 lfm für Schmidt reservieren.", assigned_to: users.chef.id, due_date: todayOffset(0), status: "offen", created_by: users.v1.id },
+    { company_id: companyId, jobsite_id: jobKranz.id, title: "Demo: Brenner und Gas prüfen", description: "Vor Flachdachtermin Gasbrennerzubehör kontrollieren.", assigned_to: users.v2.id, due_date: todayOffset(1), status: "in_arbeit", created_by: users.chef.id }
   ]);
 
   const bringLists = await insertRows(admin, "bring_lists", [
     { company_id: companyId, job_id: jobSchmidt.id, date: todayOffset(1), title: "Demo: Morgen Schmidt vorbereiten", notes: "Vom Hauptlager und Container laden. Fehlende Konterlatten und Ziegelmenge melden.", status: "ready", created_by: users.chef.id, assigned_to: users.v1.id, vehicle_id: vehicles[0].id },
-    { company_id: companyId, job_id: jobKranz.id, date: todayOffset(2), title: "Demo: Flachdach Kranz packen", notes: "Brenner-Set, Dampfsperre, Daemmung und Oberlage pruefen. Daemmung und Oberlage sind knapp.", status: "draft", created_by: users.chef.id, assigned_to: users.v2.id, vehicle_id: vehicles[1].id },
+    { company_id: companyId, job_id: jobKranz.id, date: todayOffset(2), title: "Demo: Flachdach Kranz packen", notes: "Brenner-Set, Dampfsperre, Dämmung und Oberlage prüfen. Dämmung und Oberlage sind knapp.", status: "draft", created_by: users.chef.id, assigned_to: users.v2.id, vehicle_id: vehicles[1].id },
     { company_id: companyId, job_id: jobRheinblick.id, date: todayOffset(1), title: "Demo: Rinnenanlage Rosenweg", notes: "Rinne, Halter, Fallrohre und Rohrschellen laden. Bestand reicht nicht vollstaendig.", status: "ready", created_by: users.chef.id, assigned_to: users.v1.id, vehicle_id: vehicles[1].id }
   ]);
   const [bringList, bringListKranz, bringListRheinblick] = bringLists;

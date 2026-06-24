@@ -318,7 +318,7 @@ export async function createOnboardingDemoDataAction(formData: FormData) {
       address: "Musterstraße 12, 50667 Köln",
       start_date: new Date().toISOString().slice(0, 10),
       status: "aktiv",
-      notes: "Demo-Baustelle: Unterspannbahn, Lattung und Dachziegel pruefen.",
+      notes: "Demo-Baustelle: Unterspannbahn, Lattung und Dachziegel prüfen.",
       assigned_employee_ids: [],
       created_by: context.userId
     })

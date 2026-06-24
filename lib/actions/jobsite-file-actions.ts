@@ -31,7 +31,7 @@ const documentCategoryLabels: Record<JobsiteDocumentCategory, string> = {
   angebot: "Angebot",
   rechnung: "Rechnung",
   lieferschein: "Lieferschein",
-  aufmass: "Aufmass",
+  aufmass: "Aufmaß",
   abnahmeprotokoll: "Abnahmeprotokoll",
   regiebericht: "Regiebericht",
   sicherheitsunterweisung: "Sicherheitsunterweisung",

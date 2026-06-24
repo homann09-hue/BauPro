@@ -24,13 +24,13 @@ describe("Warum BauPro", () => {
     }
   });
 
-  it("shows the value story in sales, demo and app navigation", () => {
+  it("keeps the value story public and out of the authenticated app shell", () => {
     expect(whyBauProSalesHighlights).toHaveLength(4);
     expect(whyBauProDemoFlow.length).toBeGreaterThanOrEqual(4);
-    expect(source("app/(app)/warum-baupro/page.tsx")).toContain("Warum BauPro?");
-    expect(source("components/app-shell.tsx")).toContain("/warum-baupro");
+    expect(source("app/(app)/warum-baupro/page.tsx")).toContain('redirect("/dashboard")');
+    expect(source("components/app-shell.tsx")).not.toContain("/warum-baupro");
     expect(source("app/(auth)/layout.tsx")).toContain("whyBauProSalesHighlights");
-    expect(source("app/(app)/dashboard/page.tsx")).toContain("whyBauProSalesHighlights");
-    expect(source("lib/help/help-content.ts")).toContain("Warum BauPro?");
+    expect(source("app/(app)/dashboard/page.tsx")).not.toContain("whyBauProSalesHighlights");
+    expect(source("lib/help/help-content.ts")).not.toContain("Warum BauPro?");
   });
 });

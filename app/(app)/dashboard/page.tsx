@@ -12,7 +12,6 @@ import {
   ListChecks,
   Camera,
   ShoppingCart,
-  Sparkles,
   TriangleAlert,
   UserMinus,
   Users
@@ -43,7 +42,6 @@ import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatMinutesAsHours } from "@/lib/time-tracking";
 import { formatDate, searchParamMessage } from "@/lib/utils";
-import { whyBauProSalesHighlights } from "@/lib/why-baupro";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -199,36 +197,6 @@ export default async function DashboardPage({
         {context.canManage ? <StatCard icon={Users} label="Team aktiv" value={employees.length} href="/team" tone="dark" /> : null}
         </div>
       </section>
-
-      {context.canManage ? (
-        <section className="mt-6 surface-strong p-4 sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="max-w-2xl">
-              <div className="mb-2 inline-flex items-center gap-2 rounded-md bg-mint px-3 py-1 text-xs font-black text-moss">
-                <Sparkles className="h-4 w-4" aria-hidden="true" />
-                Warum BauPro?
-              </div>
-              <h2 className="section-title">Wechselgründe für Handwerksbetriebe</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-600">
-                Nutze diese Punkte in der Demo: BauPro spart Zeit, senkt Fehlkosten, verhindert Preis-Leaks und automatisiert
-                Baustellenabläufe.
-              </p>
-            </div>
-            <Link href="/warum-baupro" className="btn-primary w-full lg:w-auto">
-              Nutzen ansehen
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {whyBauProSalesHighlights.map((highlight) => (
-              <div key={highlight.label} className="rounded-md border border-line bg-white p-3">
-                <p className="text-sm font-black text-ink">{highlight.label}</p>
-                <p className="mt-1 text-xs leading-5 text-slate-600">{highlight.value}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
 
       <Suspense fallback={context.canManage ? <DashboardDetailsSkeleton /> : null}>
         {context.canManage ? <DashboardManagedDetails supabase={supabase} context={context} summary={summary} /> : null}
