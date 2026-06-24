@@ -6,7 +6,9 @@ const runtimeCaching = [
   {
     urlPattern: ({ request, url }) =>
       request.mode === "navigate" &&
-      ["/", "/dashboard", "/baustellen", "/time-tracking", "/berichte", "/material-melden"].includes(url.pathname),
+      // Die öffentliche Startseite darf nicht aus einem alten PWA-Runtime-Cache kommen,
+      // weil Marketing-Änderungen sonst trotz erfolgreichem Vercel-Deploy unsichtbar wirken.
+      ["/dashboard", "/baustellen", "/time-tracking", "/berichte", "/material-melden"].includes(url.pathname),
     handler: "NetworkFirst",
     options: {
       cacheName: "baupro-app-shell-pages",
@@ -34,6 +36,10 @@ const withPWA = withPWAInit({
   dest: "public",
   disable: process.env.NODE_ENV === "development",
   register: true,
+  // Marketing- und Login-Zustand wechseln je nach Session. Die Startseite darf
+  // deshalb nicht als PWA-Start-URL gecacht werden, sonst sehen Nutzer alte Deploys.
+  cacheStartUrl: false,
+  dynamicStartUrl: false,
   skipWaiting: true,
   clientsClaim: true,
   fallbacks: {

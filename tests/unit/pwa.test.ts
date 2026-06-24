@@ -64,6 +64,10 @@ describe("installable PWA", () => {
     expect(config).toContain('handler: "NetworkFirst"');
     expect(config).toContain("baupro-app-shell-pages");
     expect(config).toContain("networkTimeoutSeconds");
+    expect(config).toContain("Die öffentliche Startseite darf nicht aus einem alten PWA-Runtime-Cache kommen");
+    expect(config).toContain("cacheStartUrl: false");
+    expect(config).toContain("dynamicStartUrl: false");
+    expect(config).not.toContain('["/", "/dashboard"');
     expect(config).not.toContain('{ url: "/dashboard", revision: null }');
     expect(config).not.toContain('{ url: "/baustellen", revision: null }');
     expect(config).not.toContain('{ url: "/berichte", revision: null }');
