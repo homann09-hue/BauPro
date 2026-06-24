@@ -6,6 +6,7 @@ import {
   MarketingShell,
   PricingTeaserSection,
   ProblemSolutionSection,
+  RoofStorySection,
   SectionIntro
 } from "@/components/marketing/marketing-site";
 import { CtaSection } from "@/components/public/cta-section";
@@ -71,6 +72,8 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      <RoofStorySection />
 
       <section id="funktionen" className="mx-auto max-w-7xl px-4 pb-14 sm:px-6 lg:px-8">
         <SectionIntro

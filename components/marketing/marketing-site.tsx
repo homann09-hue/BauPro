@@ -37,6 +37,27 @@ import { cn } from "@/lib/utils";
 const heroImageUrl =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuBt2LF4I9x1eaaYVmh3hkFNc4UPY9otMry5tgXhuixGAOrajFTBeGEPztuDlR1cZuNu9gTB5DrRTOSMaDU0jD_nmcCNZXDc1ZsCIrZfQMNb6CSBjlzMHr_YI2OY8TR2QojYsewdRLU7Gq-CS0u_kFQzRVVNZiHXvkJZtKrR-gfhfTl8H4KUjLHE2L1RB40Y-HuOWxCaEgu-XPAq6GS-mQLPaTRUEVlAR3-ijo74qNwS-N4C2StVA1aXiwMs1ugeoMSfPykKHJKm0YA";
 
+const roofStoryCards = [
+  {
+    title: "Neues Dach sauber dokumentieren",
+    text: "Fotos, Wetter, Zeiten und Bericht landen direkt am Auftrag, statt später aus Chats zusammengesucht zu werden.",
+    label: "Dokumentation",
+    position: "center top"
+  },
+  {
+    title: "Ziegel runter, Material im Blick",
+    text: "Materialbedarf, Mitbringliste und Lagerwarnungen helfen morgens, bevor etwas auf der Baustelle fehlt.",
+    label: "Baustelle",
+    position: "58% center"
+  },
+  {
+    title: "Chef sieht Fortschritt ohne Nachtelefonieren",
+    text: "Status, offene Punkte und Kundenfreigaben bleiben in BauPro nachvollziehbar und rollenbasiert geschützt.",
+    label: "Überblick",
+    position: "right center"
+  }
+];
+
 const featureIconMap: Record<MarketingFeature["icon"], LucideIcon> = {
   briefcase: BriefcaseBusiness,
   clock: Clock3,
@@ -69,26 +90,26 @@ export function MarketingHero({ isLoggedIn = false }: { isLoggedIn?: boolean }) 
   return (
     <section className="relative overflow-hidden border-b border-line bg-coal">
       <div className="absolute inset-0 z-0" aria-hidden="true">
-        <div className="h-full w-full bg-cover bg-center opacity-55 grayscale" style={{ backgroundImage: `url(${heroImageUrl})` }} />
+        <div className="bp-parallax-image h-full w-full bg-cover bg-center opacity-55 grayscale" style={{ backgroundImage: `url(${heroImageUrl})` }} />
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(19,19,19,0.96)_0%,rgba(19,19,19,0.78)_46%,rgba(19,19,19,0.38)_100%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(19,19,19,0.04)_0%,rgba(19,19,19,0.9)_88%)]" />
       </div>
 
       <div className="relative z-10 mx-auto grid min-h-[680px] max-w-7xl items-center gap-8 px-4 pb-10 pt-10 sm:px-6 lg:min-h-[720px] lg:grid-cols-[minmax(0,1fr)_430px] lg:px-8">
         <div className="max-w-3xl">
-          <div className="mb-5 inline-flex w-fit items-center gap-2 border border-moss/40 bg-moss/10 px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-moss">
+          <div className="bp-reveal mb-5 inline-flex w-fit items-center gap-2 border border-moss/40 bg-moss/10 px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-moss">
             <HardHat className="h-4 w-4" aria-hidden="true" />
             Für Dachdecker und echte Handwerker
           </div>
-          <h1 className="max-w-4xl text-5xl font-extrabold leading-[0.98] tracking-tight text-white sm:text-7xl lg:text-[5.8rem]">
+          <h1 className="bp-reveal bp-reveal-delay-1 max-w-4xl text-5xl font-extrabold leading-[0.98] tracking-tight text-white sm:text-7xl lg:text-[5.8rem]">
             Weniger Zettel. Mehr <span className="text-ocher">Baustelle</span>.
           </h1>
-          <p className="mt-6 max-w-2xl text-base font-semibold leading-8 text-white/75 sm:text-lg">
+          <p className="bp-reveal bp-reveal-delay-2 mt-6 max-w-2xl text-base font-semibold leading-8 text-white/75 sm:text-lg">
             BauPro digitalisiert Dachdeckerbetriebe von der Baustelle bis zum Büro:
             Aufträge, Zeiten, Material, Berichte und Kundeninfos an einem Ort.
           </p>
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <Link href="/demo" className="btn-primary w-full bg-ocher text-coal hover:bg-signal sm:w-auto">
+          <div className="bp-reveal bp-reveal-delay-3 mt-9 flex flex-col gap-3 sm:flex-row">
+            <Link href="/demo" className="btn-primary bp-hero-shine w-full bg-ocher text-coal hover:bg-signal sm:w-auto">
               Demo als Chef starten
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
@@ -96,7 +117,7 @@ export function MarketingHero({ isLoggedIn = false }: { isLoggedIn?: boolean }) 
               {isLoggedIn ? "Zum Dashboard" : "Funktionen entdecken"}
             </Link>
           </div>
-          <div className="mt-8 grid max-w-2xl gap-2 sm:grid-cols-3">
+          <div className="bp-reveal bp-reveal-delay-3 mt-8 grid max-w-2xl gap-2 sm:grid-cols-3">
             <TrustMini icon={Smartphone} label="Handy auf der Baustelle" />
             <TrustMini icon={ShieldCheck} label="Preise bleiben beim Chef" />
             <TrustMini icon={Hammer} label="Abläufe statt Chaos" />
@@ -119,7 +140,7 @@ export function MarketingHero({ isLoggedIn = false }: { isLoggedIn?: boolean }) 
 
 function HeroOperationsPanel() {
   return (
-    <aside className="border border-white/12 bg-surface/88 p-4 shadow-lift backdrop-blur-md sm:p-5">
+    <aside className="bp-soft-pop bp-reveal-delay-2 border border-white/12 bg-surface/88 p-4 shadow-lift backdrop-blur-md sm:p-5">
       <div className="mb-5 flex items-start justify-between gap-4 border-b border-line pb-4">
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-ocher">Heute im Betrieb</p>
@@ -239,6 +260,48 @@ export function ProductPreview() {
   );
 }
 
+export function RoofStorySection() {
+  return (
+    <section className="mx-auto max-w-7xl px-4 pb-14 sm:px-6 lg:px-8">
+      <div className="grid gap-4 lg:grid-cols-[0.82fr_1.18fr]">
+        <div className="border border-line bg-surface-container p-5 shadow-lift sm:p-6">
+          <p className="section-kicker">Baustellengefühl</p>
+          <h2 className="mt-3 text-4xl font-extrabold leading-tight tracking-tight text-ink sm:text-5xl">
+            Nicht nur Software. Ein ruhigerer Arbeitstag.
+          </h2>
+          <p className="mt-4 text-sm font-semibold leading-7 text-ash sm:text-base">
+            BauPro soll beim Besuch sofort zeigen, wofür es gebaut ist: Dächer, Material, Fotos, Zeitnachweise und klare Verantwortung.
+            Die Oberfläche bleibt dunkel, hochwertig und robust, aber bekommt mehr Bewegung und echte Baustellen-Bilder.
+          </p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+            <StoryMetric value="20%" label="Verschnitt vorbereitet" />
+            <StoryMetric value="1 App" label="statt Zettel + Chat" />
+            <StoryMetric value="mobil" label="für Baustelle und Büro" />
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          {roofStoryCards.map((card, index) => (
+            <article
+              key={card.title}
+              className={cn("bp-image-card bp-reveal min-h-[23rem] sm:min-h-[28rem]", index === 1 && "sm:translate-y-6", index === 2 && "sm:translate-y-12")}
+              style={roofImageStyle(card.position)}
+            >
+              <div className="bp-image-card-content">
+                <p className="mb-3 w-fit border border-ocher/40 bg-ocher/15 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-ocher">
+                  {card.label}
+                </p>
+                <h3 className="text-2xl font-black leading-tight text-white">{card.title}</h3>
+                <p className="mt-3 text-sm font-semibold leading-6 text-white/72">{card.text}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function FeatureGrid({ limit }: { limit?: number }) {
   const features = limit ? marketingFeatures.slice(0, limit) : marketingFeatures;
 
@@ -254,7 +317,7 @@ export function FeatureGrid({ limit }: { limit?: number }) {
 
 export function FeatureCard({ icon: Icon, title, description, index }: { icon: LucideIcon; title: string; description: string; index?: number }) {
   return (
-    <article className="group flex min-h-72 flex-col border border-line bg-surface-container p-5 transition hover:-translate-y-1 hover:border-ocher/60 hover:shadow-lift sm:p-6">
+    <article className="group bp-motion-card flex min-h-72 flex-col border border-line bg-surface-container p-5 sm:p-6">
       <div className="mb-8 flex h-12 w-12 items-center justify-center border border-line bg-surface-container-high text-ocher transition group-hover:border-ocher/50 group-hover:bg-ocher group-hover:text-coal">
         <Icon className="h-6 w-6" aria-hidden="true" />
       </div>
@@ -274,7 +337,7 @@ export function BenefitSection() {
       <SectionIntro kicker="Vorteile" title="Weniger Chaos. Mehr Steuerung." description="BauPro ersetzt keine Fachentscheidung, aber es macht die tägliche Arbeit nachvollziehbarer und schneller erreichbar." />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {marketingBenefits.map((benefit) => (
-          <div key={benefit} className="flex min-h-20 items-center gap-3 border border-line bg-surface-container p-4 shadow-sm">
+          <div key={benefit} className="bp-motion-card flex min-h-20 items-center gap-3 border border-line bg-surface-container p-4 shadow-sm">
             <CheckCircle2 className="h-5 w-5 shrink-0 text-moss" aria-hidden="true" />
             <p className="font-black text-ink">{benefit}</p>
           </div>
@@ -309,7 +372,7 @@ export function WorkflowSection() {
       <SectionIntro kicker="Ablauf" title="Vom ersten Kontakt bis zum Nachweis" description="Der typische Betriebsablauf bleibt handwerklich, wird aber digital geführt." />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
         {marketingWorkflow.map((step, index) => (
-          <div key={step} className="relative border border-line bg-surface-container p-4">
+          <div key={step} className="bp-motion-card relative border border-line bg-surface-container p-4">
             <p className="text-4xl font-black leading-none text-ocher">{String(index + 1).padStart(2, "0")}</p>
             <p className="mt-3 font-black text-ink">{step}</p>
             {index < marketingWorkflow.length - 1 ? <ChevronRight className="absolute right-3 top-4 hidden h-5 w-5 text-ash lg:block" aria-hidden="true" /> : null}
@@ -333,7 +396,7 @@ export function SecurityTrustSection() {
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {marketingSecurityNotes.map((note) => (
-            <div key={note.title} className="border border-line bg-surface-container p-4">
+            <div key={note.title} className="bp-motion-card border border-line bg-surface-container p-4">
               <LockKeyhole className="mb-3 h-5 w-5 text-moss" aria-hidden="true" />
               <h3 className="font-black text-ink">{note.title}</h3>
               <p className="mt-2 text-sm leading-6 text-ash">{note.text}</p>
@@ -378,7 +441,7 @@ export function FaqSection() {
       <SectionIntro kicker="FAQ" title="Häufige Fragen" description="Kurz und ohne Verkaufslärm beantwortet." />
       <div className="grid gap-3 lg:grid-cols-2">
         {marketingFaq.map((item) => (
-          <article key={item.question} className="border border-line bg-surface-container p-4 sm:p-5">
+          <article key={item.question} className="bp-motion-card border border-line bg-surface-container p-4 sm:p-5">
             <h3 className="font-black text-ink">{item.question}</h3>
             <p className="mt-2 text-sm leading-6 text-ash">{item.answer}</p>
           </article>
@@ -392,7 +455,7 @@ export function UseCaseGrid() {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {marketingUseCases.map((useCase) => (
-        <article key={useCase.title} className="border border-line bg-surface-container p-5 transition hover:-translate-y-1 hover:border-ocher/55 hover:shadow-lift">
+        <article key={useCase.title} className="bp-motion-card border border-line bg-surface-container p-5">
           <Building2 className="mb-4 h-6 w-6 text-ocher" aria-hidden="true" />
           <h2 className="text-2xl font-black text-ink">{useCase.title}</h2>
           <p className="mt-2 text-sm leading-6 text-ash">{useCase.description}</p>
@@ -476,6 +539,22 @@ export function MarketingCta() {
         </Link>
       </div>
     </section>
+  );
+}
+
+function roofImageStyle(position: string) {
+  return {
+    "--bp-card-image": `url(${heroImageUrl})`,
+    "--bp-card-position": position
+  } as React.CSSProperties;
+}
+
+function StoryMetric({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="border border-line bg-surface-container-high p-3">
+      <p className="text-3xl font-black leading-none text-ocher">{value}</p>
+      <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-ash">{label}</p>
+    </div>
   );
 }
 
