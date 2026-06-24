@@ -37,6 +37,9 @@ import { cn } from "@/lib/utils";
 const heroImageUrl =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuBt2LF4I9x1eaaYVmh3hkFNc4UPY9otMry5tgXhuixGAOrajFTBeGEPztuDlR1cZuNu9gTB5DrRTOSMaDU0jD_nmcCNZXDc1ZsCIrZfQMNb6CSBjlzMHr_YI2OY8TR2QojYsewdRLU7Gq-CS0u_kFQzRVVNZiHXvkJZtKrR-gfhfTl8H4KUjLHE2L1RB40Y-HuOWxCaEgu-XPAq6GS-mQLPaTRUEVlAR3-ijo74qNwS-N4C2StVA1aXiwMs1ugeoMSfPykKHJKm0YA";
 
+const roofWorkerImageUrl =
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuCE4K46tm04j6MI2aY6nTCFWhN4RsIZZwu4Fyb-4VYfPFY5kXaJF4tVxePN8YM7gyJ8HE8N5i-bXXQKJnbDfb3uJqCb2W5CUGOoF07zl6bMybZcEQAVuq3hVi8TwXtesuPYEG4aZw-Qo8Y8qeCdC1_UyU5aBuhXc11jrllq84QITiz5avXT34KY75ZyD9HIAHXvIf3pNkymQS96zM6ixkqKDRr6z1BNk5nNo5lYRwUMPFeXBxlkp73Sg1gzqpflamRC4j7QbeRYufg";
+
 const roofStoryCards = [
   {
     title: "Neues Dach sauber dokumentieren",
@@ -55,6 +58,29 @@ const roofStoryCards = [
     text: "Status, offene Punkte und Kundenfreigaben bleiben in BauPro nachvollziehbar und rollenbasiert geschützt.",
     label: "Überblick",
     position: "right center"
+  }
+];
+
+const whyBauProCards = [
+  {
+    icon: Clock3,
+    title: "Stunden ohne Zettelchaos",
+    text: "Mitarbeiter erfassen Zeiten direkt am Handy. Chef sieht offene Freigaben, Pausen und Tagesstunden sauber an einem Ort."
+  },
+  {
+    icon: PackageCheck,
+    title: "Material früher im Griff",
+    text: "BauPro zeigt knappe Lagerbestände, Mitbringlisten und Materialbedarf, bevor morgens auf der Baustelle etwas fehlt."
+  },
+  {
+    icon: Camera,
+    title: "Fotos bleiben beim Auftrag",
+    text: "Dachflächen, Schäden, Abnahmen und Tagesberichte werden nicht mehr in Chats gesucht, sondern sauber der Baustelle zugeordnet."
+  },
+  {
+    icon: ShieldCheck,
+    title: "Preise bleiben Chefsache",
+    text: "Mitarbeiter arbeiten operativ. EK, VK, Marge und Kalkulationen bleiben für Chef/Admin geschützt."
   }
 ];
 
@@ -90,23 +116,24 @@ export function MarketingHero({ isLoggedIn = false }: { isLoggedIn?: boolean }) 
   return (
     <section className="relative overflow-hidden border-b border-line bg-coal">
       <div className="absolute inset-0 z-0" aria-hidden="true">
-        <div className="bp-parallax-image h-full w-full bg-cover bg-center opacity-55 grayscale" style={{ backgroundImage: `url(${heroImageUrl})` }} />
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(19,19,19,0.96)_0%,rgba(19,19,19,0.78)_46%,rgba(19,19,19,0.38)_100%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(19,19,19,0.04)_0%,rgba(19,19,19,0.9)_88%)]" />
+        <div className="bp-parallax-image h-full w-full bg-cover bg-center opacity-70 grayscale-[0.35]" style={{ backgroundImage: `url(${heroImageUrl})` }} />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(19,19,19,0.98)_0%,rgba(19,19,19,0.86)_42%,rgba(19,19,19,0.42)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(19,19,19,0)_0%,rgba(19,19,19,0.42)_42%,rgba(19,19,19,0.94)_100%)]" />
       </div>
 
-      <div className="relative z-10 mx-auto grid min-h-[680px] max-w-7xl items-center gap-8 px-4 pb-10 pt-10 sm:px-6 lg:min-h-[720px] lg:grid-cols-[minmax(0,1fr)_430px] lg:px-8">
+      <div className="relative z-10 mx-auto grid min-h-[760px] max-w-7xl items-center gap-8 px-4 pb-10 pt-12 sm:px-6 lg:min-h-[820px] lg:grid-cols-[minmax(0,1fr)_500px] lg:px-8">
         <div className="max-w-3xl">
           <div className="bp-reveal mb-5 inline-flex w-fit items-center gap-2 border border-moss/40 bg-moss/10 px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-moss">
             <HardHat className="h-4 w-4" aria-hidden="true" />
-            Für Dachdecker und echte Handwerker
+            Baustellentauglich · mobil · rollenbasiert
           </div>
-          <h1 className="bp-reveal bp-reveal-delay-1 max-w-4xl text-5xl font-extrabold leading-[0.98] tracking-tight text-white sm:text-7xl lg:text-[5.8rem]">
-            Weniger Zettel. Mehr <span className="text-ocher">Baustelle</span>.
+          <h1 className="bp-reveal bp-reveal-delay-1 max-w-4xl text-5xl font-extrabold leading-[0.96] tracking-tight text-white sm:text-7xl lg:text-[5.9rem]">
+            Die Software für <span className="text-ocher">Dachdecker</span>, die draußen wirklich funktioniert.
           </h1>
           <p className="bp-reveal bp-reveal-delay-2 mt-6 max-w-2xl text-base font-semibold leading-8 text-white/75 sm:text-lg">
             BauPro digitalisiert Dachdeckerbetriebe von der Baustelle bis zum Büro:
-            Aufträge, Zeiten, Material, Berichte und Kundeninfos an einem Ort.
+            Auftrag, Team, Material, Zeiten, Fotos und Kundenportal in einer App.
+            Weniger Nachtelefonieren, weniger Papierkram, mehr Überblick im Betrieb.
           </p>
           <div className="bp-reveal bp-reveal-delay-3 mt-9 flex flex-col gap-3 sm:flex-row">
             <Link href="/demo" className="btn-primary bp-hero-shine w-full bg-ocher text-coal hover:bg-signal sm:w-auto">
@@ -118,9 +145,9 @@ export function MarketingHero({ isLoggedIn = false }: { isLoggedIn?: boolean }) 
             </Link>
           </div>
           <div className="bp-reveal bp-reveal-delay-3 mt-8 grid max-w-2xl gap-2 sm:grid-cols-3">
-            <TrustMini icon={Smartphone} label="Handy auf der Baustelle" />
-            <TrustMini icon={ShieldCheck} label="Preise bleiben beim Chef" />
-            <TrustMini icon={Hammer} label="Abläufe statt Chaos" />
+            <TrustMini icon={Smartphone} label="Große Buttons fürs Handy" />
+            <TrustMini icon={ShieldCheck} label="EK/VK bleiben geschützt" />
+            <TrustMini icon={Hammer} label="Für Dachdecker-Abläufe" />
           </div>
         </div>
 
@@ -130,8 +157,8 @@ export function MarketingHero({ isLoggedIn = false }: { isLoggedIn?: boolean }) 
       <div className="relative z-10 border-t border-white/10 bg-coal/82 backdrop-blur">
         <div className="mx-auto grid max-w-7xl gap-px bg-white/10 px-4 sm:px-6 md:grid-cols-3 lg:px-8">
           <HeroProof value="3 Klicks" label="zu Zeit, Bericht und Material" />
-          <HeroProof value="Heute" label="Baustellen, Team und Warnungen" />
-          <HeroProof value="Chefblick" label="Kosten und Rechte bleiben geschützt" />
+          <HeroProof value="Live" label="Baustellen, Team und Warnungen" />
+          <HeroProof value="Chefmodus" label="Kosten und Rechte bleiben geschützt" />
         </div>
       </div>
     </section>
@@ -140,26 +167,39 @@ export function MarketingHero({ isLoggedIn = false }: { isLoggedIn?: boolean }) 
 
 function HeroOperationsPanel() {
   return (
-    <aside className="bp-soft-pop bp-reveal-delay-2 border border-white/12 bg-surface/88 p-4 shadow-lift backdrop-blur-md sm:p-5">
-      <div className="mb-5 flex items-start justify-between gap-4 border-b border-line pb-4">
-        <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-ocher">Heute im Betrieb</p>
-          <h2 className="mt-2 text-2xl font-black leading-tight text-ink">Dachsanierung Hauptstraße</h2>
-          <p className="mt-1 text-sm font-semibold text-ash">5 Mitarbeiter · Bericht offen · Wetter trocken</p>
+    <aside className="bp-soft-pop bp-reveal-delay-2 overflow-hidden border border-white/12 bg-surface/92 shadow-lift backdrop-blur-md">
+      <div className="relative min-h-64 border-b border-line bg-cover bg-center" style={{ backgroundImage: `url(${roofWorkerImageUrl})` }}>
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(19,19,19,0.08)_0%,rgba(19,19,19,0.82)_100%)]" />
+        <div className="absolute left-4 top-4 border border-moss/35 bg-coal/75 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-moss backdrop-blur">
+          Dachsanierung live
         </div>
-        <span className="border border-moss/35 bg-moss/10 px-2 py-1 text-[11px] font-black uppercase text-moss">Live</span>
+        <div className="absolute bottom-4 left-4 right-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-ocher">Morgen 07:00 Uhr</p>
+          <h2 className="mt-1 text-3xl font-black leading-tight text-white">Hauptstraße 18</h2>
+          <p className="mt-1 text-sm font-semibold text-white/72">Team bereit · Material fast vollständig · Wetter trocken</p>
+        </div>
       </div>
 
-      <div className="grid gap-3">
-        <HeroPanelRow icon={Clock3} title="42 h heute erfasst" text="3 Zeiten warten auf Freigabe" tone="moss" />
-        <HeroPanelRow icon={PackageCheck} title="2 Materialwarnungen" text="Unterspannbahn und Dachlatten knapp" tone="ocher" />
-        <HeroPanelRow icon={FileText} title="Tagesbericht vorbereitet" text="Fotos, Wetter und Tätigkeiten gebündelt" tone="moss" />
-      </div>
+      <div className="p-4 sm:p-5">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-ocher">BauPro Übersicht</p>
+            <h3 className="mt-2 text-2xl font-black leading-tight text-ink">Was heute wichtig ist</h3>
+          </div>
+          <span className="border border-moss/35 bg-moss/10 px-2 py-1 text-[11px] font-black uppercase text-moss">Live</span>
+        </div>
 
-      <div className="mt-5 grid grid-cols-3 gap-px bg-line text-center">
-        <HeroMiniMetric value="7" label="Baustellen" />
-        <HeroMiniMetric value="18" label="Aufgaben" />
-        <HeroMiniMetric value="4" label="Berichte" />
+        <div className="grid gap-3">
+          <HeroPanelRow icon={Clock3} title="42 h erfasst" text="3 Zeiten warten auf Freigabe" tone="moss" />
+          <HeroPanelRow icon={PackageCheck} title="2 Materialwarnungen" text="Unterspannbahn und Dachlatten knapp" tone="ocher" />
+          <HeroPanelRow icon={FileText} title="Bericht bereit" text="Fotos, Wetter und Tätigkeiten gebündelt" tone="moss" />
+        </div>
+
+        <div className="mt-5 grid grid-cols-3 gap-px bg-line text-center">
+          <HeroMiniMetric value="7" label="Baustellen" />
+          <HeroMiniMetric value="18" label="Aufgaben" />
+          <HeroMiniMetric value="4" label="Berichte" />
+        </div>
       </div>
     </aside>
   );
@@ -267,11 +307,11 @@ export function RoofStorySection() {
         <div className="border border-line bg-surface-container p-5 shadow-lift sm:p-6">
           <p className="section-kicker">Baustellengefühl</p>
           <h2 className="mt-3 text-4xl font-extrabold leading-tight tracking-tight text-ink sm:text-5xl">
-            Nicht nur Software. Ein ruhigerer Arbeitstag.
+            So sieht digitale Baustelle aus.
           </h2>
           <p className="mt-4 text-sm font-semibold leading-7 text-ash sm:text-base">
-            BauPro soll beim Besuch sofort zeigen, wofür es gebaut ist: Dächer, Material, Fotos, Zeitnachweise und klare Verantwortung.
-            Die Oberfläche bleibt dunkel, hochwertig und robust, aber bekommt mehr Bewegung und echte Baustellen-Bilder.
+            Dachdecker brauchen keine verspielte Bürosoftware. Sie brauchen schnelle Eingaben, klare Nachweise,
+            Material im Blick und eine Oberfläche, die auf dem Handy genauso funktioniert wie im Büro.
           </p>
           <div className="mt-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
             <StoryMetric value="20%" label="Verschnitt vorbereitet" />
@@ -294,6 +334,39 @@ export function RoofStorySection() {
                 <h3 className="text-2xl font-black leading-tight text-white">{card.title}</h3>
                 <p className="mt-3 text-sm font-semibold leading-6 text-white/72">{card.text}</p>
               </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function WhyBauProSection() {
+  return (
+    <section id="warum-baupro" className="border-y border-line bg-basalt">
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="mb-8 grid gap-5 lg:grid-cols-[0.85fr_1.15fr] lg:items-end">
+          <div>
+            <p className="section-kicker">Warum BauPro?</p>
+            <h2 className="mt-3 text-4xl font-extrabold leading-tight tracking-tight text-ink sm:text-6xl">
+              Weil Handwerksbetriebe nicht an Software scheitern sollten.
+            </h2>
+          </div>
+          <p className="text-sm font-semibold leading-7 text-ash sm:text-base">
+            BauPro ist für Chefs gebaut, die morgens wissen wollen, wer wo arbeitet, welches Material fehlt,
+            welche Berichte offen sind und was der Kunde sehen darf. Ohne Excel-Suche, Chat-Chaos und doppelte Eingaben.
+          </p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {whyBauProCards.map((item) => (
+            <article key={item.title} className="bp-motion-card border border-line bg-surface-container p-5">
+              <div className="mb-5 flex h-12 w-12 items-center justify-center border border-ocher/35 bg-ocher/10 text-ocher">
+                <item.icon className="h-6 w-6" aria-hidden="true" />
+              </div>
+              <h3 className="text-xl font-black leading-tight text-ink">{item.title}</h3>
+              <p className="mt-3 text-sm font-semibold leading-6 text-ash">{item.text}</p>
             </article>
           ))}
         </div>

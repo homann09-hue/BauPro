@@ -7,7 +7,8 @@ import {
   PricingTeaserSection,
   ProblemSolutionSection,
   RoofStorySection,
-  SectionIntro
+  SectionIntro,
+  WhyBauProSection
 } from "@/components/marketing/marketing-site";
 import { CtaSection } from "@/components/public/cta-section";
 import { FaqSection } from "@/components/public/faq-section";
@@ -40,6 +41,8 @@ export default async function HomePage() {
   return (
     <MarketingShell isLoggedIn={isLoggedIn}>
       <HeroSection isLoggedIn={isLoggedIn} />
+
+      <WhyBauProSection />
 
       <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <SectionIntro
