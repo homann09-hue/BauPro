@@ -44,7 +44,7 @@ describe("Öffentliche BauPro Marketing-Seiten", () => {
       "app/security/page.tsx",
       "app/pricing/page.tsx",
       "app/about/page.tsx",
-      "app/(auth)/demo/page.tsx"
+      "app/demo/page.tsx"
     ]) {
       expect(exists(file), file).toBe(true);
     }

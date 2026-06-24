@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
 
   return redirectWithCookies(
     request,
-    "/demo-tour?success=Demo-Modus gestartet. Folge den Karten von oben nach unten.",
+    "/dashboard?success=Demo-Modus gestartet. Du bist jetzt im Chef-Dashboard der Demo-Firma.",
     cookiesToSet
   );
 }

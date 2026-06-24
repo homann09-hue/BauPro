@@ -12,7 +12,7 @@ function source(file: string) {
 describe("Demo-Modus", () => {
   it("offers a public no-input demo entry from login and /demo", () => {
     const loginPage = source("app/(auth)/login/page.tsx");
-    const demoPage = source("app/(auth)/demo/page.tsx");
+    const demoPage = source("app/demo/page.tsx");
 
     expect(loginPage).toContain('action="/api/auth/demo/start"');
     expect(loginPage).toContain('method="post"');
@@ -20,6 +20,8 @@ describe("Demo-Modus", () => {
     expect(demoPage).toContain("Demo als Chef starten");
     expect(demoPage).toContain("Baustellen, Team, Lager, Zeiten, Bautagesberichte");
     expect(demoPage).toContain('name="return_to" value="/demo"');
+    expect(demoPage).toContain("MarketingShell");
+    expect(demoPage).toContain("Direkt ins Dashboard, keine alte Zwischenseite.");
     expect(demoPage).toContain("Die Demo enthält ausschließlich Beispieldaten");
   });
 
@@ -38,12 +40,13 @@ describe("Demo-Modus", () => {
     expect(demoMode).toContain("forceUserSync");
   });
 
-  it("starts the demo by seeding data, signing in and opening the two-minute tour", () => {
+  it("starts the demo by seeding data, signing in and opening the real dashboard", () => {
     const demoStartRoute = source("app/api/auth/demo/start/route.ts");
 
     expect(demoStartRoute).toContain("ensureDemoModeData");
     expect(demoStartRoute).toContain("signInWithPassword");
-    expect(demoStartRoute).toContain("/demo-tour?success=");
+    expect(demoStartRoute).toContain("/dashboard?success=");
+    expect(demoStartRoute).not.toContain("/demo-tour?success=");
     expect(demoStartRoute).toContain("demoStartRateLimitKey");
     expect(demoStartRoute).toContain('process.env.NODE_ENV === "production"');
     expect(demoStartRoute).toContain("await checkRateLimit(demoStartRateLimitKey");
@@ -63,12 +66,12 @@ describe("Demo-Modus", () => {
     expect(demoSeed).toContain("customer_summary");
   });
 
-  it("keeps the tour reachable and prefetched for managers", () => {
+  it("keeps the tour reachable without forcing it into the demo start flow", () => {
     const appShell = source("components/app-shell.tsx");
     const tourPage = source("app/(app)/demo-tour/page.tsx");
 
-    expect(appShell).toContain('/demo-tour", label: "Demo-Tour"');
-    expect(prefetchRoutesForRole("chef", true)).toContain("/demo-tour");
+    expect(appShell).not.toContain('/demo-tour", label: "Demo-Tour"');
+    expect(prefetchRoutesForRole("chef", true)).not.toContain("/demo-tour");
     expect(tourPage).toContain("Zeige zuerst Nutzen, nicht Menues.");
     expect(tourPage).toContain("Kundenportal zeigen");
     expect(tourPage).toContain("DEMO_CUSTOMER_PORTAL_TOKEN");

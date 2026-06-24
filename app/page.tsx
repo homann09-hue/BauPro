@@ -17,6 +17,8 @@ import { HeroSection } from "@/components/public/hero-section";
 import { SecuritySection } from "@/components/public/security-section";
 import { WorkflowSection } from "@/components/public/workflow-section";
 import { getOptionalAppContext } from "@/lib/auth";
+import { MessageBox } from "@/components/message-box";
+import { searchParamMessage } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -34,13 +36,21 @@ async function getLandingContext() {
   }
 }
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const context = await getLandingContext();
   const isLoggedIn = Boolean(context);
+  const { error, success } = searchParamMessage(await searchParams);
 
   return (
     <MarketingShell isLoggedIn={isLoggedIn}>
       <HeroSection isLoggedIn={isLoggedIn} />
+      <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-6 lg:px-8">
+        <MessageBox error={error} success={success} />
+      </div>
 
       <WhyBauProSection />
 

@@ -197,7 +197,7 @@ export async function startDemoModeAction(formData: FormData) {
 
   await supabase.rpc("bootstrap_my_profile");
   revalidatePath("/dashboard");
-  redirect("/demo-tour?success=Demo-Modus gestartet. Folge den Karten von oben nach unten.");
+  redirect("/dashboard?success=Demo-Modus gestartet. Du bist jetzt im Chef-Dashboard der Demo-Firma.");
 }
 
 export async function signUpCompanyAction(formData: FormData) {
@@ -245,9 +245,9 @@ export async function signOutAction(formData?: FormData) {
   const reason = formData?.get("reason") === "inactivity" ? "inactivity" : "manual";
   await supabase.auth.signOut();
   if (reason === "inactivity") {
-    redirect(`/login?success=${toQuery("Du wurdest wegen Inaktivität abgemeldet.")}`);
+    redirect(`/?success=${toQuery("Du wurdest wegen Inaktivität abgemeldet.")}`);
   }
-  redirect("/login");
+  redirect(`/?success=${toQuery("Du wurdest abgemeldet.")}`);
 }
 
 export async function createEmployeeAction(formData: FormData) {

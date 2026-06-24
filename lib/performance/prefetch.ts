@@ -18,7 +18,6 @@ const managerRoutes = [
   "/materials/low-stock",
   "/materials/live-offers",
   "/time-tracking/reports",
-  "/demo-tour",
   "/onboarding",
   "/settings"
 ];
