@@ -13,7 +13,7 @@ test("Mitarbeiter nutzt die Baustellen-Bottom-Navigation ohne Browserfehler", as
   });
 
   await login(page, employeeUser);
-  await page.goto("/dashboard", { waitUntil: "networkidle" });
+  await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
 
   await expect(page.getByText(/Mein Arbeitstag|Heute auf Baustelle|Mein Einsatz heute/).first()).toBeVisible();
 
