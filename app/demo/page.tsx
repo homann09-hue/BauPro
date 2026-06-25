@@ -76,6 +76,33 @@ const demoValueCards = [
   "Kundenportal zeigt professionell den Baustellenstand."
 ];
 
+const demoTourSteps = [
+  {
+    title: "Dashboard öffnen",
+    text: "Du siehst aktive Baustellen, Teamstatus, Materialwarnungen, offene Zeiten und schnelle Aktionen."
+  },
+  {
+    title: "Baustelle prüfen",
+    text: "Adresse, Aufmaß, Fotos, Berichte, Mitbringliste und nächster Schritt sind an einem Ort verbunden."
+  },
+  {
+    title: "Materialbedarf verstehen",
+    text: "Die Demo zeigt Lagerbestand, knappe Materialien und vorbereitete Mitbringlisten ohne echte Preise für Mitarbeiter."
+  },
+  {
+    title: "Zeit und Bericht erfassen",
+    text: "Mobile Formulare zeigen, wie Mitarbeiter auf der Baustelle Zeiten, Tätigkeiten, Fotos und Wetter dokumentieren."
+  },
+  {
+    title: "Kundenportal ansehen",
+    text: "Freigegebene Fotos, Dokumente und Baustellenstatus wirken professionell, ohne interne Notizen offenzulegen."
+  },
+  {
+    title: "Chef-Auswertung prüfen",
+    text: "Freigaben, Berichte, Materialwarnungen und offene Punkte zeigen, wo der Betrieb heute Aufmerksamkeit braucht."
+  }
+];
+
 async function getDemoLandingContext() {
   try {
     return await getOptionalAppContext();
@@ -175,6 +202,30 @@ export default async function DemoPage({
               <p className="mt-2 truncate font-mono text-xs font-semibold text-ash">{user.email}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="border-y border-line bg-basalt">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+          <div className="mb-8 max-w-3xl">
+            <p className="section-kicker">2-Minuten-Tour</p>
+            <h2 className="mt-3 text-4xl font-extrabold leading-tight tracking-tight text-ink sm:text-5xl">
+              Die Demo zeigt den Nutzen ohne eigene Daten einzugeben.
+            </h2>
+            <p className="mt-4 text-sm font-semibold leading-7 text-ash sm:text-base">
+              Der Ablauf ist bewusst kurz: Erst Überblick, dann Baustelle, dann Material, Zeit, Bericht und Kundenansicht.
+              So erkennt ein Betrieb schnell, ob BauPro Papier, Nachtelefonieren und Sucharbeit reduziert.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {demoTourSteps.map((step, index) => (
+              <article key={step.title} className="bp-motion-card border border-line bg-surface-container p-5 shadow-soft">
+                <p className="text-4xl font-black leading-none text-ocher">{String(index + 1).padStart(2, "0")}</p>
+                <h3 className="mt-4 text-xl font-black text-ink">{step.title}</h3>
+                <p className="mt-2 text-sm font-semibold leading-6 text-ash">{step.text}</p>
+              </article>
+            ))}
+          </div>
         </div>
       </section>
     </MarketingShell>

@@ -270,7 +270,7 @@ export function ReportForm({
           <PhotoCaptureButton name="photos" multiple />
           <p className="field-help">
             Nur notwendige Baustellenfotos hochladen. Erlaubt: JPG, PNG, WebP, HEIC bis 10 MB je Foto. Personen, Kennzeichen und private
-            Innenraeume nach Möglichkeit vermeiden.
+            Innenräume nach Möglichkeit vermeiden.
           </p>
         </div>
         <div>

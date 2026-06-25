@@ -102,10 +102,10 @@ export const subprocessors = [
 ];
 
 export const retentionConcept = [
-  "Mitarbeiterzugang deaktivieren statt sofort hart loeschen, solange Nachweis- oder Aufbewahrungspflichten bestehen.",
-  "Arbeitszeitdaten mit Aenderungshistorie aufbewahren; Fristen durch Anwalt/Datenschutzbeauftragten final festlegen.",
-  "Baustellenberichte, Fotos und Auftragsdaten projektbezogen archivieren und nach Fristablauf loeschbar machen.",
-  "KI-Diktate und Aktionsvorschlaege nur zweckbezogen speichern und nicht für verdeckte Leistungskontrolle verwenden.",
+  "Mitarbeiterzugang deaktivieren statt sofort hart löschen, solange Nachweis- oder Aufbewahrungspflichten bestehen.",
+  "Arbeitszeitdaten mit Änderungshistorie aufbewahren; Fristen durch Anwalt/Datenschutzbeauftragten final festlegen.",
+  "Baustellenberichte, Fotos und Auftragsdaten projektbezogen archivieren und nach Fristablauf löschbar machen.",
+  "KI-Diktate und Aktionsvorschläge nur zweckbezogen speichern und nicht für verdeckte Leistungskontrolle verwenden.",
   "Preis-/Einkaufsdaten strikt von Mitarbeiteransichten trennen.",
-  "Vertragsende: Firmenexport bereitstellen, danach Sperr-/Loeschkonzept anwenden."
+  "Vertragsende: Firmenexport bereitstellen, danach Sperr-/Löschkonzept anwenden."
 ];

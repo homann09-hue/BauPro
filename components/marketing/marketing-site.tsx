@@ -484,24 +484,38 @@ export function SecurityTrustSection() {
 export function PricingTeaserSection() {
   return (
     <section className="border-y border-line bg-basalt">
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-14 sm:px-6 lg:grid-cols-[1fr_0.8fr] lg:px-8">
+      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-14 sm:px-6 lg:grid-cols-[0.82fr_1.18fr] lg:px-8">
         <div>
           <p className="section-kicker">Tarife</p>
           <h2 className="mt-3 text-4xl font-extrabold leading-tight tracking-tight text-ink sm:text-6xl">
-            Preise werden sauber vorbereitet.
+            Klare Pakete statt unklarer Lizenzlogik.
           </h2>
           <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-ash">
-            BauPro ist auf SaaS-Tarife vorbereitet. Aktuell steht die Demo im Vordergrund, damit Betriebe den Nutzen ohne lange Einrichtung sehen.
+            Starter, Professional und Business sind als einfache Beispieltarife aufgebaut. So versteht ein Betrieb schnell,
+            welche Funktionen für Teamgröße, Kundenportal, KI und Support vorgesehen sind.
           </p>
+          <p className="mt-4 max-w-2xl text-xs font-black uppercase tracking-[0.14em] text-ocher">
+            Hinweis: Preise sind Beispieltarife, bis Billing und Vertragsunterlagen final produktiv eingerichtet sind.
+          </p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Link href="/pricing" className="btn-primary">
+              Tarifseite öffnen
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <Link href="/demo" className="btn-secondary">
+              Demo starten
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-col justify-center gap-3">
-          <Link href="/pricing" className="btn-primary">
-            Tarifseite öffnen
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
-          <Link href="/demo" className="btn-secondary">
-            Demo starten
-          </Link>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {marketingPlans.map((plan) => (
+            <article key={plan.name} className={cn("border border-line bg-surface-container p-4 shadow-soft", plan.highlighted && "border-ocher bg-ocher/10")}>
+              <p className="text-sm font-black text-ink">{plan.name}</p>
+              <p className="mt-3 text-3xl font-black leading-none text-ocher">{plan.price}</p>
+              <p className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-ash">{plan.priceNote}</p>
+              <p className="mt-3 text-sm font-semibold leading-6 text-ash">{plan.description}</p>
+            </article>
+          ))}
         </div>
       </div>
     </section>
@@ -552,7 +566,8 @@ export function PricingCards() {
       {marketingPlans.map((plan) => (
         <article key={plan.name} className={cn("border border-line bg-surface-container p-5", plan.highlighted && "border-ocher bg-ocher/10")}>
           <p className="section-kicker">{plan.name}</p>
-          <h2 className="mt-3 text-3xl font-black text-ink">{plan.price}</h2>
+          <h2 className="mt-3 text-4xl font-black leading-none text-ink">{plan.price}</h2>
+          <p className="mt-2 text-xs font-black uppercase tracking-[0.14em] text-ocher">{plan.priceNote}</p>
           <p className="mt-2 text-sm leading-6 text-ash">{plan.description}</p>
           <ul className="mt-5 space-y-2">
             {plan.features.map((feature) => (

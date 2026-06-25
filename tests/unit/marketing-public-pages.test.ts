@@ -128,4 +128,30 @@ describe("Öffentliche BauPro Marketing-Seiten", () => {
       expect(data).toContain(text);
     }
   });
+
+  it("enthält ausführliche Funktionsinhalte, neue Beispieltarife und mindestens 15 FAQ-Fragen", () => {
+    const data = source("lib/marketing.ts");
+
+    expect(data).toContain("marketingFeatureDetails");
+    expect(data).toContain("29,99 €");
+    expect(data).toContain("49,99 €");
+    expect(data).toContain("79,99 €");
+    expect(data).toContain("pro Monat · Beispieltarif");
+    expect(data).toContain("marketingPricingComparison");
+
+    const faqQuestions = data.match(/question:/g) ?? [];
+    expect(faqQuestions.length).toBeGreaterThanOrEqual(15);
+  });
+
+  it("führt öffentliche Legal-Seiten professionell mit deutschen Umlauten", () => {
+    const legal = source("lib/legal/pages.ts");
+    const legalIndex = source("app/legal/page.tsx");
+    const legalDetail = source("app/legal/[slug]/page.tsx");
+
+    expect(legal).toContain("Datenschutzerklärung");
+    expect(legal).toContain("Lösch- und Aufbewahrungskonzept");
+    expect(legal).toContain("Geschäftsführung");
+    expect(legalIndex).toContain("Rechtliche Informationen");
+    expect(legalDetail).toContain("generateMetadata");
+  });
 });

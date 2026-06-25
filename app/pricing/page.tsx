@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CheckCircle2, Info } from "lucide-react";
 import { MarketingPageHeader, MarketingShell, PricingCards, SectionIntro } from "@/components/marketing/marketing-site";
 import { CtaSection } from "@/components/public/cta-section";
+import { marketingPricingComparison } from "@/lib/marketing";
 
 export const metadata: Metadata = {
   title: "Preise und Tarife",
@@ -23,11 +24,37 @@ export default function PricingPage() {
         <div className="mb-6 flex items-start gap-3 border border-primary/30 bg-primary/10 p-4 text-sm font-semibold leading-6 text-ash">
           <Info className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
           <p>
-            Die angezeigten Tarife dienen als transparente Produktstruktur für Pilot- und Verkaufsdemos. Abrechnung und Stripe-Aboverwaltung
-            bleiben sauber getrennt im geschützten App-Bereich.
+            Die angezeigten Tarife sind Beispieltarife für die Produkt- und Vertriebsstruktur. Vor produktiver Abrechnung
+            müssen Stripe, Rechnungsstellung, Vertragsunterlagen und Leistungsumfang final konfiguriert werden.
           </p>
         </div>
         <PricingCards />
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 pb-14 sm:px-6 lg:px-8">
+        <SectionIntro
+          kicker="Vergleich"
+          title="Welcher Tarif passt zu welchem Betrieb?"
+          description="Die Tarife sind bewusst einfach gehalten: kleiner Betrieb, wachsendes Team oder größerer Betrieb mit mehr Automatisierung."
+        />
+        <div className="overflow-hidden border border-line bg-surface-container shadow-lift">
+          <div className="hidden grid-cols-4 border-b border-line bg-surface-container-high text-sm font-black text-ink md:grid">
+            <div className="p-4">Bereich</div>
+            <div className="p-4">Starter</div>
+            <div className="p-4">Professional</div>
+            <div className="p-4">Business</div>
+          </div>
+          <div className="divide-y divide-line">
+            {marketingPricingComparison.map((row) => (
+              <div key={row.label} className="grid gap-3 p-4 text-sm md:grid-cols-4 md:gap-0">
+                <p className="font-black text-ink">{row.label}</p>
+                <PlanValue label="Starter" value={row.starter} />
+                <PlanValue label="Professional" value={row.professional} strong />
+                <PlanValue label="Business" value={row.business} />
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="border-y border-line bg-basalt">
@@ -58,5 +85,14 @@ export default function PricingPage() {
 
       <CtaSection />
     </MarketingShell>
+  );
+}
+
+function PlanValue({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="flex min-h-11 items-center justify-between gap-3 border border-line bg-surface-container-high px-3 py-2 md:min-h-0 md:border-0 md:bg-transparent md:p-0">
+      <span className="text-xs font-black uppercase tracking-[0.12em] text-ash md:hidden">{label}</span>
+      <span className={strong ? "font-black text-ocher" : "font-semibold text-ash"}>{value}</span>
+    </div>
   );
 }

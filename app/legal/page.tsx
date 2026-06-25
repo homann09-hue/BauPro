@@ -1,8 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { PublicFooter } from "@/components/public/public-footer";
 import { PublicNav } from "@/components/public/public-nav";
 import { legalPages } from "@/lib/legal/pages";
+
+export const metadata: Metadata = {
+  title: "Rechtliche Informationen",
+  description:
+    "Rechtliche BauPro Informationen: Impressum, Datenschutz, AGB, Cookies, AVV-Hinweis und Löschkonzept als prüfpflichtige Entwürfe."
+};
 
 export default function LegalIndexPage() {
   return (

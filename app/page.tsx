@@ -8,6 +8,7 @@ import {
   ProblemSolutionSection,
   RoofStorySection,
   SectionIntro,
+  UseCaseGrid,
   WhyBauProSection
 } from "@/components/marketing/marketing-site";
 import { CtaSection } from "@/components/public/cta-section";
@@ -83,6 +84,17 @@ export default async function HomePage({
             <MiniProof value="Mobil" label="für Baustelle" />
             <MiniProof value="Rollen" label="statt Einheitszugang" />
           </div>
+        </div>
+      </section>
+
+      <section id="zielgruppen" className="border-y border-line bg-basalt">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+          <SectionIntro
+            kicker="Für wen geeignet?"
+            title="Für Betriebe mit Baustellen, Teams, Material und Nachweisen"
+            description="BauPro startet mit Dachdeckerprozessen, ist aber bewusst so aufgebaut, dass auch verwandte Gewerke mit mobilen Teams, Lager, Fahrzeugen und Kundenkommunikation davon profitieren."
+          />
+          <UseCaseGrid />
         </div>
       </section>
 

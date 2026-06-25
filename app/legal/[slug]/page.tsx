@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
@@ -8,6 +9,22 @@ import { getLegalPage, legalPages } from "@/lib/legal/pages";
 
 export function generateStaticParams() {
   return legalPages.map((page) => ({ slug: page.slug }));
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const page = getLegalPage(slug);
+  if (!page) {
+    return {
+      title: "Rechtliche Informationen",
+      description: "Rechtliche BauPro Informationen und prüfpflichtige Entwürfe."
+    };
+  }
+
+  return {
+    title: page.title,
+    description: page.summary
+  };
 }
 
 export default async function LegalPage({ params }: { params: Promise<{ slug: string }> }) {
