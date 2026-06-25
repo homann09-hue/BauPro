@@ -3,9 +3,11 @@ import { Archive, CalendarDays, ChevronLeft, ChevronRight, Plus, TriangleAlert, 
 import { FormSection, StatCard } from "@/components/construction-ui";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
+import { PlanningAssignmentForm } from "@/components/planning/planning-assignment-form";
 import { PlanningBoard } from "@/components/planning/planning-board";
+import { PlanningResourceForm } from "@/components/planning/planning-resource-form";
 import { SubmitButton } from "@/components/submit-button";
-import { archivePlanningAssignmentAction, createPlanningAssignmentAction, createPlanningResourceAction } from "@/lib/actions/planning-actions";
+import { archivePlanningAssignmentAction } from "@/lib/actions/planning-actions";
 import { requireAppContext } from "@/lib/auth";
 import { planningAssignmentSelect, planningResourceSelect } from "@/lib/data/selects";
 import {
@@ -282,152 +284,31 @@ export default async function PlanningBoardPage({
       {context.canManage ? (
         <div className="mb-5 grid gap-5 xl:grid-cols-[1.4fr_0.9fr]">
           <FormSection title="Planung eintragen" description="Ressource wählen, Baustelle zuordnen und Zeitraum festlegen. Konflikte werden danach sichtbar markiert.">
-            <form action={createPlanningAssignmentAction} className="grid gap-3 lg:grid-cols-2" data-testid="planning-assignment-form">
-              <input type="hidden" name="return_to" value={returnTo} />
-              <div>
-                <label className="field-label" htmlFor="resource_key">
-                  Ressource
-                </label>
-                <select className="field-input" id="resource_key" name="resource_key" required>
-                  <option value="">Auswählen</option>
-                  {employees.length > 0 ? (
-                    <optgroup label="Mitarbeiter">
-                      {employees.map((employee) => (
-                        <option key={employee.id} value={`employee:${employee.id}`}>
-                          {employeeLabel(employee)}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null}
-                  {vehicles.length > 0 ? (
-                    <optgroup label="Fahrzeuge">
-                      {vehicles.map((vehicle) => (
-                        <option key={vehicle.id} value={`vehicle:${vehicle.id}`}>
-                          {vehicle.name}
-                          {vehicle.license_plate ? ` (${vehicle.license_plate})` : ""}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null}
-                  {resources.length > 0 ? (
-                    <optgroup label="Geräte & Ressourcen">
-                      {resources.map((resource) => (
-                        <option key={resource.id} value={`equipment:${resource.id}`}>
-                          {resource.name} · {resourceKindLabels[resource.resource_kind]}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null}
-                </select>
-              </div>
-              <div>
-                <label className="field-label" htmlFor="jobsite_id">
-                  Baustelle
-                </label>
-                <select className="field-input" id="jobsite_id" name="jobsite_id">
-                  <option value="">Ohne Baustelle / interner Blocker</option>
-                  {jobsites.map((jobsite) => (
-                    <option key={jobsite.id} value={jobsite.id}>
-                      {jobsite.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="field-label" htmlFor="title">
-                  Titel
-                </label>
-                <input className="field-input" id="title" name="title" placeholder="z. B. Baustelle Müller oder Werkstatt" />
-              </div>
-              <div>
-                <label className="field-label" htmlFor="status">
-                  Status
-                </label>
-                <select className="field-input" id="status" name="status" defaultValue="geplant">
-                  {statusOptions.map((status) => (
-                    <option key={status} value={status}>
-                      {planningStatusLabels[status]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="field-label" htmlFor="start_date">
-                  Von
-                </label>
-                <input className="field-input" id="start_date" name="start_date" type="date" defaultValue={period.start} required />
-              </div>
-              <div>
-                <label className="field-label" htmlFor="end_date">
-                  Bis
-                </label>
-                <input className="field-input" id="end_date" name="end_date" type="date" defaultValue={period.start} required />
-              </div>
-              <div>
-                <label className="field-label" htmlFor="color">
-                  Farbe
-                </label>
-                <input className="field-input h-12" id="color" name="color" type="color" defaultValue="#2E7D32" />
-              </div>
-              <div className="lg:col-span-2">
-                <label className="field-label" htmlFor="notes">
-                  Notiz
-                </label>
-                <textarea className="field-input min-h-24" id="notes" name="notes" placeholder="Teamhinweis, Besonderheit, Materialrisiko ..." />
-              </div>
-              <div className="lg:col-span-2">
-                <SubmitButton className="w-full sm:w-auto">Planung speichern</SubmitButton>
-              </div>
-            </form>
+            <PlanningAssignmentForm
+              returnTo={returnTo}
+              defaultDate={period.start}
+              employeeOptions={employees.map((employee) => ({ value: `employee:${employee.id}`, label: employeeLabel(employee) }))}
+              vehicleOptions={vehicles.map((vehicle) => ({
+                value: `vehicle:${vehicle.id}`,
+                label: `${vehicle.name}${vehicle.license_plate ? ` (${vehicle.license_plate})` : ""}`
+              }))}
+              resourceOptions={resources.map((resource) => ({
+                value: `equipment:${resource.id}`,
+                label: `${resource.name} · ${resourceKindLabels[resource.resource_kind]}`
+              }))}
+              jobsiteOptions={jobsites.map((jobsite) => ({ value: jobsite.id, label: jobsite.name }))}
+              statusOptions={statusOptions.map((status) => ({ value: status, label: planningStatusLabels[status] }))}
+            />
           </FormSection>
 
           <FormSection title="Gerät oder Ressource anlegen" description="Werkzeuge, Maschinen oder sonstige Ressourcen können danach eingeplant werden.">
-            <form action={createPlanningResourceAction} className="grid gap-3" data-testid="planning-resource-form">
-              <input type="hidden" name="return_to" value={returnTo} />
-              <div>
-                <label className="field-label" htmlFor="name">
-                  Name
-                </label>
-                <input className="field-input" id="name" name="name" placeholder="z. B. Kran, Brenner, Geruest" required />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="field-label" htmlFor="resource_kind">
-                    Art
-                  </label>
-                  <select className="field-input" id="resource_kind" name="resource_kind" defaultValue="maschine">
-                    {resourceKinds.map((kind) => (
-                      <option key={kind} value={kind}>
-                        {resourceKindLabels[kind]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="field-label" htmlFor="resource_status">
-                    Status
-                  </label>
-                  <select className="field-input" id="resource_status" name="status" defaultValue="verfuegbar">
-                    {resourceStatuses
-                      .filter((status) => status !== "archiviert")
-                      .map((status) => (
-                        <option key={status} value={status}>
-                          {resourceStatusLabels[status]}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="field-label" htmlFor="resource_notes">
-                  Notiz
-                </label>
-                <textarea className="field-input min-h-24" id="resource_notes" name="notes" />
-              </div>
-              <SubmitButton variant="secondary" className="w-full">
-                Ressource anlegen
-              </SubmitButton>
-            </form>
+            <PlanningResourceForm
+              returnTo={returnTo}
+              kindOptions={resourceKinds.map((kind) => ({ value: kind, label: resourceKindLabels[kind] }))}
+              statusOptions={resourceStatuses
+                .filter((status) => status !== "archiviert")
+                .map((status) => ({ value: status, label: resourceStatusLabels[status] }))}
+            />
           </FormSection>
         </div>
       ) : null}

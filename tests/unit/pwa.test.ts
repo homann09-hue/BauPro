@@ -87,4 +87,18 @@ describe("installable PWA", () => {
     expect(appShell).toContain("safe-area-inset-bottom");
     expect(offlinePage).toContain("Offline-Modus");
   });
+
+  it("renders Vercel telemetry only on Vercel to avoid local 404 console noise", () => {
+    const layout = read("app/layout.tsx");
+    const telemetry = read("components/vercel-telemetry.tsx");
+
+    expect(layout).toContain("<VercelTelemetry />");
+    expect(layout).not.toContain('@vercel/analytics/next');
+    expect(layout).not.toContain('@vercel/speed-insights/next');
+    expect(telemetry).toContain('"use client"');
+    expect(telemetry).toContain("window.location.hostname");
+    expect(telemetry).toContain('hostname === "localhost"');
+    expect(telemetry).toContain("<Analytics />");
+    expect(telemetry).toContain("<SpeedInsights />");
+  });
 });

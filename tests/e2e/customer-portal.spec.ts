@@ -23,16 +23,16 @@ test("Kundenportal-Link wird erzeugt, Kunde unterschreibt Arbeitsauftrag und ung
     .fill("E2E Test: Baustellenleistung pruefen und digital unterschreiben.");
   await workOrderForm.getByRole("button", { name: "Entwurf anlegen" }).click();
 
-  await expect(page.getByText(workOrderTitle)).toBeVisible();
-  const sendButtons = page.getByRole("button", { name: "Ins Kundenportal senden" });
-  const sendButtonCount = await sendButtons.count();
-  if (sendButtonCount > 0) {
-    await sendButtons.nth(sendButtonCount - 1).click();
-    await expect(page.getByText("Gesendet", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(workOrderTitle)).toBeVisible({ timeout: E2E_NAVIGATION_TIMEOUT });
+  const createdWorkOrderCard = page.getByTestId("work-order-card").filter({ hasText: workOrderTitle }).first();
+  const sendButton = createdWorkOrderCard.getByRole("button", { name: "Ins Kundenportal senden" });
+  if ((await sendButton.count()) > 0) {
+    await sendButton.click();
+    await expect(page.getByText("Gesendet", { exact: true }).first()).toBeVisible({ timeout: E2E_NAVIGATION_TIMEOUT });
   }
 
   await page.getByRole("button", { name: "Link erzeugen" }).click();
-  await expect(page.getByText("Neuer Kundenlink, nur jetzt voll sichtbar")).toBeVisible();
+  await expect(page.getByText("Neuer Kundenlink, nur jetzt voll sichtbar")).toBeVisible({ timeout: E2E_NAVIGATION_TIMEOUT });
 
   const portalToken = new URL(page.url()).searchParams.get("portal_token");
   expect(portalToken).toBeTruthy();
@@ -61,20 +61,30 @@ test("Kundenportal-Link wird erzeugt, Kunde unterschreibt Arbeitsauftrag und ung
   const signForm = workOrderCard.getByTestId("portal-work-order-sign-form");
   await signForm.getByLabel("Ihr Name").fill("Anna Schmidt");
   const canvas = signForm.locator("canvas");
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error("Unterschriftenfeld wurde nicht sichtbar gerendert.");
-  await portalPage.mouse.move(box.x + 24, box.y + 30);
-  await portalPage.mouse.down();
-  await portalPage.mouse.move(box.x + 90, box.y + 70);
-  await portalPage.mouse.move(box.x + 155, box.y + 42);
-  await portalPage.mouse.up();
+  await canvas.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const eventBase = {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true
+    };
+    element.dispatchEvent(new PointerEvent("pointerdown", { ...eventBase, clientX: rect.left + 24, clientY: rect.top + 30 }));
+    element.dispatchEvent(new PointerEvent("pointermove", { ...eventBase, clientX: rect.left + 90, clientY: rect.top + 70 }));
+    element.dispatchEvent(new PointerEvent("pointermove", { ...eventBase, clientX: rect.left + 155, clientY: rect.top + 42 }));
+    element.dispatchEvent(new PointerEvent("pointerup", { ...eventBase, clientX: rect.left + 155, clientY: rect.top + 42 }));
+  });
+  await expect(signForm.locator('input[name="signature_data_url"]')).toHaveValue(/^data:image\/jpeg;base64,/);
   await signForm.getByRole("button", { name: "Auftrag bestätigen" }).click();
-  await expect(portalPage.getByText(/Unterschrieben von Anna Schmidt/)).toBeVisible();
+  await expect(workOrderCard.getByText(/Unterschrieben von Anna Schmidt/).first()).toBeVisible({
+    timeout: E2E_NAVIGATION_TIMEOUT
+  });
 
   await portalPage.goto("/portal/e2e-abgelaufen-oder-ungueltig", {
     waitUntil: "domcontentloaded",
     timeout: E2E_NAVIGATION_TIMEOUT
   });
-  await expect(portalPage.getByText(/Portal-Link ist abgelaufen oder ungueltig/)).toBeVisible();
+  await expect(portalPage.getByText(/Portal-Link ist abgelaufen oder ungültig/)).toBeVisible();
   await portalContext.close();
 });

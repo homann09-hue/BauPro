@@ -124,23 +124,25 @@ describe("customer portal security", () => {
   it("checks affected rows for portal revocation, sending, signing and photo releases", () => {
     const portalActions = fs.readFileSync(path.join(root, "lib/actions/customer-portal-actions.ts"), "utf8");
     const portalPage = fs.readFileSync(path.join(root, "app/portal/[token]/page.tsx"), "utf8");
+    const signForm = fs.readFileSync(path.join(root, "components/customer-portal/portal-work-order-sign-form.tsx"), "utf8");
+    const signRoute = fs.readFileSync(path.join(root, "app/api/customer-portal/work-orders/sign/route.ts"), "utf8");
 
-    for (const marker of ["revokedToken", "sentWorkOrder", "signedWorkOrder", "updatedPhoto"]) {
+    for (const marker of ["revokedToken", "sentWorkOrder", "updatedPhoto"]) {
       expect(portalActions).toContain(marker);
     }
 
     expect(portalActions).toContain('.eq("order_id", orderId)');
-    expect(portalActions).toContain("workOrderDecision(decision)");
-    expect(portalActions).toContain("validateSignatureDataUrl");
-    expect(portalActions).toContain("required: decisionValue === \"sign\"");
-    expect(portalActions).toContain("digital_signatures");
-    expect(portalActions).toContain("Bitte bei Ablehnung kurz angeben");
-    expect(portalActions).toContain('.eq("customer_id", portalToken.customer_id)');
-    expect(portalActions).toContain('workOrderQuery = workOrderQuery.eq("jobsite_id", portalToken.jobsite_id)');
-    expect(portalActions).toContain('updateQuery = updateQuery.eq("jobsite_id", portalToken.jobsite_id)');
+    expect(signRoute).toContain("validateSignatureDataUrl");
+    expect(signRoute).toContain("required: decision === \"sign\"");
+    expect(signRoute).toContain("digital_signatures");
+    expect(signRoute).toContain("Bitte bei Ablehnung kurz angeben");
+    expect(signRoute).toContain('.eq("customer_id", portalToken.customer_id)');
+    expect(signRoute).toContain('workOrderQuery = workOrderQuery.eq("jobsite_id", portalToken.jobsite_id)');
+    expect(signRoute).toContain('updateQuery = updateQuery.eq("jobsite_id", portalToken.jobsite_id)');
     expect(portalActions.match(/\.select\("id"\)\s*\.maybeSingle\(\)/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
-    expect(portalPage).toContain("maxLength={120}");
-    expect(portalPage).toContain("maxLength={1000}");
+    expect(portalPage).toContain("PortalWorkOrderSignForm");
+    expect(signForm).toContain("maxLength={120}");
+    expect(signForm).toContain("maxLength={1000}");
   });
 
   it("adds customer portal tables with forced RLS to schema and migration", () => {

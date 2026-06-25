@@ -39,11 +39,12 @@ test("Mitarbeiter meldet Materialverbrauch, Chef bestaetigt die Buchung", async 
   const usageForm = page.getByTestId("material-usage-form");
   test.skip((await usageForm.count()) === 0, "Demo-Daten fehlen: kein Material oder keine zugewiesene Baustelle sichtbar.");
 
+  const usageNote = `E2E Test: Material auf Baustelle verbraucht ${Date.now()}`;
   const selects = usageForm.locator("select");
   await selectFirstNonEmptyOption(selects.nth(0));
   await selectFirstNonEmptyOption(selects.nth(1));
   await usageForm.getByLabel("Menge").fill("1");
-  await usageForm.getByLabel("Notiz").fill("E2E Test: Material auf Baustelle verbraucht.");
+  await usageForm.getByLabel("Notiz").fill(usageNote);
   await usageForm.getByRole("button", { name: "Materialbuchung melden" }).click();
 
   await expect(page.getByText("Materialbuchung wurde gemeldet und wartet auf Bestaetigung.")).toBeVisible();
@@ -52,10 +53,11 @@ test("Mitarbeiter meldet Materialverbrauch, Chef bestaetigt die Buchung", async 
   await login(page);
   await gotoAppPage(page, "/materials/inventory");
 
-  const confirmationForms = page.getByTestId("material-confirmation-form");
-  await expect(confirmationForms.first()).toBeVisible({ timeout: E2E_NAVIGATION_TIMEOUT });
-  await confirmationForms.nth(0).locator('input[name="confirmation_note"]').fill("E2E Test: Verbrauch geprueft.");
-  await confirmationForms.nth(0).getByRole("button", { name: "Bestätigen" }).click();
+  const usageReport = page.getByTestId("material-usage-report").filter({ hasText: usageNote }).first();
+  await expect(usageReport).toBeVisible({ timeout: E2E_NAVIGATION_TIMEOUT });
+  const confirmationForm = usageReport.getByTestId("material-confirmation-form");
+  await confirmationForm.locator('input[name="confirmation_note"]').fill("E2E Test: Verbrauch geprueft.");
+  await confirmationForm.getByRole("button", { name: "Bestätigen" }).click();
 
   const success = page.getByText("Materialmeldung wurde verarbeitet.");
   const missingMigration = page.getByText("Materialmeldung konnte nicht bestaetigt werden. Pruefe Bestand und Berechtigung.");
@@ -81,7 +83,7 @@ test("Chef plant Ressource und sieht Demo-Konflikte in der Plantafel", async ({ 
   await resourceForm.getByLabel("Status").selectOption("verfuegbar");
   await resourceForm.getByLabel("Notiz").fill("Automatisierte Testressource.");
   await resourceForm.getByRole("button", { name: "Ressource anlegen" }).click();
-  await expect(page.getByText("Ressource wurde angelegt.")).toBeVisible();
+  await expect(page.getByText("Ressource wurde angelegt.")).toBeVisible({ timeout: E2E_NAVIGATION_TIMEOUT });
 
   const assignmentForm = page.getByTestId("planning-assignment-form");
   const assignmentSelects = assignmentForm.locator("select");
@@ -92,7 +94,7 @@ test("Chef plant Ressource und sieht Demo-Konflikte in der Plantafel", async ({ 
   await assignmentForm.getByLabel("Bis").fill(todayIsoDate());
   await assignmentForm.getByLabel("Notiz").fill("Automatisierte Planung fuer QA.");
   await assignmentForm.getByRole("button", { name: "Planung speichern" }).click();
-  await expect(page.getByText("Planung wurde gespeichert.")).toBeVisible();
+  await expect(page.getByText("Planung wurde gespeichert.")).toBeVisible({ timeout: E2E_NAVIGATION_TIMEOUT });
 
   const conflictText = page.getByText(/Mitarbeiter doppelt verplant|Kritisches Material fehlt|ist defekt/);
   test.skip((await conflictText.count()) === 0, "Demo-Daten enthalten aktuell keinen Plantafel-Konflikt.");

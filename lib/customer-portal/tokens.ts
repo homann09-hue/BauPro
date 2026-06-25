@@ -190,9 +190,15 @@ async function signedJobsiteDocument(document: PortalJobsiteDocument): Promise<P
   return { ...document, signedUrl: data?.signedUrl };
 }
 
-function rowsOrEmpty<T>(result: { data: unknown; error: { message?: string } | null }, label: string): T[] {
+function rowsOrEmpty<T>(
+  result: { data: unknown; error: { message?: string } | null },
+  label: string,
+  options: { logMissingSchema?: boolean } = {}
+): T[] {
   if (result.error) {
-    logServerWarning("customer-portal-load-section-failed", result.error, { section: label });
+    if (options.logMissingSchema !== false || !isMissingSchemaError(result.error)) {
+      logServerWarning("customer-portal-load-section-failed", result.error, { section: label });
+    }
     return [];
   }
 
@@ -304,7 +310,7 @@ export async function loadCustomerPortalData(token: string): Promise<CustomerPor
   let workOrdersQuery = supabase
     .from("work_orders")
     .select(
-      "id, company_id, customer_id, jobsite_id, order_id, title, description, scope_of_work, price_note, status, version, content_hash, sent_at, viewed_at, signed_at, rejected_at, signer_name, signature_data_url, signature_role, rejection_reason, created_by, created_at, updated_at"
+      "id, company_id, customer_id, jobsite_id, order_id, title, description, scope_of_work, price_note, status, version, content_hash, sent_at, viewed_at, signed_at, rejected_at, signer_name, signature_data_url, rejection_reason, created_by, created_at, updated_at"
     )
     .eq("company_id", portalToken.company_id)
     .eq("customer_id", portalToken.customer_id)
@@ -445,7 +451,9 @@ export async function loadCustomerPortalData(token: string): Promise<CustomerPor
   const reports = rowsOrEmpty<PortalReport>(reportsResult, "reports");
   const photos = await Promise.all(rowsOrEmpty<ReportPhoto>(photosResult, "photos").map(signedReportPhoto));
   const documents = await Promise.all(rowsOrEmpty<CustomerDocument>(documentsResult, "documents").map(signedCustomerDocument));
-  const jobsiteDocuments = await Promise.all(rowsOrEmpty<PortalJobsiteDocument>(jobsiteDocumentsResult, "jobsite-documents").map(signedJobsiteDocument));
+  const jobsiteDocuments = await Promise.all(
+    rowsOrEmpty<PortalJobsiteDocument>(jobsiteDocumentsResult, "jobsite-documents", { logMissingSchema: false }).map(signedJobsiteDocument)
+  );
   const orders = rowsOrEmpty<PortalOrder>(ordersResult, "orders");
   const commercialDocuments = rowsOrEmpty<PortalCommercialDocument>(commercialDocumentsResult, "commercial-documents");
   const messages = rowsOrEmpty<CustomerPortalMessage>(messagesResult, "messages");

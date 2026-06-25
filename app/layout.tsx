@@ -1,9 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { Bebas_Neue, Inter } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ConsentBanner } from "@/components/consent-banner";
+import { VercelTelemetry } from "@/components/vercel-telemetry";
 import "./globals.css";
 
 const inter = Inter({
@@ -73,8 +72,7 @@ export default async function RootLayout({
       <body data-nonce-present={nonce ? "true" : undefined}>
         {children}
         <ConsentBanner />
-        <Analytics />
-        <SpeedInsights />
+        <VercelTelemetry />
       </body>
     </html>
   );

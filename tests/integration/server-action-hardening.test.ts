@@ -91,7 +91,11 @@ describe("server action hardening", () => {
   it("does not trust material usage FormData for company or actor ids", () => {
     const inventoryActions = source("lib/actions/inventory-actions.ts");
     const reportAction = actionBlock(inventoryActions, "reportMaterialUsageAction", "confirmMaterialUsageReportAction");
-    const confirmAction = actionBlock(inventoryActions, "confirmMaterialUsageReportAction", "reserveMaterialForJobsiteAction");
+    const confirmStart = inventoryActions.indexOf("async function confirmMaterialUsageReport");
+    const confirmEnd = inventoryActions.indexOf("export async function reserveMaterialForJobsiteAction");
+    expect(confirmStart).toBeGreaterThanOrEqual(0);
+    expect(confirmEnd).toBeGreaterThan(confirmStart);
+    const confirmAction = inventoryActions.slice(confirmStart, confirmEnd);
     const reserveAction = actionBlock(inventoryActions, "reserveMaterialForJobsiteAction", "createInventoryLocationAction");
 
     expect(reportAction).toContain("requireAppContext");

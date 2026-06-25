@@ -405,40 +405,63 @@ export async function reportMaterialUsageAction(formData: FormData) {
   redirect(`${returnTo}?success=${toQuery("Materialbuchung wurde gemeldet und wartet auf Bestaetigung.")}`);
 }
 
-export async function confirmMaterialUsageReportAction(formData: FormData) {
+type MaterialUsageConfirmationResult = {
+  success?: string;
+  error?: string;
+};
+
+async function confirmMaterialUsageReport(formData: FormData) {
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
+
+  if (!context.canOperate) {
+    throw new SafeActionError("Keine Berechtigung fuer Materialbestaetigungen.");
+  }
+
+  const reportId = requiredFormUuid(formData, "usage_report_id", "Materialmeldung");
+  const decision = usageDecisionValue(formData.get("decision"));
+  const note = optionalString(formData, "confirmation_note");
+
+  const { error } = await supabase.rpc("confirm_material_usage_report", {
+    p_company_id: context.companyId,
+    p_report_id: reportId,
+    p_actor_id: context.userId,
+    p_decision: decision,
+    p_note: note
+  });
+
+  if (error) {
+    throw new SafeActionError(
+      decision === "rejected"
+        ? "Materialmeldung konnte nicht abgelehnt werden."
+        : "Materialmeldung konnte nicht bestaetigt werden. Pruefe Bestand und Berechtigung."
+    );
+  }
+
+  revalidateJobMaterialRoutes(context.companyId);
+}
+
+export async function confirmMaterialUsageReportStateAction(
+  _previousState: MaterialUsageConfirmationResult,
+  formData: FormData
+): Promise<MaterialUsageConfirmationResult> {
+  try {
+    await confirmMaterialUsageReport(formData);
+    return { success: "Materialmeldung wurde verarbeitet." };
+  } catch (error) {
+    return { error: safeErrorMessage(error, "Materialmeldung konnte nicht verarbeitet werden.") };
+  }
+}
+
+export async function confirmMaterialUsageReportAction(formData: FormData) {
   const returnTo = redirectTarget(formData);
 
   try {
-    if (!context.canOperate) {
-      throw new SafeActionError("Keine Berechtigung fuer Materialbestaetigungen.");
-    }
-
-    const reportId = requiredFormUuid(formData, "usage_report_id", "Materialmeldung");
-    const decision = usageDecisionValue(formData.get("decision"));
-    const note = optionalString(formData, "confirmation_note");
-
-    const { error } = await supabase.rpc("confirm_material_usage_report", {
-      p_company_id: context.companyId,
-      p_report_id: reportId,
-      p_actor_id: context.userId,
-      p_decision: decision,
-      p_note: note
-    });
-
-    if (error) {
-      throw new SafeActionError(
-        decision === "rejected"
-          ? "Materialmeldung konnte nicht abgelehnt werden."
-          : "Materialmeldung konnte nicht bestaetigt werden. Pruefe Bestand und Berechtigung."
-      );
-    }
+    await confirmMaterialUsageReport(formData);
   } catch (error) {
     redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Materialmeldung konnte nicht verarbeitet werden."))}`);
   }
 
-  revalidateJobMaterialRoutes(context.companyId);
   redirect(`${returnTo}?success=${toQuery("Materialmeldung wurde verarbeitet.")}`);
 }
 

@@ -8,7 +8,6 @@ import {
   FileDown,
   FileSignature,
   FileText,
-  Link2,
   ListChecks,
   LockKeyhole,
   MessageSquareText,
@@ -18,6 +17,9 @@ import {
   XCircle
 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
+import { CustomerPortalLinkForm } from "@/components/customer-portal/customer-portal-link-form";
+import { WorkOrderDraftForm } from "@/components/customer-portal/work-order-draft-form";
+import { WorkOrderSendButton } from "@/components/customer-portal/work-order-send-button";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -25,10 +27,7 @@ import { createInvoiceFromOrderAction } from "@/lib/actions/invoice-actions";
 import { createBringListFromOrderAction } from "@/lib/actions/bring-list-actions";
 import {
   createCustomerPortalEventAction,
-  createCustomerPortalLinkAction,
-  createWorkOrderAction,
   revokeCustomerPortalLinkAction,
-  sendWorkOrderAction,
   uploadCustomerDocumentAction
 } from "@/lib/actions/customer-portal-actions";
 import {
@@ -568,30 +567,7 @@ function CustomerPortalPanel({
             Lagerdaten und Teamnotizen bleiben ausgeblendet.
           </p>
         </div>
-        <form
-          action={createCustomerPortalLinkAction}
-          className="grid gap-2 rounded-lg border border-line bg-fog p-3 sm:grid-cols-[1fr_120px_auto] lg:min-w-[520px]"
-          data-testid="portal-link-form"
-        >
-          <input type="hidden" name="order_id" value={order.id} />
-          <label>
-            <span className="field-label">Bezeichnung</span>
-            <input className="field-input" name="label" defaultValue={`Portal ${order.order_number}`} />
-          </label>
-          <label>
-            <span className="field-label">Gültig Tage</span>
-            <select className="field-input" name="expires_days" defaultValue="45">
-              <option value="14">14</option>
-              <option value="30">30</option>
-              <option value="45">45</option>
-              <option value="90">90</option>
-            </select>
-          </label>
-          <button className="btn-primary self-end" type="submit">
-            <Link2 className="h-4 w-4" aria-hidden="true" />
-            Link erzeugen
-          </button>
-        </form>
+        <CustomerPortalLinkForm orderId={order.id} defaultLabel={`Portal ${order.order_number}`} />
       </div>
 
       {freshLink ? (
@@ -662,33 +638,7 @@ function CustomerPortalPanel({
             <h3 className="font-black text-ink">Arbeitsaufträge</h3>
           </div>
 
-          <form action={createWorkOrderAction} className="mb-4 grid gap-3 rounded-lg border border-line bg-fog p-3" data-testid="work-order-form">
-            <input type="hidden" name="order_id" value={order.id} />
-            <label>
-              <span className="field-label">Titel</span>
-              <input className="field-input" name="title" defaultValue={`Arbeitsauftrag ${order.order_number}`} />
-            </label>
-            <label>
-              <span className="field-label">Kurzbeschreibung</span>
-              <input className="field-input" name="description" defaultValue={order.description ?? ""} />
-            </label>
-            <label>
-              <span className="field-label">Leistungsbeschreibung für Kunden</span>
-              <textarea
-                className="field-input min-h-28"
-                name="scope_of_work"
-                defaultValue={order.description ?? "Bitte Leistung, Umfang und Besonderheiten für den Kunden eintragen."}
-              />
-            </label>
-            <label>
-              <span className="field-label">Preis-/Angebotshinweis für Kunden</span>
-              <input className="field-input" name="price_note" placeholder="z. B. gemäß Angebot vom ..." />
-            </label>
-            <button className="btn-secondary justify-self-start" type="submit">
-              <FileSignature className="h-4 w-4" aria-hidden="true" />
-              Entwurf anlegen
-            </button>
-          </form>
+          <WorkOrderDraftForm orderId={order.id} orderNumber={order.order_number} defaultDescription={order.description} />
 
           {workOrders.length === 0 ? (
             <p className="rounded-md border border-dashed border-line p-3 text-sm font-semibold text-slate-600">
@@ -697,7 +647,7 @@ function CustomerPortalPanel({
           ) : (
             <div className="space-y-2">
               {workOrders.map((workOrder) => (
-                <div key={workOrder.id} className="rounded-md border border-line p-3">
+                <div key={workOrder.id} className="rounded-md border border-line p-3" data-testid="work-order-card">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="font-black text-ink">{workOrder.title}</p>
@@ -711,14 +661,7 @@ function CustomerPortalPanel({
                   </div>
                   <p className="mt-2 whitespace-pre-line text-sm text-slate-700">{workOrder.scope_of_work}</p>
                   {workOrder.status === "draft" ? (
-                    <form action={sendWorkOrderAction} className="mt-3">
-                      <input type="hidden" name="order_id" value={order.id} />
-                      <input type="hidden" name="work_order_id" value={workOrder.id} />
-                      <button className="btn-primary min-h-10" type="submit">
-                        <Send className="h-4 w-4" aria-hidden="true" />
-                        Ins Kundenportal senden
-                      </button>
-                    </form>
+                    <WorkOrderSendButton orderId={order.id} workOrderId={workOrder.id} />
                   ) : workOrder.status === "signed" ? (
                     <p className="mt-3 rounded-md bg-mint p-3 text-sm font-semibold text-primary">
                       Unterschrieben von {workOrder.signer_name || "Kunde"} am {formatDateTime(workOrder.signed_at)}.

@@ -12,11 +12,6 @@ function scriptDirective(csp: string) {
     .find((directive) => directive.startsWith("script-src"));
 }
 
-function isLocalDevServer() {
-  const baseUrl = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
-  return baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1");
-}
-
 test("CSP blockiert unberechtigte Inline-eval-Payloads", async ({ page }) => {
   const browserErrors: string[] = [];
   page.on("console", (message) => {
@@ -47,10 +42,6 @@ test("CSP-Header haertet script-src produktionsnah", async ({ page }) => {
   expect(scripts).toBeTruthy();
   expect(scripts).toContain("'self'");
   expect(scripts).toContain("'nonce-");
-  if (isLocalDevServer()) {
-    expect(scripts).toContain("unsafe-eval");
-  } else {
-    expect(scripts).not.toContain("unsafe-eval");
-  }
+  expect(scripts).not.toContain("unsafe-eval");
   expect(scripts).not.toContain("unsafe-inline");
 });

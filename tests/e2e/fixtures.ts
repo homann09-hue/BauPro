@@ -81,6 +81,9 @@ export async function login(page: Page, user = testUser): Promise<LoginLanding> 
 }
 
 export async function logout(page: Page) {
+  page.once("dialog", async (dialog) => {
+    if (dialog.type() === "confirm") await dialog.accept();
+  });
   await page.getByRole("button", { name: "Abmelden" }).click();
   await expect(page).toHaveURL(/\/(\?success=|$)/, { timeout: E2E_NAVIGATION_TIMEOUT });
 }

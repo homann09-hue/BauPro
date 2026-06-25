@@ -25,8 +25,8 @@ import {
 } from "lucide-react";
 import { MessageBox } from "@/components/message-box";
 import { PortalAssetPrefetch } from "@/components/performance/PortalAssetPrefetch";
-import { SignaturePad } from "@/components/signature/signature-pad";
-import { sendCustomerPortalMessageAction, signWorkOrderFromPortalAction } from "@/lib/actions/customer-portal-actions";
+import { PortalWorkOrderSignForm } from "@/components/customer-portal/portal-work-order-sign-form";
+import { sendCustomerPortalMessageAction } from "@/lib/actions/customer-portal-actions";
 import {
   loadCustomerPortalData,
   type PortalCommercialDocument,
@@ -681,34 +681,7 @@ function WorkOrderCard({ token, workOrder }: { token: string; workOrder: PortalW
       ) : null}
 
       {isOpen ? (
-        <form action={signWorkOrderFromPortalAction} className="mt-4 grid gap-3 rounded-lg border border-line bg-fog p-3" data-testid="portal-work-order-sign-form">
-          <input type="hidden" name="token" value={token} />
-          <input type="hidden" name="work_order_id" value={workOrder.id} />
-          <label>
-            <span className="field-label">Ihr Name</span>
-            <input className="field-input" name="signer_name" required maxLength={120} placeholder="Vor- und Nachname" />
-          </label>
-          <SignaturePad label="Unterschrift für Bestätigung" required />
-          <label>
-            <span className="field-label">Rückmeldung bei Ablehnung</span>
-            <textarea
-              className="field-input min-h-20"
-              name="rejection_reason"
-              maxLength={1000}
-              placeholder="Bei Ablehnung bitte kurz angeben, was der Betrieb anpassen soll."
-            />
-          </label>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <button className="btn-primary" type="submit" name="decision" value="sign">
-              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-              Auftrag bestätigen
-            </button>
-            <button className="btn-secondary" type="submit" name="decision" value="reject">
-              <XCircle className="h-4 w-4" aria-hidden="true" />
-              Ablehnen
-            </button>
-          </div>
-        </form>
+        <PortalWorkOrderSignForm token={token} workOrderId={workOrder.id} />
       ) : null}
     </article>
   );

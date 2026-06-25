@@ -3,22 +3,20 @@ import {
   AlertTriangle,
   ArrowRightLeft,
   Boxes,
-  CheckCircle2,
   ClipboardList,
   History,
   Minus,
   PackagePlus,
   Plus,
   Search,
-  XCircle
 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
+import { MaterialConfirmationForm } from "@/components/forms/material-confirmation-form";
 import { MaterialSubnav } from "@/components/materials/material-subnav";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import {
   adjustInventoryStockAction,
-  confirmMaterialUsageReportAction,
   createCustomInventoryItemAction,
   reportMaterialUsageAction,
   reserveMaterialForJobsiteAction,
@@ -418,7 +416,7 @@ export default async function InventoryPage({
           ) : (
             <div className="grid gap-3">
               {usageReports.map((report) => (
-                <article key={report.id} className="rounded-lg border border-line bg-white p-3">
+                <article key={report.id} className="rounded-lg border border-line bg-white p-3" data-testid="material-usage-report">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p className="font-black text-ink">
@@ -437,21 +435,7 @@ export default async function InventoryPage({
                     </span>
                   </div>
 
-                  {context.canOperate ? (
-                    <form action={confirmMaterialUsageReportAction} className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]" data-testid="material-confirmation-form">
-                      <input type="hidden" name="return_to" value={returnTo} />
-                      <input type="hidden" name="usage_report_id" value={report.id} />
-                      <input className="field-input" name="confirmation_note" placeholder="Kommentar / Grund optional" />
-                      <button className="btn-primary" type="submit" name="decision" value="confirmed">
-                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                        Bestätigen
-                      </button>
-                      <button className="btn-secondary" type="submit" name="decision" value="rejected">
-                        <XCircle className="h-4 w-4" aria-hidden="true" />
-                        Ablehnen
-                      </button>
-                    </form>
-                  ) : null}
+                  {context.canOperate ? <MaterialConfirmationForm reportId={report.id} returnTo={returnTo} /> : null}
                 </article>
               ))}
             </div>
