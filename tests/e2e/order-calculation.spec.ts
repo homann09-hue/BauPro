@@ -66,7 +66,7 @@ test("Chef erstellt kompletten Auftrag mit Aufmass, Material- und Kostenkalkulat
   if (schemaGapVisible) {
     await expect(page.getByText("20260711_ai_job_estimates_gap_fix.sql")).toBeVisible();
   } else {
-    await expect(page.getByText("Chef-Kalkulation")).toBeVisible();
+    await expect(page.getByText("Chef-Kalkulation", { exact: true })).toBeVisible();
   }
 
   await page.goto(`/orders?q=${encodeURIComponent(title)}`, { waitUntil: "domcontentloaded" });
