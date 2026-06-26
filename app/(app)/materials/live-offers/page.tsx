@@ -124,9 +124,9 @@ export default async function LiveOffersPage({
           <Upload className="h-4 w-4" aria-hidden="true" />
           CSV importieren
         </Link>
-        <Link href="/suppliers" className="btn-secondary">
-          Lieferanten verwalten
-        </Link>
+        <span className="inline-flex min-h-12 items-center rounded-md border border-line bg-fog px-4 py-2 text-sm font-bold text-slate-600">
+          API-Integrationen verwaltet der Systemadmin
+        </span>
       </div>
 
       <form className="surface mb-5 grid gap-3 p-3 lg:grid-cols-[1fr_170px_170px_150px_150px_auto]" action="/materials/live-offers">

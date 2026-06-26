@@ -207,7 +207,7 @@ describe("predictive prefetching", () => {
     expect(dashboardData).toContain("dashboardTag(context.companyId)");
     expect(dashboardRpc).toContain("security definer");
     expect(dashboardRpc).toContain("and p.company_id = p_company_id");
-    expect(dashboardRpc).toContain("v_can_manage := v_role in ('admin', 'chef')");
+    expect(dashboardRpc).toContain("v_can_manage := v_role = 'chef'");
     expect(dashboardRpc).toContain("p_user_id = any(coalesce(j.assigned_employee_ids");
     expect(dashboardRpc).toContain("r.created_by = p_user_id");
     expect(dashboardRpc).toContain("t.assigned_to = p_user_id");

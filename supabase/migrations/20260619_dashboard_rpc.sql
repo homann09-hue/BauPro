@@ -53,7 +53,7 @@ begin
     raise exception 'dashboard company access denied' using errcode = '42501';
   end if;
 
-  v_can_manage := v_role in ('admin', 'chef');
+  v_can_manage := v_role = 'chef';
 
   if coalesce(p_can_manage, false) and not v_can_manage then
     raise exception 'dashboard role access denied' using errcode = '42501';

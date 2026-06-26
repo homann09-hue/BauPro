@@ -33,7 +33,7 @@ describe("privacy exports", () => {
     expect(constString("inventoryItemOperationalExportSelect")).not.toMatch(priceFieldPattern);
   });
 
-  it("separates price data into an explicit chef/admin financial export block", () => {
+  it("separates price data into an explicit chef financial export block", () => {
     expect(privacyExport).toContain("restricted_financial_data");
     expect(privacyExport).toContain("restricted_financial_data_contains_prices: true");
     expect(constString("materialPriceExportSelect")).toMatch(/\b(purchase_price|sales_price)\b/);

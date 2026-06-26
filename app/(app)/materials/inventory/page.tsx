@@ -530,7 +530,7 @@ export default async function InventoryPage({
           description={
             context.canManage
               ? "Öffne den Katalog und übernimm typische Dachdeckerartikel in dein Lager."
-              : "Es sind noch keine preisbereinigten Lagerartikel sichtbar. Melde fehlendes Material direkt an Chef/Admin."
+              : "Es sind noch keine preisbereinigten Lagerartikel sichtbar. Melde fehlendes Material direkt an Chef."
           }
           actionHref={context.canManage ? "/materials/catalog" : "/material-melden"}
           actionLabel={context.canManage ? "Katalog öffnen" : "Material melden"}
@@ -712,7 +712,7 @@ export default async function InventoryPage({
                   </div>
                 ) : (
                   <div className="mt-4 rounded-md border border-line bg-fog p-3 text-sm font-semibold text-slate-600">
-                    Preise und Buchungsaktionen sind nur für Chef/Admin sichtbar. Fehlmaterial bitte über Material melden erfassen.
+                    Preise und Buchungsaktionen sind nur für Chef sichtbar. Fehlmaterial bitte über Material melden erfassen.
                   </div>
                 )}
               </article>

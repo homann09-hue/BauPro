@@ -199,7 +199,7 @@ function OrderCostEstimatePanel({ estimate }: { estimate: OrderCostEstimateRow |
           <p className="meta-label">Chef-Kalkulation</p>
           <h2 className="section-title">Direkte Kostenkalkulation</h2>
           <p className="mt-1 text-sm font-semibold text-slate-600">
-            Gespeichert am {formatDateTime(estimate.created_at)}. Diese Werte sind nur für Chef/Admin sichtbar.
+            Gespeichert am {formatDateTime(estimate.created_at)}. Diese Werte sind nur für Chef sichtbar.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:items-end">
@@ -302,7 +302,7 @@ function CommercialDocumentPanel({
           <p className="meta-label">Kaufmännischer Kern</p>
           <h2 className="section-title">Angebot oder Rechnung aus Auftrag erstellen</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-            BauPro übernimmt Materialpositionen, Mengen und VK-Preise aus der Auftragsberechnung. Preise bleiben nur für Chef/Admin sichtbar.
+            BauPro übernimmt Materialpositionen, Mengen und VK-Preise aus der Auftragsberechnung. Preise bleiben nur für Chef sichtbar.
           </p>
         </div>
         <Link href="/invoices" className="btn-secondary">

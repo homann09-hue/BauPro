@@ -3,7 +3,7 @@
 import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireManager } from "@/lib/auth";
+import { requireAdmin, requireManager } from "@/lib/auth";
 import { createSupplierAdapter } from "@/lib/suppliers/adapter";
 import { CsvSupplierAdapter } from "@/lib/suppliers/csv-adapter";
 import { getProviderConfig } from "@/lib/suppliers/provider-config";
@@ -267,7 +267,7 @@ function revalidateSupplierRoutes() {
 }
 
 export async function createSupplierIntegrationAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/suppliers");
   const providerKey = providerKeyValue(formData.get("provider_key"));
@@ -301,7 +301,7 @@ export async function createSupplierIntegrationAction(formData: FormData) {
 }
 
 export async function updateSupplierIntegrationAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/suppliers");
   const apiKey = optionalString(formData, "api_key");
@@ -450,7 +450,7 @@ export async function importSupplierOffersCsvAction(formData: FormData) {
 }
 
 export async function fetchSupplierOffersAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/suppliers");
   let providerKey: string | null = null;

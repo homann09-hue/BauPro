@@ -43,7 +43,7 @@ export const marketingFeatures: MarketingFeature[] = [
   {
     title: "Zeiterfassung",
     description:
-      "Mitarbeiter erfassen Arbeitszeiten mobil mit Pause, Tätigkeit und Baustelle. Chef/Admin prüft Tagesstunden, Freigaben und Stundenzettel ohne handschriftliche Nachträge.",
+      "Mitarbeiter erfassen Arbeitszeiten mobil mit Pause, Tätigkeit und Baustelle. Chef prüft Tagesstunden, Freigaben und Stundenzettel ohne handschriftliche Nachträge.",
     icon: "clock"
   },
   {
@@ -79,7 +79,7 @@ export const marketingFeatures: MarketingFeature[] = [
   {
     title: "Mitarbeiter & Rollen",
     description:
-      "Chef/Admin, Vorarbeiter, Mitarbeiter und Kunde bekommen unterschiedliche Ansichten. Sensible Preise und Einstellungen bleiben für operative Nutzer ausgeblendet.",
+      "Chef, Systemadmin, Vorarbeiter, Mitarbeiter und Kunde bekommen unterschiedliche Ansichten. Sensible Preise bleiben für operative Nutzer ausgeblendet; Systembereiche bleiben Systemadmins vorbehalten.",
     icon: "users"
   },
   {
@@ -107,7 +107,7 @@ export const marketingFeatureDetails: MarketingFeatureDetail[] = [
   },
   {
     title: "Zeiterfassung",
-    lead: "Zeiten werden direkt am Handy zur Baustelle erfasst und später von Chef/Admin geprüft.",
+    lead: "Zeiten werden direkt am Handy zur Baustelle erfasst und später von Chef geprüft.",
     body:
       "Mitarbeiter wählen Datum, Baustelle, Start, Ende, Pause und Tätigkeit. Das System berechnet Brutto- und Nettozeit und bereitet Monatsberichte sowie CSV/PDF-Exporte vor. Freigegebene Einträge bleiben nachvollziehbar und können nicht mehr beliebig durch Mitarbeiter geändert werden.",
     outcome: "Ergebnis: sauberere Stundenzettel und weniger Nachtragen aus dem Gedächtnis."
@@ -123,21 +123,21 @@ export const marketingFeatureDetails: MarketingFeatureDetail[] = [
     title: "Material",
     lead: "Materialstammdaten, Einheiten, Mindestbestand und Preise werden rollenbasiert verwaltet.",
     body:
-      "Chef/Admin kann Einkaufspreise, Verkaufspreise, Lieferanten und Aufschläge pflegen. Mitarbeiter sehen dagegen nur operative Informationen wie Materialname, Menge, Einheit, Lagerort und Bestand. So bleibt die Baustellen-App schnell, ohne kaufmännische Daten offenzulegen.",
+      "Chef kann Einkaufspreise, Verkaufspreise, Lieferanten und Aufschläge pflegen. Mitarbeiter sehen dagegen nur operative Informationen wie Materialname, Menge, Einheit, Lagerort und Bestand. So bleibt die Baustellen-App schnell, ohne kaufmännische Daten offenzulegen.",
     outcome: "Ergebnis: Materialplanung bleibt praktisch, Preise bleiben Chefsache."
   },
   {
     title: "Mitbringlisten",
     lead: "Für morgen sieht das Team, was zur Baustelle mitgenommen werden soll.",
     body:
-      "Mitbringlisten entstehen aus Auftrag, Materialbedarf, Lagerbestand und manuellen Ergänzungen. Mitarbeiter und Vorarbeiter können abhaken, Material fehlt melden und Hinweise für Chef/Admin erzeugen. Die Liste ist bewusst einfach gehalten, damit sie morgens auf dem Handy funktioniert.",
+      "Mitbringlisten entstehen aus Auftrag, Materialbedarf, Lagerbestand und manuellen Ergänzungen. Mitarbeiter und Vorarbeiter können abhaken, Material fehlt melden und Hinweise für Chef erzeugen. Die Liste ist bewusst einfach gehalten, damit sie morgens auf dem Handy funktioniert.",
     outcome: "Ergebnis: weniger vergessene Rollen, Latten, Schrauben oder Werkzeuge."
   },
   {
     title: "Bautagesberichte",
     lead: "Tagesberichte verbinden Wetter, Zeiten, Tätigkeiten, Material, Fotos und Besonderheiten.",
     body:
-      "Vorarbeiter und Mitarbeiter können Berichte per Text, Sprache und Foto vorbereiten. Chef/Admin kann prüfen und freigeben. Damit entstehen bessere Nachweise für Kunden, interne Rückfragen und spätere Abrechnung.",
+      "Vorarbeiter und Mitarbeiter können Berichte per Text, Sprache und Foto vorbereiten. Chef kann prüfen und freigeben. Damit entstehen bessere Nachweise für Kunden, interne Rückfragen und spätere Abrechnung.",
     outcome: "Ergebnis: Nachweise entstehen während der Arbeit, nicht erst Tage später."
   },
   {
@@ -165,7 +165,7 @@ export const marketingFeatureDetails: MarketingFeatureDetail[] = [
     title: "Rollen",
     lead: "Nicht jeder Nutzer braucht dieselbe Software.",
     body:
-      "Chef/Admin steuert Betrieb, Preise, Team, Einstellungen und Auswertungen. Vorarbeiter organisiert Baustellen und Berichte ohne sensible Preise. Mitarbeiter sehen eigene Aufgaben, Zeiten, Mitbringlisten und Berichte. Kunden sehen nur freigegebene Portal-Daten.",
+      "Chef steuert Betrieb, Preise, Mitarbeitereinsatz und Auswertungen. Systemadmins verwalten Benutzer, Rechte, Integrationen und Sicherheit. Vorarbeiter organisieren Baustellen und Berichte ohne sensible Preise. Mitarbeiter sehen eigene Aufgaben, Zeiten, Mitbringlisten und Berichte. Kunden sehen nur freigegebene Portal-Daten.",
     outcome: "Ergebnis: weniger Überforderung und weniger Risiko durch falsche Einsicht."
   },
   {
@@ -249,7 +249,7 @@ export const marketingUseCases: MarketingUseCase[] = [
 export const marketingSecurityNotes = [
   {
     title: "Rollen statt Einheitszugang",
-    text: "Chef/Admin, Vorarbeiter, Mitarbeiter und Kunden sehen unterschiedliche Oberflächen, Aktionen und Daten."
+    text: "Chef, Vorarbeiter, Mitarbeiter und Kunden sehen unterschiedliche Oberflächen, Aktionen und Daten."
   },
   {
     title: "Mandantentrennung",
@@ -362,7 +362,7 @@ export const marketingFaq = [
   {
     question: "Können Mitarbeiter EK- oder VK-Preise sehen?",
     answer:
-      "Nein. Preisbereiche wie EK, VK, Marge, Aufschlag und Online-Preisvergleich sind für Chef/Admin vorgesehen und werden in Mitarbeiteransichten nicht angezeigt."
+      "Nein. Preisbereiche wie EK, VK, Marge, Aufschlag und Online-Preisvergleich sind für Chef vorgesehen und werden in Mitarbeiteransichten nicht angezeigt."
   },
   {
     question: "Was sieht ein Vorarbeiter?",
@@ -402,7 +402,7 @@ export const marketingFaq = [
   {
     question: "Braucht mein Team eine Schulung?",
     answer:
-      "BauPro ist so gedacht, dass Mitarbeiter Kernfunktionen wie Zeit erfassen, Bericht schreiben oder Material melden schnell verstehen. Für Chef/Admin kann eine kurze Einführung sinnvoll sein."
+      "BauPro ist so gedacht, dass Mitarbeiter Kernfunktionen wie Zeit erfassen, Bericht schreiben oder Material melden schnell verstehen. Für Chef kann eine kurze Einführung sinnvoll sein."
   },
   {
     question: "Kann BauPro WhatsApp ersetzen?",

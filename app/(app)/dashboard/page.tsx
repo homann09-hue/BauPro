@@ -11,6 +11,8 @@ import {
   Layers3,
   ListChecks,
   Camera,
+  Settings,
+  ShieldCheck,
   ShoppingCart,
   TriangleAlert,
   UserMinus,
@@ -36,6 +38,7 @@ import { updatePurchaseSuggestionStatusAction } from "@/lib/actions/bring-list-a
 import { createTaskAction, deleteTaskAction, updateTaskStatusAction } from "@/lib/actions/task-actions";
 import { requireAppContext, type AppContext } from "@/lib/auth";
 import { loadDashboardDetails, loadDashboardSummary, type DashboardSummary } from "@/lib/data/dashboard";
+import { loadSystemAdminStats } from "@/lib/data/system-admin";
 import { formatQuantity } from "@/lib/inventory";
 import { materialStatusText } from "@/lib/inventory/material-intelligence";
 import { safeQueryErrorMessage } from "@/lib/security/errors";
@@ -59,6 +62,90 @@ function schemaSetupMessage(
   return safeQueryErrorMessage(error);
 }
 
+async function SystemAdminDashboard({
+  context,
+  error,
+  success
+}: {
+  context: AppContext;
+  error: string | null;
+  success: string | null;
+}) {
+  const stats = await loadSystemAdminStats();
+
+  return (
+    <div className="baupro-screen">
+      <MessageBox error={error} success={success} />
+      <MfaRecommendationBanner canManage={context.isAdmin} mfaEnabled={context.mfaEnabled} />
+
+      <section className="command-panel overflow-hidden">
+        <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="p-5 sm:p-7">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-1.5 text-xs font-black text-white ring-1 ring-white/10">
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              BauPro-Systemadmin
+            </div>
+            <p className="mb-2 text-xs font-black uppercase tracking-normal text-warning">Firmenübergreifende Systemsteuerung</p>
+            <h1 className="max-w-3xl text-3xl font-black tracking-normal text-white sm:text-4xl">Systemzentrale</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-white/70 sm:text-base">
+              Benutzer, Rechte, Abrechnung, Integrationen, Datenschutz und Systemstatus werden hier getrennt vom operativen Chef-Bereich verwaltet.
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <QuickActionButton href="/team" icon={Users} title="Benutzer" description="Rollen und Rechte" primary />
+              <QuickActionButton href="/billing" icon={ShoppingCart} title="Abrechnung" description="Lizenzen prüfen" />
+              <QuickActionButton href="/settings" icon={Settings} title="System" description="Firma & KI" />
+              <QuickActionButton href="/suppliers" icon={Layers3} title="Integrationen" description="API/CSV" />
+              <QuickActionButton href="/settings/security" icon={ShieldCheck} title="Sicherheit" description="2FA" />
+              <QuickActionButton href="/debug/system" icon={TriangleAlert} title="Debug" description="Schema prüfen" />
+            </div>
+          </div>
+          <aside className="border-t border-white/10 bg-slate-900 p-5 text-white sm:p-7 lg:border-l lg:border-t-0">
+            <p className="text-sm font-semibold text-white/70">Systemstatus</p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <HeroMetric label="Firmen" value={stats.companies} />
+              <HeroMetric label="Aktive Nutzer" value={stats.users} />
+              <HeroMetric label="Chefs" value={stats.chefs} />
+              <HeroMetric label="Offene Warnungen" value={stats.openAlerts} alert={stats.openAlerts > 0} />
+            </div>
+            {!stats.serviceRoleAvailable ? (
+              <p className="mt-5 rounded-md bg-warning/20 p-3 text-sm leading-6 text-warning">
+                Service-Role-Key fehlt. Firmenübergreifende Kennzahlen sind deshalb lokal eingeschränkt.
+              </p>
+            ) : null}
+          </aside>
+        </div>
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard icon={Users} label="Benutzerverwaltung" value="Admin" href="/team" tone="dark" />
+        <StatCard icon={ShieldCheck} label="Sicherheit" value="2FA" href="/settings/security" tone="green" />
+        <StatCard icon={ShoppingCart} label="Abrechnung" value="Abo" href="/billing" tone="info" />
+        <StatCard icon={TriangleAlert} label="Systemprüfung" value="Debug" href="/debug/system" tone="warning" />
+      </section>
+
+      <section className="dashboard-band">
+        <SectionHeader
+          eyebrow="Firmen"
+          title="Neueste Firmen"
+          description="Systemadministratoren sehen diese Übersicht firmenübergreifend. Chefs sehen sie nicht."
+        />
+        <div className="grid gap-3 md:grid-cols-2">
+          {stats.latestCompanies.map((company) => (
+            <ResponsiveTableCard key={company.id} title={company.name} meta={company.created_at ? `Angelegt ${formatDate(company.created_at.slice(0, 10))}` : "Ohne Datum"}>
+              <p className="text-sm text-slate-600">Mandant: {company.id}</p>
+            </ResponsiveTableCard>
+          ))}
+          {stats.latestCompanies.length === 0 ? (
+            <p className="rounded-md border border-dashed border-line p-4 text-sm text-slate-600">
+              Keine Firmen sichtbar oder Service-Role-Key fehlt.
+            </p>
+          ) : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default async function DashboardPage({
   searchParams
 }: {
@@ -67,6 +154,11 @@ export default async function DashboardPage({
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
+
+  if (context.isAdmin) {
+    return <SystemAdminDashboard context={context} error={error} success={success} />;
+  }
+
   const summary = await loadDashboardSummary(supabase, context);
   const jobsites = summary.jobsitesActive.list;
   const reports = summary.reportsLatest.list;
@@ -90,7 +182,7 @@ export default async function DashboardPage({
   return (
     <div className="baupro-screen">
       <MessageBox error={dashboardError} success={success} />
-      <MfaRecommendationBanner canManage={context.canManage} mfaEnabled={context.mfaEnabled} />
+      <MfaRecommendationBanner canManage={context.isAdmin} mfaEnabled={context.mfaEnabled} />
 
       <section className="command-panel overflow-hidden">
         <div className="grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">
@@ -371,7 +463,7 @@ export default async function DashboardPage({
               <div>
                 <h2 className="font-semibold text-ink">Mitarbeiteransicht</h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  Du siehst hier deine Aufgaben und deine Berichte. Stammdaten verwalten Admin und Chef.
+                  Du siehst hier deine Aufgaben und deine Berichte. Stammdaten verwaltet der Chef.
                 </p>
               </div>
             </div>

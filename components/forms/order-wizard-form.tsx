@@ -403,7 +403,7 @@ export function OrderWizardForm({
             />
           </div>
           <div className="sm:col-span-2">
-            <VoiceTextarea label="Interne Chef-Notizen" name="internal_notes" rows={5} placeholder="Nur für Chef/Admin" />
+            <VoiceTextarea label="Interne Chef-Notizen" name="internal_notes" rows={5} placeholder="Nur für Chef" />
           </div>
         </div>
 
@@ -552,7 +552,7 @@ export function OrderWizardForm({
             <p className="meta-label">Schritt 4</p>
             <h2 className="section-title">Direkte Kostenkalkulation</h2>
             <p className="mt-1 text-sm font-semibold text-slate-600">
-              Nur für Chef/Admin. Mitarbeiter sehen diese Kosten und EK-Werte nicht.
+              Nur für Chef. Mitarbeiter sehen diese Kosten und EK-Werte nicht.
             </p>
           </div>
         </div>
@@ -958,7 +958,7 @@ export function OrderWizardForm({
               <p className="meta-label">Abschluss</p>
               <h2 className="section-title">Auftrag speichern</h2>
               <p className="mt-1 text-sm font-semibold text-slate-600">
-                Maße und Materialmengen werden gespeichert. Kosten, EK/VK und Margen bleiben Chef/Admin vorbehalten.
+                Maße und Materialmengen werden gespeichert. Kosten, EK/VK und Margen bleiben Chef vorbehalten.
               </p>
             </div>
           </div>

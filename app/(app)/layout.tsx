@@ -18,7 +18,7 @@ export default async function AuthenticatedLayout({
   const isOnboardingRoute = currentPath === "/onboarding" || currentPath.startsWith("/onboarding/");
   const isDebugRoute = currentPath === "/debug/system" || currentPath.startsWith("/debug/");
 
-  if (context.canManage && !context.company.onboarding_completed_at && !isOnboardingRoute && !isDebugRoute) {
+  if (context.isChef && !context.company.onboarding_completed_at && !isOnboardingRoute && !isDebugRoute) {
     redirect("/onboarding");
   }
 

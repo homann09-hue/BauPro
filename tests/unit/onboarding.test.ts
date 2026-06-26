@@ -21,14 +21,15 @@ describe("Startassistent Onboarding", () => {
     expect(appLayout).toContain("isOnboardingRoute");
   });
 
-  it("keeps onboarding visible for chef/admin without exposing it to employee navigation", () => {
+  it("keeps onboarding visible for chefs without exposing it to employee or systemadmin navigation", () => {
     const appShell = source("components/app-shell.tsx");
     const navLink = source("components/nav-link.tsx");
 
     expect(appShell).toContain('/onboarding", label: "Startassistent"');
-    expect(appShell).toContain("managerQuickLinks");
+    expect(appShell).toContain("chefQuickLinks");
     expect(navLink).toContain("onboarding: Sparkles");
     expect(prefetchRoutesForRole("chef", true)).toContain("/onboarding");
+    expect(prefetchRoutesForRole("admin", false)).not.toContain("/onboarding");
     expect(prefetchRoutesForRole("mitarbeiter", false)).not.toContain("/onboarding");
   });
 

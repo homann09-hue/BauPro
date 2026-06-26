@@ -22,19 +22,19 @@ end $$;
 alter table if exists public.companies enable row level security;
 alter table if exists public.companies force row level security;
 
--- Reine Datenschutz-Exporte sollen Preisfelder nur im eingeschraenkten Chef/Admin-Block fuehren.
+-- Reine Datenschutz-Exporte sollen Preisfelder nur im eingeschraenkten Chef-Block fuehren.
 comment on table public.company_audit_log is
   'Audit-Log fuer kritische Aktionen. Datenschutz-/Firmenexporte loggen nur Metadaten, keine exportierten personenbezogenen Inhalte.';
 
 comment on column public.materials.purchase_price is
-  'EK-Preis: darf nur ueber Chef/Admin-Views, Server Actions oder eingeschraenkte Firmenexports sichtbar sein.';
+  'EK-Preis: darf nur ueber Chef-Views, Server Actions oder eingeschraenkte Firmenexports sichtbar sein.';
 comment on column public.materials.sales_price is
-  'VK-Preis: darf nur ueber Chef/Admin-Views, Server Actions oder eingeschraenkte Firmenexports sichtbar sein.';
+  'VK-Preis: darf nur ueber Chef-Views, Server Actions oder eingeschraenkte Firmenexports sichtbar sein.';
 comment on column public.inventory_items.purchase_price is
   'EK-Preis: darf niemals an Mitarbeiter-, Vorarbeiter- oder Kundenportal-Responses ausgeliefert werden.';
 comment on column public.inventory_items.sales_price is
   'VK-Preis: darf niemals an Mitarbeiter-, Vorarbeiter- oder Kundenportal-Responses ausgeliefert werden.';
 comment on column public.inventory_items.markup_percent is
-  'Marge/Aufschlag: nur fuer Chef/Admin, nicht fuer Mitarbeiter/Vorarbeiter/Kundenportal.';
+  'Marge/Aufschlag: nur fuer Chef, nicht fuer Mitarbeiter/Vorarbeiter/Kundenportal.';
 
 select pg_notify('pgrst', 'reload schema');

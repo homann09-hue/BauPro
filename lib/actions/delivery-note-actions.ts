@@ -153,7 +153,7 @@ async function createInventoryItemForDelivery({
   unitPrice: number | null;
 }) {
   if (!context.canManage) {
-    throw new SafeActionError("Neue Lagerartikel duerfen nur Chef/Admin anlegen. Bitte Material zuordnen.");
+    throw new SafeActionError("Neue Lagerartikel duerfen nur Chef anlegen. Bitte Material zuordnen.");
   }
 
   const { data, error } = await supabase

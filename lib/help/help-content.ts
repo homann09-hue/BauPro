@@ -45,7 +45,7 @@ export const helpTips: HelpTipDefinition[] = [
     body: "Materialwarnungen, Lagerabgleich, Einkaufsvorschläge und Chef-Preise helfen, Fehlfahrten, Expresskäufe und Margeverlust zu reduzieren.",
     audience: "manager",
     category: "BauPro Nutzen",
-    steps: ["Material-Zentrale zeigen", "Knappe Artikel öffnen", "Mitbringliste für morgen erklären", "Preisfelder nur Chef/Admin zeigen"]
+    steps: ["Material-Zentrale zeigen", "Knappe Artikel öffnen", "Mitbringliste für morgen erklären", "Preisfelder nur Chef zeigen"]
   },
   {
     featureKey: "why_baupro_errors",
@@ -144,14 +144,14 @@ export const helpTips: HelpTipDefinition[] = [
   {
     featureKey: "purchase_suggestion",
     title: "Einkaufsvorschläge",
-    body: "Wenn Material fehlt, erstellt BauPro Vorschläge für Chef/Admin. Preise bleiben für Mitarbeiter ausgeblendet.",
+    body: "Wenn Material fehlt, erstellt BauPro Vorschläge für Chef. Preise bleiben für Mitarbeiter ausgeblendet.",
     audience: "manager",
     category: "Einkauf"
   },
   {
     featureKey: "material_control_center",
     title: "Material Control Center",
-    body: "Hier sieht Chef/Admin, welche Mitbringlisten für morgen kritisch sind, was reserviert ist und was gekauft werden muss.",
+    body: "Hier sieht Chef, welche Mitbringlisten für morgen kritisch sind, was reserviert ist und was gekauft werden muss.",
     audience: "manager",
     category: "Lager"
   }

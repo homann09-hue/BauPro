@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { SubmitButton } from "@/components/submit-button";
 import { EmployeePermissionsMenu } from "@/components/team/employee-permissions-menu";
 import { createEmployeeAction, updateEmployeeAction } from "@/lib/actions/auth-actions";
-import { requireManager } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { teamProfileSelect } from "@/lib/data/selects";
 import { effectivePermissionKeys, normalizePermissionKeys, type PermissionKey } from "@/lib/permissions";
 import { safeQueryErrorMessage } from "@/lib/security/errors";
@@ -16,7 +16,7 @@ import { searchParamMessage } from "@/lib/utils";
 import type { Profile } from "@/types/app";
 
 const roleLabels = {
-  admin: "Admin",
+  admin: "Systemadmin",
   chef: "Chef",
   vorarbeiter: "Vorarbeiter",
   mitarbeiter: "Mitarbeiter",
@@ -40,7 +40,7 @@ export default async function TeamPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await requireManager();
+  const context = await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
 
@@ -78,7 +78,7 @@ export default async function TeamPage({
 
   return (
     <>
-      <PageHeader title="Team" description="Mitarbeiter, Rollen und Zugänge direkt verwalten." />
+      <PageHeader title="Benutzer und Rollen" description="Zugänge, Rollen und Rechte verwalten. Dieser Bereich ist Systemadmins vorbehalten." />
       <MessageBox error={error || teamError} success={success} />
 
       <section className="mb-5 grid gap-3 sm:grid-cols-3">
@@ -101,7 +101,7 @@ export default async function TeamPage({
             </div>
           </div>
 
-          <FormSection title="Mitarbeiter anlegen" description="Zugang mit Rolle erstellen. Chef/Admin behalten die Teamverwaltung.">
+          <FormSection title="Mitarbeiter anlegen" description="Zugang mit Rolle erstellen. Nur Systemadmins verwalten Benutzer und Rechte.">
             {!hasServiceRole ? (
               <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                 SUPABASE_SERVICE_ROLE_KEY fehlt. Trage ihn in .env.local ein, damit Mitarbeiter serverseitig
@@ -172,7 +172,7 @@ export default async function TeamPage({
                         profile.id === context.userId
                           ? "Du kannst deine eigenen Rechte nicht bearbeiten."
                           : profile.role === "admin" || profile.role === "chef"
-                            ? "Chef/Admin hat automatisch alle Rechte. Diese Rechte werden über die Rolle gesteuert."
+                            ? "Systemadmin und Chef werden über ihre Rolle gesteuert. Einzelrechte gelten nur für operative Nutzer."
                             : undefined
                       }
                     />

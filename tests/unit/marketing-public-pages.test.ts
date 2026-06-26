@@ -34,7 +34,7 @@ describe("Öffentliche BauPro Marketing-Seiten", () => {
     expect(home).toContain("Rollenmodell");
     expect(home).toContain("Nutzer prüfen und bearbeiten alles");
     expect(home).toContain("Interne Notizen, Lagerdaten und Preise bleiben intern");
-    expect(home).toContain("Vorarbeiter arbeitet operativ");
+    expect(home).toContain("Systemadmins verwalten Rechte, Sicherheit und Integrationen");
   });
 
   it("liefert die wichtigsten öffentlichen Informationsseiten", () => {

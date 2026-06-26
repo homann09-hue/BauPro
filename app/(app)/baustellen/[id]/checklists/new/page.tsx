@@ -68,7 +68,7 @@ export default async function NewJobsiteChecklistPage({
       ) : (
         <div className="surface p-4">
           <p className="font-black text-ink">Keine Vorlagen vorhanden.</p>
-          <p className="mt-1 text-sm text-slate-600">Chef/Admin kann zuerst eine eigene Checklistenvorlage erstellen.</p>
+          <p className="mt-1 text-sm text-slate-600">Chef kann zuerst eine eigene Checklistenvorlage erstellen.</p>
           {context.canManage ? (
             <Link href="/checklists/templates/new" className="btn-primary mt-4">
               Vorlage erstellen

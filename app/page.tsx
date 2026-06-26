@@ -130,7 +130,7 @@ export default async function HomePage({
             <TrustPillar
               icon={ShieldCheck}
               title="Rollenmodell"
-              text="Chef/Admin sieht kaufmännische Daten und Einstellungen. Vorarbeiter arbeitet operativ. Mitarbeiter sieht nur das, was er auf der Baustelle braucht."
+              text="Chef sieht kaufmännische Daten. Systemadmins verwalten Rechte, Sicherheit und Integrationen. Mitarbeiter sehen nur das, was sie auf der Baustelle brauchen."
             />
           </div>
         </div>

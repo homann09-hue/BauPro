@@ -22,7 +22,7 @@ export default function SecurityPage() {
       />
 
       <section className="mx-auto grid max-w-7xl gap-4 px-4 py-14 sm:px-6 lg:grid-cols-3 lg:px-8">
-        <SecurityPillar icon={Users} title="Rollenrechte" text="Chef/Admin, Vorarbeiter, Mitarbeiter und Kunde erhalten unterschiedliche Oberflächen und Serverrechte." />
+        <SecurityPillar icon={Users} title="Rollenrechte" text="Chef, Vorarbeiter, Mitarbeiter und Kunde erhalten unterschiedliche Oberflächen und Serverrechte." />
         <SecurityPillar icon={LockKeyhole} title="Mandantentrennung" text="Supabase RLS ist auf Firmen-Scoping ausgelegt, damit Daten nicht zwischen Betrieben vermischt werden." />
         <SecurityPillar icon={ShieldCheck} title="Prüfbare Prozesse" text="Audit-Logs, Soft-Delete, PDF-/CSV-Exporte und Datenschutzseiten sind technisch vorbereitet." />
       </section>

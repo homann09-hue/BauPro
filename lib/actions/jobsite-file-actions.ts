@@ -101,7 +101,7 @@ async function loadManagedDocument({
   documentId: string;
   jobsiteId: string;
 }) {
-  if (!context.canManage) throw new SafeActionError("Nur Chef/Admin darf dieses Dokument bearbeiten.");
+  if (!context.canManage) throw new SafeActionError("Nur Chef darf dieses Dokument bearbeiten.");
 
   const { data, error } = await supabase
     .from("jobsite_documents")
@@ -166,7 +166,7 @@ export async function uploadJobsiteDocumentAction(formData: FormData) {
   try {
     const jobsite = await loadAccessibleJobsite({ supabase, context, jobsiteId });
     if (!context.canManage && !isForeman(context.profile.role)) {
-      throw new SafeActionError("Nur Chef/Admin oder Vorarbeiter duerfen Baustellendokumente hochladen.");
+      throw new SafeActionError("Nur Chef oder Vorarbeiter duerfen Baustellendokumente hochladen.");
     }
 
     const file = formData.get("document");

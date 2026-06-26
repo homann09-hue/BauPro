@@ -3,6 +3,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   allPermissionKeys,
+  adminOnlyPermissionKeys,
+  chefPermissionKeys,
   effectivePermissionKeys,
   employeePermissionGroups,
   hasAppPermission,
@@ -50,9 +52,12 @@ describe("employee permission management", () => {
     expect(new Set(allPermissionKeys).size).toBe(allPermissionKeys.length);
   });
 
-  it("keeps Chef/Admin on full access and normalizes employee permissions", () => {
+  it("keeps Systemadmin on system access, Chef on operative access and normalizes employee permissions", () => {
     expect(effectivePermissionKeys("admin", [])).toEqual(allPermissionKeys);
-    expect(effectivePermissionKeys("chef", ["orders.view"])).toEqual(allPermissionKeys);
+    expect(effectivePermissionKeys("chef", ["orders.view"])).toEqual(chefPermissionKeys);
+    for (const permission of adminOnlyPermissionKeys) {
+      expect(effectivePermissionKeys("chef", []).includes(permission)).toBe(false);
+    }
     expect(effectivePermissionKeys("mitarbeiter", ["orders.view", "orders.view", "unknown"])).toEqual(["orders.view"]);
     expect(effectivePermissionKeys("vorarbeiter", ["prices.purchase.view", "quotes.create", "settings.edit", "orders.view"])).toEqual([
       "orders.view"
@@ -63,6 +68,9 @@ describe("employee permission management", () => {
     expect(hasAppPermission("vorarbeiter", ["prices.sales.view"], "prices.sales.view")).toBe(false);
     expect(hasAppPermission("vorarbeiter", ["settings.edit"], "settings.edit")).toBe(false);
     expect(hasAppPermission("mitarbeiter", ["quotes.create"], "quotes.create")).toBe(false);
+    expect(hasAppPermission("chef", [], "quotes.create")).toBe(true);
+    expect(hasAppPermission("chef", [], "settings.edit")).toBe(false);
+    expect(hasAppPermission("admin", [], "settings.edit")).toBe(true);
   });
 
   it("adds Supabase RLS, helper function and audit log for employee permissions", () => {
@@ -88,7 +96,7 @@ describe("employee permission management", () => {
     const actions = source("lib/actions/auth-actions.ts");
 
     expect(actions).toContain("export async function updateEmployeePermissionsAction");
-    expect(actions).toContain("const context = await requireManager()");
+    expect(actions).toContain("const context = await requireAdmin()");
     expect(actions).toContain("id === context.userId");
     expect(actions).toContain('target.role === "admin" || target.role === "chef"');
     expect(actions).toContain('.from("employee_permissions").upsert');
@@ -123,7 +131,7 @@ describe("employee permission management", () => {
     expect(component).toContain("Speichern");
     expect(teamPage).toContain("EmployeePermissionsMenu");
     expect(teamPage).toContain("effectivePermissionKeys");
-    expect(teamPage).toContain("Chef/Admin hat automatisch alle Rechte");
+    expect(teamPage).toContain("Systemadmin und Chef werden über ihre Rolle gesteuert");
   });
 
   it("uses permissions in navigation and selected server-side entry points", () => {

@@ -4,14 +4,14 @@ BauPro ist eine mobile-first Betriebssoftware fuer deutsche Dachdecker- und Hand
 
 ## Funktionen
 
-- Firmenregistrierung mit Admin-Profil
+- Firmenregistrierung mit Chef-Profil
 - Startassistent fuer neue Betriebe: Firmenprofil, Demo-Daten, Mitarbeiterimport, Baustellenimport und gefuehrte Einfuehrung
 - Demo-Modus fuer Interessenten: vorbereitete Firma mit Baustellen, Team, Lager, Auftraegen, Zeiten und 2-Minuten-Tour
-- Firmenprofil, Profilseite, Rollenverwaltung und Chef-Einstellungen
+- Firmenprofil, Profilseite, Systemadmin-Benutzerverwaltung und Chef-Einstellungen
 - Login/Logout ueber Supabase Auth
 - Rollen: `admin`, `chef`, `vorarbeiter`, `mitarbeiter`, `kunde`
 - Vorarbeiter-Rolle ohne Preis-/Chef-Rechte
-- Rollenklare Navigation fuer Chef/Admin, Vorarbeiter und Mitarbeiter
+- Rollenklare Navigation fuer Systemadmin, Chef, Vorarbeiter und Mitarbeiter
 - Predictive Prefetching fuer rollenabhaengige Hauptstrecken, schlanke Route-Warmups und Kundenportal-Assets
 - Dashboard als Betriebszentrale bzw. Mitarbeiter-Arbeitstag
 - Kundenkartei mit Privatkunden, Gewerbekunden, Hausverwaltungen, Architekten und Versicherungen
@@ -27,17 +27,17 @@ BauPro ist eine mobile-first Betriebssoftware fuer deutsche Dachdecker- und Hand
 - Mitarbeiter-Zeiterfassung mit Freigabe, Aenderungsprotokoll, Monats-Stundenzettel, PDF- und CSV-Export
 - Sprache-zu-Text Diktat mit Bestaetigung fuer Mitbringlisten, Zeiterfassung und Materialmeldungen
 - OpenAI-KI-Assistent fuer Diktat-Auswertung, Tagesbericht-Entwuerfe, Materialnamen-Abgleich und rollenbasierte Betriebsfragen
-- KI-Auftragswizard fuer Chef/Admin: Text/Sprache zu Auftragsentwurf, regelbasierter Materialberechnung, Lagerabgleich und Chef-Kalkulation
+- KI-Auftragswizard fuer Chef: Text/Sprache zu Auftragsentwurf, regelbasierter Materialberechnung, Lagerabgleich und Chef-Kalkulation
 - Mitbringlisten mit Packstatus, Fehlmaterialmeldung, Lagerabgleich, Reservierungen und Einkaufsvorschlaegen
 - Materialmeldung fuer Mitarbeiter ohne Preisansicht
 - Dachdecker-Materialkatalog mit ueber 150 praxisnahen Standardartikeln
 - Material-/Lagerverwaltung mit Lagerorten, Mindestbestand, Preisen, Schnellerfassung und Umlagerung
 - Live-Preisvergleich vorbereitet fuer manuelle Angebote, CSV-Feeds und offizielle Anbieter-APIs
-- Online Price Discovery als optionaler Chef-Preisindikator ueber erlaubte Feeds/offizielle APIs
+- Online Price Discovery als optionaler Chef-Preisindikator ueber erlaubte Feeds/offizielle APIs; Integrationen verwaltet der Systemadmin
 - Materialberechnung je Baustelle und Auftrag mit Dachart, strukturiertem Aufmass, 20 % Standard-Verschnitt und Chef-Preisen
 - Angebote/Rechnungen als klar markierter vorbereiteter Produktbereich
 - Fahrzeuge mit einfachem Fahrzeuglager
-- Teamverwaltung und manuelles Anlegen von Mitarbeitern
+- Systemadmin-Benutzerverwaltung und manuelles Anlegen von Mitarbeitern
 - Datenschutz-Center mit Auskunftsexport, Firmenexport und Betroffenenanfragen
 - Rechtliche Entwurfsseiten fuer Impressum, Datenschutz, AGB, AVV, Cookies, Loeschkonzept und Subprozessoren
 - Consent-Banner mit Opt-in fuer optionale Analyse/Marketing-Verarbeitung
@@ -123,6 +123,7 @@ supabase/migrations/20260711_ai_job_estimates_gap_fix.sql
 supabase/migrations/20260711_invoice_atomic_stats.sql
 supabase/migrations/20260712_price_permission_hardening.sql
 supabase/migrations/20260713_redteam_storage_prefetch_hardening.sql
+supabase/migrations/20260714_system_admin_role_split.sql
 ```
 
 `20260615_material_alerts_repair.sql` bleibt idempotent, damit aeltere Testdatenbanken mit fehlender Mitbringlisten-Kette repariert werden koennen. Fuer neue Projekte ist der vollstaendige Stand bereits in `supabase/schema.sql` enthalten.
@@ -215,7 +216,7 @@ Danach im Browser oeffnen:
 http://localhost:3000
 ```
 
-Nach der ersten Registrierung landet Chef/Admin automatisch im Startassistenten unter `/onboarding`. Dort kann ein Betrieb in wenigen Minuten:
+Nach der ersten Firmenregistrierung landet der Chef automatisch im Startassistenten unter `/onboarding`. Dort kann ein Betrieb in wenigen Minuten:
 
 - Firmendaten vervollstaendigen
 - realistische Demo-Daten anlegen
@@ -225,13 +226,14 @@ Nach der ersten Registrierung landet Chef/Admin automatisch im Startassistenten 
 
 ## Rollenmodell
 
-- `admin` und `chef`: duerfen Firma, Kunden, Auftraege, Team, Baustellen, Material, Fahrzeuge, Aufgaben und alle Berichte verwalten.
+- `admin`: BauPro-Systemadmin fuer firmenuebergreifende Verwaltung. Admins verwalten Benutzer, Rechte, Features, Abrechnung, Integrationen, API-/Sicherheitsoptionen, DSGVO-Einstellungen und Systemstatus. Operative Baustellenarbeit laeuft nicht ueber diese Rolle.
+- `chef`: Betriebsleiter/Geschaeftsfuehrer der Firma. Chefs verwalten Kunden, Auftraege, Baustellen, Material, Lager, Fahrzeuge, Mitarbeitereinsatz, Tagesberichte, Zeiterfassung, Kalkulation, Angebote und Rechnungen.
 - `vorarbeiter`: sieht zugeordnete Baustellen, Auftraege, Zeiten, Tagesberichte, Mitbringlisten, Materialmeldungen und preisbereinigte Lagerdaten. EK, VK, Marge, Einkaufsvorschlaege und Preisvergleich bleiben gesperrt.
 - `mitarbeiter`: sieht eigene Aufgaben, eigene/zugeordnete Berichte, zugeordnete Baustellen, zugeordnete Auftraege, eigene Zeiten, Mitbringlisten und Materialmeldungen. Stammdaten, Preisquellen, EK, VK, Aufschlag und Marge bleiben gesperrt.
 - `kunde`: ist fuer Kundenzugaenge vorgesehen. Kunden sehen im Portal nur explizit freigegebene Projektdaten, Fotos, Dokumente und Arbeitsauftraege.
 
 Die RLS-Policies in `supabase/schema.sql` erzwingen, dass Nutzer nur Daten ihrer eigenen Firma sehen.
-Preisfelder wie `purchase_price`, `sales_price`, `markup_percent`, `price_net`, `price_gross`, Supplier-Angebote und Online-Preisangebote sind nur fuer `admin` und `chef` freigegeben. Mitarbeiter und Vorarbeiter nutzen preisbereinigte Views wie `inventory_items_public`.
+Preisfelder wie `purchase_price`, `sales_price`, `markup_percent`, `price_net`, `price_gross`, Supplier-Angebote und Online-Preisangebote sind fuer Chefs freigegeben. Systemadmins sehen System- und Integrationsbereiche, aber die operative Preisarbeit bleibt im Chef-Bereich. Mitarbeiter und Vorarbeiter nutzen preisbereinigte Views wie `inventory_items_public`.
 
 ## Security und CI
 
@@ -294,14 +296,26 @@ Wichtige Härtungen:
 - Die App-Shell startet nach Login einen unauffaelligen Prefetcher fuer wahrscheinliche naechste Routen.
 - `/api/prefetch/route-data` laedt kleine, rollenbereinigte Datenpakete mit `private, max-age` und `stale-while-revalidate`.
 - Mitarbeiter/Vorarbeiter erhalten beim Prefetch nur preisbereinigte Materialdaten.
-- Chef/Admin waermen zusaetzlich das Live-Wetter der aktivsten Baustelle vor; Mitarbeiterstandorte werden dafuer nicht genutzt.
+- Chefs waermen zusaetzlich das Live-Wetter der aktivsten Baustelle vor; Mitarbeiterstandorte werden dafuer nicht genutzt.
 - Das Kundenportal prefetches bereits freigegebene Foto- und Dokument-URLs im Idle-Zeitfenster.
 - Listen wie Baustellen, Auftraege, Kunden, Tagesberichte, Materiallager und Zeiterfassung nutzen Pagination bzw. schlanke Selects statt Volltabellen-Loads.
 - `20260617_performance_indexes.sql` legt idempotente Indizes fuer Dashboard, Lager, Zeiten, Materialwarnungen, Kundenportal und Auftraege an.
 
 ## Produktnavigation
 
-Chef/Admin sieht:
+Systemadmin sieht:
+
+- Dashboard
+- Benutzer
+- Rollen/Rechte
+- Features
+- Abrechnung
+- Integrationen/API
+- Sicherheit
+- DSGVO
+- Systemstatus
+
+Chef sieht:
 
 - Dashboard
 - Startassistent
@@ -316,7 +330,7 @@ Chef/Admin sieht:
 - Zeiterfassung
 - Stundenzettel
 - Angebote/Rechnungen
-- Einstellungen
+- Betriebsdaten, Kalkulation und Lager
 
 Mitarbeiter sieht:
 
@@ -338,10 +352,10 @@ Die Zeiterfassung ist unter `/time-tracking` erreichbar. Mitarbeiter koennen eig
 - Warnhinweise erscheinen bei mehr als 10 Netto-Stunden oder fehlender Pause bei laengerer Arbeitszeit
 - Status: Entwurf, Eingereicht, Freigegeben, Abgelehnt
 - Nach Freigabe ist der Eintrag fuer Mitarbeiter gesperrt
-- Chef/Admin kann Zeiten korrigieren, freigeben oder ablehnen
+- Chef kann Zeiten korrigieren, freigeben oder ablehnen
 - Jede Anlage/Korrektur/Freigabe wird in `time_entry_audit_log` protokolliert
 
-Chef/Admin erstellt Monats-Stundenzettel unter `/time-tracking/reports`. Der Bericht nutzt eingereichte oder freigegebene Zeiten und bietet:
+Chef erstellt Monats-Stundenzettel unter `/time-tracking/reports`. Der Bericht nutzt eingereichte oder freigegebene Zeiten und bietet:
 
 - Detailansicht mit Summen
 - PDF-Download mit Firmenname, Zeitraum, Mitarbeiter, Tabelle, Summe, Freigabe und Erstellungsdatum
@@ -361,9 +375,9 @@ Die App zeigt unten rechts einen Mikrofon-Button. Die Spracheingabe nutzt die We
 - Beispiel: `Heute Baustelle Hauptstraße von 7 bis 16 Uhr gearbeitet, 30 Minuten Pause, Ziegel eingedeckt`
 - Beispiel: `Baustelle Hauptstraße Unterspannbahn fehlt 2 Rollen`
 
-Mitbringlisten liegen unter `/bring-lists`. Chef/Admin kann Listen manuell erstellen oder im Auftragsdetail aus dem berechneten Materialbedarf eine Liste fuer morgen erzeugen. Zusaetzlich erzeugt BauPro fuer morgen automatisch Listen aus Auftrag, Materialplanung, Lagerbestand und Plantafel. Mitarbeiter und Vorarbeiter sehen die ihnen zugeordneten Listen, koennen Positionen abhaken, manuell ergaenzen und fehlendes Material melden.
+Mitbringlisten liegen unter `/bring-lists`. Chefs koennen Listen manuell erstellen oder im Auftragsdetail aus dem berechneten Materialbedarf eine Liste fuer morgen erzeugen. Zusaetzlich erzeugt BauPro fuer morgen automatisch Listen aus Auftrag, Materialplanung, Lagerbestand und Plantafel. Mitarbeiter und Vorarbeiter sehen die ihnen zugeordneten Listen, koennen Positionen abhaken, manuell ergaenzen und fehlendes Material melden.
 
-Der Lagerabgleich prueft Bestand, Mindestbestand, offene Reservierungen und Fahrzeug-/Lagerorte. Bei Fehlbestand entstehen Materialwarnungen und Einkaufsvorschlaege fuer Chef/Admin im Dashboard. Wenn Material im falschen Fahrzeug liegt oder ein Geraet in der Plantafel als defekt/Werkstatt markiert ist, zeigt die Mitbringliste einen Hinweis. Einkaufsvorschlaege und Einkaufsdaten sind fuer Mitarbeiter nicht sichtbar.
+Der Lagerabgleich prueft Bestand, Mindestbestand, offene Reservierungen und Fahrzeug-/Lagerorte. Bei Fehlbestand entstehen Materialwarnungen und Einkaufsvorschlaege fuer den Chef im Dashboard. Wenn Material im falschen Fahrzeug liegt oder ein Geraet in der Plantafel als defekt/Werkstatt markiert ist, zeigt die Mitbringliste einen Hinweis. Einkaufsvorschlaege und Einkaufsdaten sind fuer Mitarbeiter nicht sichtbar.
 
 ## KI-Assistent
 
@@ -374,20 +388,20 @@ Der KI-Assistent liegt unter `/ai-assistant` und ist zusaetzlich global ueber `K
 - KI-Nutzung wird in `ai_usage_logs` protokolliert
 - Aktionsvorschlaege werden in `ai_actions` gespeichert und erst nach Nutzerbestaetigung ausgefuehrt
 - Mitarbeiter-Kontext enthaelt keine EK-, VK-, Margen-, Aufschlags- oder Preisvergleichsdaten
-- Chef/Admin kann KI in `/settings` aktivieren/deaktivieren und Mitarbeiterzugriff steuern
+- Systemadmins steuern KI-Funktionen und Mitarbeiterzugriff in `/settings`; Chefs nutzen KI fuer operative Entwuerfe und Kalkulationen
 - Ohne `OPENAI_API_KEY` zeigt die UI einen Setup-Hinweis, aber die App bleibt nutzbar
 
 ## KI-Auftragswizard
 
-Der KI-Auftragswizard liegt unter `/ai/job-wizard` und ist nur fuer Admin/Chef erreichbar.
+Der KI-Auftragswizard liegt unter `/ai/job-wizard` und ist nur fuer Chefs erreichbar.
 
-- Chef/Admin beschreibt einen Auftrag per Text oder Sprache
+- Chef beschreibt einen Auftrag per Text oder Sprache
 - OpenAI extrahiert Kunde, Auftragstitel, Auftragsart, Adresse, Zeitraum, Maße und Rueckfragen als validiertes JSON
 - Die App berechnet Materialbedarf anschliessend regelbasiert mit Standard-Verschnitt aus `calculation_settings`
 - Lagerbestand, offene Reservierungen, fehlendes Material und Einkaufsvorschlaege werden angezeigt
 - Chef-Kalkulation zeigt EK, VK, Lohn, Gemeinkosten, Gewinn, Netto, MwSt., Brutto und Preisquellen
 - Nichts wird ohne Bestaetigung final gespeichert
-- Chef/Admin kann erkannte Daten korrigieren und die Vorschau neu berechnen
+- Chef kann erkannte Daten korrigieren und die Vorschau neu berechnen
 - Erst die Bestaetigungsbuttons erstellen Auftrag, Mitbringliste, Reservierung und gespeicherte Kalkulation
 - Mitarbeiter koennen diese Route und die Preis-/Kalkulationstabellen nicht lesen
 
@@ -416,11 +430,11 @@ Der Preisvergleich ist unter `/materials/live-offers` erreichbar. Lieferantenint
 - Angebote koennen Material zugeordnet und als EK uebernommen werden
 - Im Lagerdetail `/materials/inventory/[id]` sieht Chef guenstigstes Angebot, schnellste Lieferung und besten Deal
 
-Mitarbeiter haben keinen Zugriff auf Preisvergleichstabellen. Die RLS-Policies erlauben `supplier_integrations`, `supplier_offers`, `supplier_offer_matches` und `supplier_price_history` nur fuer Admin/Chef.
+Mitarbeiter haben keinen Zugriff auf Preisvergleichstabellen. Die RLS-Policies erlauben Preisvergleiche nur fuer Chefs; Integrationsschluessel und API-Konfigurationen bleiben Systemadmins vorbehalten.
 
 ## Online Price Discovery
 
-Die Online-Recherche ist unter `/materials/online-discovery` erreichbar und ist nur ein Preisindikator fuer Admin/Chef.
+Die Online-Recherche ist unter `/materials/online-discovery` erreichbar und ist nur ein Preisindikator fuer Chefs.
 
 - Adapter vorbereitet fuer `wuerth_catalog_csv`, `manual_csv`, `ebay`, `priceapi`, `dataforseo_google_shopping` und `searchapi_google_shopping`
 - CSV-Preislisten von Wuerth, BTI, Foerch oder Baustoffhandel koennen als erlaubter Feed angebunden werden
@@ -433,35 +447,35 @@ Die Online-Recherche ist unter `/materials/online-discovery` erreichbar und ist 
 - Kalkulationsprioritaet im Lagerdetail: eigener EK, CSV-/Lieferantenpreis, eBay, PriceAPI/DataForSEO/SearchApi, Markt-Richtpreis
 - Markt-Richtpreise werden nur als Fallback genutzt, wenn keine bessere Quelle Treffer liefert
 
-Online-Preisdaten liegen in `online_price_discoveries` und `online_price_offers`. RLS erlaubt Zugriff nur fuer Admin/Chef.
+Online-Preisdaten liegen in `online_price_discoveries` und `online_price_offers`. RLS erlaubt Zugriff nur fuer Chefs.
 
 ## Materialberechnung auf Baustellen
 
-Jede Baustelle hat eine Detailseite unter `/baustellen/[id]`. Dort koennen Admin/Chef eine schnelle Vor-Kalkulation erstellen:
+Jede Baustelle hat eine Detailseite unter `/baustellen/[id]`. Dort koennen Chefs eine schnelle Vor-Kalkulation erstellen:
 
 - Dachart waehlen: Steildach, Flachdach, Reparatur, Entwaesserung oder Blech
 - Laenge und Breite eintragen; die Flaeche wird automatisch berechnet
 - optionale Laengen fuer Traufe, First, Ortgang, Kehle und Wandanschluss eintragen
 - Standard-Verschnitt ist 20 %, in den Chef-Einstellungen aenderbar
-- berechnete Materialliste zeigt Grundmenge, Zuschlag, Gesamtmenge und fuer Chef/Admin EK, VK und Marge
+- berechnete Materialliste zeigt Grundmenge, Zuschlag, Gesamtmenge und fuer Chefs EK, VK und Marge
 
 Mitarbeiter sehen auf zugeordneten Baustellen nur Materialname, benoetigte Menge, Einheit, Lagerort, Bestand und Mindestbestand. EK, VK, Aufschlag, Marge und Gesamtkosten sind in Frontend und Datenbankzugriff getrennt.
 
 ## Kunden und Auftraege
 
-Die Kundenkartei ist unter `/customers` erreichbar. Admin/Chef koennen Kunden anlegen, bearbeiten und aus dem Kundenprofil direkt einen neuen Auftrag starten.
+Die Kundenkartei ist unter `/customers` erreichbar. Chefs koennen Kunden anlegen, bearbeiten und aus dem Kundenprofil direkt einen neuen Auftrag starten.
 
 Die Auftragsstrecke ist unter `/orders` erreichbar:
 
 - `/orders/new`: Wizard fuer Kunde, Auftrag, Maße und automatische Materialberechnung
 - Laenge und Breite berechnen die Flaeche automatisch
 - Auftragsdetail: strukturiertes Aufmass mit Dachflaechen, Abzuegen, Traufe, First, Ortgang, Kehle, Wandanschluss, Fallrohr und Stueckzahlen
-- Standard-Verschnitt ist 20 %, kann aber von Chef/Admin angepasst werden
+- Standard-Verschnitt ist 20 %, kann aber vom Chef angepasst werden
 - Beim Speichern entsteht automatisch eine verknuepfte Baustelle
 - Materialbedarf wird in `job_material_requirements` gespeichert
 - Mitarbeiter lesen nur `orders_public` und `job_material_requirements_public`
 
-Chef/Admin sehen im Auftragsdetail EK gesamt, VK gesamt und Marge. Mitarbeiter sehen nur Materialname, Gesamtmenge, Einheit, Lagerort, Bestand und Mindestbestand.
+Chefs sehen im Auftragsdetail EK gesamt, VK gesamt und Marge. Mitarbeiter sehen nur Materialname, Gesamtmenge, Einheit, Lagerort, Bestand und Mindestbestand.
 
 ## SaaS-Haertung
 
@@ -478,7 +492,7 @@ Die App vermeidet sichtbare Scheinfunktionen. Noch nicht produktive Bereiche wie
 
 Die App enthaelt technische Grundlagen fuer Datenschutz und B2B-SaaS-Betrieb. Diese ersetzen keine anwaltliche Pruefung.
 
-- Datenschutz-Center unter `/privacy` mit eigenem Datenexport, Firmenexport fuer Chef/Admin und Datenschutzanfragen.
+- Datenschutz-Center unter `/privacy` mit eigenem Datenexport, Firmenexport fuer Systemadmins und Datenschutzanfragen.
 - Billing unter `/billing` mit Stripe Checkout, Stripe Customer Portal, Tariflimits und KI-Kontingent.
 - Angebote/Rechnungen unter `/invoices` mit Belegstatus, PDF-Export und Auftrag-Uebernahme. Das aeltere Modul `/angebote-rechnungen` bleibt fuer bestehende DATEV-/XRechnung-Exporte erreichbar.
 - Rechtliche Entwurfsseiten unter `/legal`.
@@ -528,6 +542,7 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 - `supabase/migrations/20260711_ai_job_estimates_gap_fix.sql`: Gap-Fix fuer Bestandsdatenbanken mit fehlenden KI-Auftragsentwuerfen, Kostenschaetzungen und `inventory_locations.vehicle_id`
 - `supabase/migrations/20260712_price_permission_hardening.sql`: Delta entfernt delegierbare Chef-/Preisrechte fuer Mitarbeiter/Vorarbeiter und haertet `has_employee_permission`
 - `supabase/migrations/20260713_redteam_storage_prefetch_hardening.sql`: Delta bindet Report-Foto-Storage-Lesen an Bericht-Metadaten und Berichtsrechte
+- `supabase/migrations/20260714_system_admin_role_split.sql`: Delta trennt BauPro-Systemadmin und operativen Chef in App- und RLS-Rechten
 - `supabase/material-catalog-seed.sql`: praxisnaher Dachdecker-Materialkatalog
 - `scripts/seed-demo-company.mjs`: realistische Demo-Firma fuer Verkauf, QA und Produktdemos
 - `tests/`: Unit-, Integration- und E2E-Smoke-Tests

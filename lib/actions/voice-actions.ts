@@ -306,7 +306,7 @@ export async function confirmVoiceNoteAction(formData: FormData) {
       });
       await markAiActionStatus({ actionId: aiActionId, status: "executed", linkedJobId: jobsite?.id ?? null });
       revalidatePath("/dashboard");
-      redirectTo = `${target}?success=${toQuery("Materialmeldung wurde an Chef/Admin weitergegeben.")}`;
+      redirectTo = `${target}?success=${toQuery("Materialmeldung wurde an Chef weitergegeben.")}`;
     } else {
       await createVoiceNote({
         companyId: context.companyId,

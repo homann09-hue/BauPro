@@ -86,8 +86,8 @@ describe("role escalation guard", () => {
       expect(sql).toContain("guard_profile_role_change_before_audit");
     }
 
-    expect(action).toContain('role === "admin" && context.profile.role !== "admin"');
-    expect(action).toContain("Nur Admins koennen andere Nutzer zu Admin befoerdern.");
+    expect(action).toContain("await requireAdmin()");
+    expect(action).toContain("Systemadmin und Chef werden über ihre Rolle gesteuert");
     expect(auth).toContain("export async function requireAdmin()");
     expect(schemaCheck).toContain("assert_role_change_allowed");
   });

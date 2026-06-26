@@ -23,24 +23,42 @@ import { hasAppPermission, type PermissionKey } from "@/lib/permissions";
 
 type NavItem = Omit<React.ComponentProps<typeof NavLink>, "variant">;
 
-const managerPrimaryNav: NavItem[] = [
+const adminPrimaryNav: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+  { href: "/team", label: "Benutzer", icon: "team" },
+  { href: "/settings", label: "System", icon: "einstellungen" },
+  { href: "/billing", label: "Abrechnung", icon: "angebote" },
+  { href: "/suppliers", label: "Integrationen", icon: "lieferanten" },
+  { href: "/privacy", label: "DSGVO", icon: "datenschutz" }
+];
+
+const adminQuickLinks: NavItem[] = [
+  { href: "/onboarding", label: "Startassistent", icon: "onboarding" },
+  { href: "/team", label: "Rollen/Rechte", icon: "team" },
+  { href: "/settings/security", label: "Sicherheit & 2FA", icon: "datenschutz" },
+  { href: "/debug/system", label: "Systemstatus", icon: "einstellungen" },
+  { href: "/billing", label: "Lizenz & Abo", icon: "angebote" },
+  { href: "/suppliers", label: "API & Lieferanten", icon: "lieferanten" },
+  { href: "/privacy", label: "Datenschutz", icon: "datenschutz" },
+  { href: "/hilfe", label: "Hilfe", icon: "datenschutz" }
+];
+
+const chefPrimaryNav: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   { href: "/baustellen", label: "Baustellen", icon: "baustellen" },
   { href: "/plantafel", label: "Plantafel", icon: "plantafel" },
   { href: "/berichte", label: "Berichte", icon: "berichte" },
   { href: "/materials", label: "Material", icon: "material" },
-  { href: "/team", label: "Team", icon: "team" }
+  { href: "/calendar", label: "Kalender", icon: "kalender" }
 ];
 
-const managerQuickLinks: NavItem[] = [
+const chefQuickLinks: NavItem[] = [
   { href: "/onboarding", label: "Startassistent", icon: "onboarding" },
   { href: "/customers", label: "Kunden", icon: "kunden" },
   { href: "/orders", label: "Aufträge", icon: "auftraege" },
   { href: "/fahrzeuge", label: "Fahrzeuge/Geräte", icon: "fahrzeuge" },
   { href: "/checklists", label: "Checklisten", icon: "checklisten" },
   { href: "/maengel", label: "Mängel", icon: "maengel" },
-  { href: "/settings", label: "Einstellungen", icon: "einstellungen" },
-  { href: "/calendar", label: "Kalender", icon: "kalender" },
   { href: "/bring-lists", label: "Mitbringlisten", icon: "mitbringen" },
   { href: "/materials/control-center", label: "Lager-Zentrale", icon: "material" },
   { href: "/time-tracking", label: "Zeiterfassung", icon: "zeiten" },
@@ -49,7 +67,6 @@ const managerQuickLinks: NavItem[] = [
   { href: "/materials/live-offers", label: "Lieferantenpreise", icon: "lieferanten" },
   { href: "/invoices", label: "Angebote/Rechnungen", icon: "angebote" },
   { href: "/ai/job-wizard", label: "Auftrag per KI", icon: "ki" },
-  { href: "/privacy", label: "Datenschutz", icon: "datenschutz" },
   { href: "/hilfe", label: "Hilfe", icon: "datenschutz" }
 ];
 
@@ -91,7 +108,7 @@ const permissionQuickLinks: Array<NavItem & { permission: PermissionKey }> = [
 ];
 
 const roleLabels = {
-  admin: "Admin",
+  admin: "Systemadmin",
   chef: "Chef",
   vorarbeiter: "Vorarbeiter",
   mitarbeiter: "Mitarbeiter",
@@ -111,9 +128,30 @@ function getShellNavigation(context: AppContext) {
     .filter((item) => can(item.permission))
     .map((item) => ({ href: item.href, label: item.label, icon: item.icon }));
 
-  if (context.canManage) {
+  if (context.isAdmin) {
     return {
-      primaryNav: managerPrimaryNav,
+      primaryNav: adminPrimaryNav,
+      mobileNav: [
+        { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+        { href: "/team", label: "Benutzer", icon: "team" },
+        { href: "/settings", label: "System", icon: "einstellungen" },
+        { href: "/billing", label: "Abo", icon: "angebote" },
+        { href: "/suppliers", label: "API", icon: "lieferanten" },
+        { href: "/mehr", label: "Mehr", icon: "mehr" }
+      ].filter(Boolean) as NavItem[],
+      quickLinks: adminQuickLinks,
+      mobileActions: [
+        { href: "/team", label: "Benutzer", icon: Users, primary: true },
+        { href: "/settings/security", label: "2FA", icon: ShieldCheck },
+        { href: "/settings", label: "Setup", icon: Settings }
+      ] satisfies MobileAction[],
+      notice: "Systemadmin verwaltet firmenübergreifend Benutzer, Rechte, Abrechnung, Integrationen und Sicherheit."
+    };
+  }
+
+  if (context.isChef) {
+    return {
+      primaryNav: chefPrimaryNav,
       mobileNav: [
         { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
         { href: "/baustellen", label: "Baustellen", icon: "baustellen" },
@@ -122,13 +160,13 @@ function getShellNavigation(context: AppContext) {
         { href: "/materials/inventory", label: "Lager", icon: "lager" },
         { href: "/mehr", label: "Mehr", icon: "mehr" }
       ].filter(Boolean) as NavItem[],
-      quickLinks: managerQuickLinks,
+      quickLinks: chefQuickLinks,
       mobileActions: [
         { href: "/orders/new", label: "Auftrag", icon: BriefcaseBusiness, primary: true },
-        { href: "/team", label: "Team", icon: Users },
-        { href: "/settings", label: "Setup", icon: Settings }
+        { href: "/time-tracking/daily", label: "Zeiten", icon: Clock3 },
+        { href: "/materials/inventory", label: "Lager", icon: ClipboardList }
       ] satisfies MobileAction[],
-      notice: "Chef/Admin sieht Preise, Team, Einstellungen und operative Schnellzugriffe."
+      notice: "Chef steuert Baustellen, Aufträge, Material, Team-Einsatz, Zeiten, Angebote und Rechnungen."
     };
   }
 
@@ -240,7 +278,7 @@ export function AppShell({
         </nav>
 
         <div className="mt-auto rounded-lg border border-white/10 bg-white/[0.05] p-3 shadow-sm">
-          <Link href={context.canManage ? "/settings" : "/profile"} className="mb-3 flex items-center gap-3 rounded-md p-1 transition hover:bg-white/10">
+          <Link href={context.isAdmin ? "/settings" : "/profile"} className="mb-3 flex items-center gap-3 rounded-md p-1 transition hover:bg-white/10">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-white">
               {getInitials(context.profile.full_name, context.email)}
             </div>

@@ -41,7 +41,7 @@ export default async function MaterialReportPage({
     <>
       <PageHeader
         title="Material melden"
-        description="Fehlendes oder knappes Material direkt an Chef/Admin melden. Preis- und Einkaufsdaten bleiben ausgeblendet."
+        description="Fehlendes oder knappes Material direkt an Chef melden. Preis- und Einkaufsdaten bleiben ausgeblendet."
       />
       <MessageBox error={error} success={success} />
       <ContextualHelpTip featureKey="material_missing_report" returnTo="/material-melden" />
@@ -100,7 +100,7 @@ export default async function MaterialReportPage({
       </section>
 
       <p className="mt-4 rounded-md border border-line bg-white/80 p-3 text-sm text-slate-600">
-        Chef/Admin sieht die Meldung im Dashboard als Materialwarnung und Einkaufsvorschlag. Mitarbeiter sehen keine EK-/VK-Preise
+        Chef sieht die Meldung im Dashboard als Materialwarnung und Einkaufsvorschlag. Mitarbeiter sehen keine EK-/VK-Preise
         und keine Preisquellen.
       </p>
     </>

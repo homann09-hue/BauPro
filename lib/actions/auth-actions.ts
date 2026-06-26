@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireAppContext, requireManager, requirePermission } from "@/lib/auth";
+import { requireAdmin, requireAppContext } from "@/lib/auth";
 import { checkUserLimit } from "@/lib/billing/plans";
 import { ensureDemoModeData } from "@/lib/demo/demo-mode";
 import { assignableEmployeePermissionKeys, isAssignableEmployeePermission, normalizePermissionKeys } from "@/lib/permissions";
@@ -127,7 +127,7 @@ export async function signInAction(formData: FormData) {
   }
 
   const loginProfile = profile as unknown as LoginProfile;
-  if (loginProfile.role === "admin" || loginProfile.role === "chef") {
+  if (loginProfile.role === "chef") {
     const { data: company, error: companyError } = await supabase
       .from("companies")
       .select("onboarding_completed_at")
@@ -222,7 +222,7 @@ export async function signUpCompanyAction(formData: FormData) {
       data: {
         company_name: companyName,
         full_name: fullName,
-        role: "admin"
+        role: "chef"
       }
     }
   });
@@ -251,7 +251,7 @@ export async function signOutAction(formData?: FormData) {
 }
 
 export async function createEmployeeAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const returnTo = safeReturnPath(formData.get("return_to"), "/team");
   let admin: ReturnType<typeof createSupabaseAdminClient>;
@@ -336,7 +336,7 @@ export async function createEmployeeAction(formData: FormData) {
 }
 
 export async function updateEmployeeAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const id = requiredFormUuid(formData, "id", "Mitarbeiter");
   const fullName = optionalString(formData, "full_name");
@@ -345,10 +345,6 @@ export async function updateEmployeeAction(formData: FormData) {
 
   if (id === context.userId && !active) {
     redirect(`/team?error=${toQuery("Du kannst deinen eigenen Zugang nicht deaktivieren.")}`);
-  }
-
-  if (role === "admin" && context.profile.role !== "admin") {
-    redirect(`/team?error=${toQuery("Nur Admins koennen andere Nutzer zu Admin befoerdern.")}`);
   }
 
   let finalRole = role;
@@ -381,7 +377,7 @@ export async function updateEmployeeAction(formData: FormData) {
 }
 
 export async function updateEmployeePermissionsAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const id = requiredFormUuid(formData, "id", "Mitarbeiter");
 
@@ -401,7 +397,7 @@ export async function updateEmployeePermissionsAction(formData: FormData) {
   }
 
   if (target.role === "admin" || target.role === "chef") {
-    redirect(`/team?error=${toQuery("Chef/Admin hat automatisch alle Rechte und kann hier nicht eingeschränkt werden.")}`);
+    redirect(`/team?error=${toQuery("Systemadmin und Chef werden über ihre Rolle gesteuert und hier nicht eingeschränkt.")}`);
   }
 
   const requestedPermissions = normalizePermissionKeys(formData.getAll("permission").map(String)).filter(isAssignableEmployeePermission);
@@ -480,7 +476,7 @@ export async function updateOwnProfileAction(formData: FormData) {
 }
 
 export async function updateCompanyProfileAction(formData: FormData) {
-  const context = await requirePermission("settings.edit", "/settings");
+  const context = await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const returnTo = safeReturnPath(formData.get("return_to"), "/settings");
   const name = requiredString(formData, "name");

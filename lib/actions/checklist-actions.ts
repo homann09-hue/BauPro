@@ -217,7 +217,7 @@ export async function createJobsiteChecklistFromTemplateAction(formData: FormDat
     const templateId = requiredFormUuid(formData, "template_id", "Vorlage");
     const jobsite = await loadAccessibleJobsite(supabase, context, jobsiteId);
     if (!canCreateOrCompleteChecklist(context, jobsite)) {
-      throw new SafeActionError("Nur Chef/Admin oder zugewiesene Vorarbeiter duerfen Checklisten starten.");
+      throw new SafeActionError("Nur Chef oder zugewiesene Vorarbeiter duerfen Checklisten starten.");
     }
 
     const { data: templateData, error: templateError } = await supabase
@@ -396,7 +396,7 @@ export async function completeJobsiteChecklistAction(formData: FormData) {
   try {
     const checklist = await loadChecklistForAction(supabase, context, checklistId);
     if (!checklist.jobsites || !canCreateOrCompleteChecklist(context, checklist.jobsites)) {
-      throw new SafeActionError("Nur Chef/Admin oder zugewiesene Vorarbeiter duerfen Checklisten abschliessen.");
+      throw new SafeActionError("Nur Chef oder zugewiesene Vorarbeiter duerfen Checklisten abschliessen.");
     }
 
     const { data: itemsData, error: itemsError } = await supabase

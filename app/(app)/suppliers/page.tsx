@@ -7,7 +7,7 @@ import {
   fetchSupplierOffersAction,
   updateSupplierIntegrationAction
 } from "@/lib/actions/supplier-actions";
-import { requireManager } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { supplierIntegrationListSelect } from "@/lib/data/selects";
 import { supplierProviders } from "@/lib/suppliers/provider-config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -26,7 +26,7 @@ export default async function SuppliersPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await requireManager();
+  const context = await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
   const { data } = await supabase

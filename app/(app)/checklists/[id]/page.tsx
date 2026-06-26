@@ -357,7 +357,7 @@ export default async function ChecklistDetailPage({
           </form>
         ) : (
           <p className="rounded-md bg-fog p-3 text-sm font-semibold text-slate-600">
-            Abschluss ist für Chef/Admin oder zugewiesene Vorarbeiter freigegeben.
+            Abschluss ist für Chef oder zugewiesene Vorarbeiter freigegeben.
           </p>
         )}
       </section>

@@ -96,7 +96,7 @@ begin
   end if;
 
   if target_role in ('admin', 'chef') then
-    raise exception 'Chef/Admin-Rechte koennen nicht ueber Mitarbeiterrechte geaendert werden.';
+    raise exception 'Systemadmin- und Chef-Rollen koennen nicht ueber Mitarbeiterrechte geaendert werden.';
   end if;
 
   if tg_op in ('INSERT', 'UPDATE') then

@@ -5,7 +5,7 @@ Pruefpflichtige Arbeitsliste, keine Rechtsberatung.
 ## Technisch erledigt
 
 - [x] Firmenmandanten-Trennung ueber `company_id` und RLS vorbereitet.
-- [x] Rollenmodell mit Chef/Admin, Vorarbeiter, Mitarbeiter.
+- [x] Rollenmodell mit getrenntem Systemadmin, Chef, Vorarbeiter, Mitarbeiter und Kunde.
 - [x] Preisfelder fuer Mitarbeiter im Frontend und ueber Views getrennt.
 - [x] Datenschutz-Center mit Exporten und Anfrageprozess.
 - [x] Rechtliche Entwurfsseiten unter `/legal`.

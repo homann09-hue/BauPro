@@ -22,6 +22,17 @@ const managerRoutes = [
   "/settings"
 ];
 
+const systemAdminRoutes = [
+  "/dashboard",
+  "/team",
+  "/settings",
+  "/settings/security",
+  "/billing",
+  "/suppliers",
+  "/privacy",
+  "/debug/system"
+];
+
 const foremanRoutes = [
   "/dashboard",
   "/baustellen",
@@ -46,6 +57,7 @@ const employeeRoutes = [
 ];
 
 export function prefetchRoutesForRole(role: Role, canManage: boolean) {
+  if (role === "admin") return systemAdminRoutes;
   if (canManage) return managerRoutes;
   if (role === "vorarbeiter") return foremanRoutes;
   if (role === "kunde") return [];
@@ -53,6 +65,7 @@ export function prefetchRoutesForRole(role: Role, canManage: boolean) {
 }
 
 export function prefetchScopesForRole(role: Role, canManage: boolean) {
+  if (role === "admin") return [] as const;
   if (canManage) return ["dashboard", "jobsites"] as const;
   if (role === "vorarbeiter") return ["dashboard", "jobsites"] as const;
   if (role === "kunde") return [] as const;

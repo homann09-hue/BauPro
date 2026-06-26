@@ -63,7 +63,7 @@ export const legalPages: LegalPage[] = [
       {
         heading: "Rollen und Zugriff",
         body: [
-          "Chef/Admin sieht betriebliche Stammdaten, Mitarbeiterdaten, Zeiten, Preise und Exporte im Rahmen der Firmenverwaltung.",
+          "Chef sieht betriebliche Stammdaten, Mitarbeiterdaten, Zeiten, Preise und Exporte im Rahmen der Firmenverwaltung.",
           "Vorarbeiter und Mitarbeiter sehen operative zugeordnete Daten ohne EK, VK, Marge, Aufschlag und Preisvergleich.",
           "Row Level Security trennt Firmenmandanten technisch in Supabase."
         ]

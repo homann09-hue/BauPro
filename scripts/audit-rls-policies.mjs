@@ -231,7 +231,7 @@ for (const [key, group] of byTableOperation) {
     status:
       exactMatches.length > 0
         ? "Automatisch redundant: gleiche Operation und exakt gleiche USING/WITH-CHECK-Bedingung."
-        : "Manuell pruefen: spezifische Policy ist nicht deckungsgleich; Fallback bleibt erhalten und sichert ggf. noetige Chef/Admin-Basisrechte."
+        : "Manuell pruefen: spezifische Policy ist nicht deckungsgleich; Fallback bleibt erhalten und sichert ggf. noetige Chef-Basisrechte."
   });
 
   if (exactMatches.length > 0) {
@@ -303,7 +303,7 @@ const fallbackOnlyRows = policies
 if (fallbackOnlyRows.length === 0) {
   lines.push("Keine Fallback-only Policies im finalen Schema.");
 } else {
-  lines.push("Diese Policies bleiben unveraendert, weil keine spezifische Policy dieselbe Tabelle/Operation abdeckt. Sie sichern die Chef/Admin-Basisrechte fuer Mandantentabellen.");
+  lines.push("Diese Policies bleiben unveraendert, weil keine spezifische Policy dieselbe Tabelle/Operation abdeckt. Sie sichern die Chef-Basisrechte fuer Mandantentabellen.");
   lines.push("");
   lines.push("| Tabelle | Operation | Policy-Name | Grund |");
   lines.push("| --- | --- | --- | --- |");

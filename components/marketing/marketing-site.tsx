@@ -80,7 +80,7 @@ const whyBauProCards = [
   {
     icon: ShieldCheck,
     title: "Preise bleiben Chefsache",
-    text: "Mitarbeiter arbeiten operativ. EK, VK, Marge und Kalkulationen bleiben für Chef/Admin geschützt."
+    text: "Mitarbeiter arbeiten operativ. EK, VK, Marge und Kalkulationen bleiben für Chef geschützt."
   }
 ];
 

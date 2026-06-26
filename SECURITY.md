@@ -5,9 +5,9 @@ Pruefpflichtige technische Arbeitsgrundlage, keine Rechtsberatung.
 ## Aktueller Schutz
 
 - Authentifizierung ueber Supabase Auth.
-- Optionale TOTP-Zwei-Faktor-Authentifizierung ist fuer `admin` und `chef` verfuegbar und empfohlen, aber noch nicht erzwungen.
+- Optionale TOTP-Zwei-Faktor-Authentifizierung ist fuer Systemadmin-Zugaenge verfuegbar und empfohlen, aber noch nicht erzwungen.
 - Firmenmandanten-Trennung ueber `company_id` und Supabase RLS.
-- Managerrechte nur fuer `admin` und `chef`.
+- Systemadminrechte und Chef-Rechte sind getrennt: `admin` verwaltet firmenuebergreifend System, Benutzer, Rechte, Abrechnung, Integrationen und Datenschutz; `chef` verwaltet die operative Firmenarbeit.
 - `vorarbeiter` und `mitarbeiter` sehen keine EK/VK-, Margen-, Aufschlags- oder Preisvergleichsdaten.
 - Server Actions und Export-Routen pruefen Auth-Kontext serverseitig.
 - OpenAI wird nur serverseitig genutzt; API-Keys duerfen nie `NEXT_PUBLIC_*` sein.
@@ -21,16 +21,16 @@ Pruefpflichtige technische Arbeitsgrundlage, keine Rechtsberatung.
 Wichtige Policies stehen in `supabase/schema.sql` und Delta-Migrationen:
 
 - Firmenmitglieder lesen nur eigene Firma.
-- Kunden nur Chef/Admin.
+- Kunden nur Chef.
 - Baustellen/Auftraege fuer Mitarbeiter nur bei Zuordnung.
-- Rollen-Eskalation wird per `assert_role_change_allowed` BEFORE-Trigger verhindert: `chef` darf keine Nutzer zu `admin` befoerdern und der letzte Firmen-Admin darf nicht herabgestuft werden.
-- Inventory-Preistabellen nur Chef/Admin; Mitarbeiter nutzen preisbereinigte Views.
-- Storage fuer Report-Fotos: Uploadpfad muss `company_id/reports/report_id/...` entsprechen, Lesen muss zur `report_photos`-Metadatenzeile und einem berechtigten Bericht passen, Delete ist auf Chef/Admin oder Objektinhaber beschraenkt.
-- Datenschutzanfragen: eigene Anfrage oder Chef/Admin.
+- Rollen-Eskalation wird per `assert_role_change_allowed` BEFORE-Trigger verhindert: `chef` darf keine Nutzer zu `admin` befoerdern und der letzte Systemadmin darf nicht herabgestuft werden.
+- Inventory-Preistabellen nur Chef; Mitarbeiter und Vorarbeiter nutzen preisbereinigte Views.
+- Storage fuer Report-Fotos: Uploadpfad muss `company_id/reports/report_id/...` entsprechen, Lesen muss zur `report_photos`-Metadatenzeile und einem berechtigten Bericht passen, Delete ist auf Chef oder Objektinhaber beschraenkt.
+- Datenschutzanfragen: eigene Anfrage oder Systemadmin.
 
 ## Zwei-Faktor-Authentifizierung
 
-- Admin- und Chef-Accounts koennen unter `/settings/security` TOTP-basierte 2FA aktivieren.
+- Systemadmin-Accounts koennen unter `/settings/security` TOTP-basierte 2FA aktivieren.
 - Der Login prueft nach korrektem Passwort den Supabase Authenticator Assurance Level. Wenn ein verifizierter Faktor vorhanden ist, wird vor dem Dashboard die Seite `/login/mfa-challenge` verlangt.
 - 2FA-Entfernung erfordert eine Passwort-Bestaetigung ueber einen nicht-persistierenden Supabase-Client, damit die bestehende Session nicht versehentlich durch einen AAL1-Login ueberschrieben wird.
 - 2FA ist aktuell Opt-in. Eine spaetere Erzwingung sollte als eigene Migration/Produktentscheidung umgesetzt werden, damit bestehende Betriebe sauber migrieren koennen.

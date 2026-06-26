@@ -85,7 +85,7 @@ describe("server action hardening", () => {
     expect(orderPage).toContain("canManage={context.canManage}");
     expect(orderForm).toContain("canManage: boolean");
     expect(orderForm).toContain("{canManage ? (");
-    expect(orderForm).toContain("Kosten, EK/VK und Margen bleiben Chef/Admin vorbehalten.");
+    expect(orderForm).toContain("Kosten, EK/VK und Margen bleiben Chef vorbehalten.");
   });
 
   it("does not trust material usage FormData for company or actor ids", () => {

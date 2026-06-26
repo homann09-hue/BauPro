@@ -1170,7 +1170,17 @@ stable
 security definer
 set search_path = public
 as $$
-  select coalesce(public.current_role() in ('admin', 'chef'), false)
+  select coalesce(public.current_role() = 'chef', false)
+$$;
+
+create or replace function public.is_system_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(public.current_role() = 'admin', false)
 $$;
 
 create or replace function public.handle_new_user()
@@ -1184,7 +1194,7 @@ declare
   requested_role text;
 begin
   target_company_id := nullif(new.raw_user_meta_data->>'company_id', '')::uuid;
-  requested_role := coalesce(nullif(new.raw_user_meta_data->>'role', ''), 'admin');
+  requested_role := coalesce(nullif(new.raw_user_meta_data->>'role', ''), 'chef');
 
   if requested_role not in ('admin', 'chef', 'vorarbeiter', 'mitarbeiter', 'kunde') then
     requested_role := 'mitarbeiter';
@@ -1195,7 +1205,7 @@ begin
     values (coalesce(nullif(new.raw_user_meta_data->>'company_name', ''), 'Meine Firma'), new.id)
     returning id into target_company_id;
 
-    requested_role := 'admin';
+    requested_role := 'chef';
   end if;
 
   insert into public.profiles (id, company_id, email, full_name, role)
@@ -9098,15 +9108,15 @@ comment on table public.company_audit_log is
   'Audit-Log fuer kritische Aktionen. Datenschutz-/Firmenexporte loggen nur Metadaten, keine exportierten personenbezogenen Inhalte.';
 
 comment on column public.materials.purchase_price is
-  'EK-Preis: darf nur ueber Chef/Admin-Views, Server Actions oder eingeschraenkte Firmenexports sichtbar sein.';
+  'EK-Preis: darf nur ueber Chef-Views, Server Actions oder eingeschraenkte Firmenexports sichtbar sein.';
 comment on column public.materials.sales_price is
-  'VK-Preis: darf nur ueber Chef/Admin-Views, Server Actions oder eingeschraenkte Firmenexports sichtbar sein.';
+  'VK-Preis: darf nur ueber Chef-Views, Server Actions oder eingeschraenkte Firmenexports sichtbar sein.';
 comment on column public.inventory_items.purchase_price is
   'EK-Preis: darf niemals an Mitarbeiter-, Vorarbeiter- oder Kundenportal-Responses ausgeliefert werden.';
 comment on column public.inventory_items.sales_price is
   'VK-Preis: darf niemals an Mitarbeiter-, Vorarbeiter- oder Kundenportal-Responses ausgeliefert werden.';
 comment on column public.inventory_items.markup_percent is
-  'Marge/Aufschlag: nur fuer Chef/Admin, nicht fuer Mitarbeiter/Vorarbeiter/Kundenportal.';
+  'Marge/Aufschlag: nur fuer Chef, nicht fuer Mitarbeiter/Vorarbeiter/Kundenportal.';
 
 create table if not exists public.invoices (
   id uuid primary key default gen_random_uuid(),

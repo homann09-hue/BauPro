@@ -91,7 +91,8 @@ describe("Supabase RLS and security schema", () => {
   it("supports Vorarbeiter but does not grant manager rights", () => {
     expect(schema).toContain("role in ('admin', 'chef', 'vorarbeiter', 'mitarbeiter', 'kunde')");
     const managerFunction = block("create or replace function public.can_manage_company()", "create or replace function public.handle_new_user()");
-    expect(managerFunction).toContain("current_role() in ('admin', 'chef')");
+    expect(managerFunction).toContain("current_role() = 'chef'");
+    expect(schema).toContain("create or replace function public.is_system_admin()");
     expect(managerFunction).not.toContain("vorarbeiter");
     expect(roleHardeningMigration).toContain("notify pgrst, 'reload schema'");
   });

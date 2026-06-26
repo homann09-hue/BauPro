@@ -1,9 +1,9 @@
-import { requireManager } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { buildCompanyDataExport, jsonDownloadResponse } from "@/lib/privacy/export";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function GET() {
-  const context = await requireManager();
+  const context = await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const payload = await buildCompanyDataExport({
     supabase,

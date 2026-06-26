@@ -352,7 +352,7 @@ function WorkflowPanel({ report }: { report: Report }) {
       <div className="mt-5 rounded-lg border border-line bg-fog p-4">
         <p className="text-sm font-black text-ink">Noch nicht eingereicht</p>
         <p className="mt-1 text-sm text-slate-600">
-          Sobald der Mitarbeiter den Bautagesbericht einreicht, kann Chef/Admin ihn prüfen und freigeben.
+          Sobald der Mitarbeiter den Bautagesbericht einreicht, kann Chef ihn prüfen und freigeben.
         </p>
       </div>
     );

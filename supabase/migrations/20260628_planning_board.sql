@@ -1,5 +1,5 @@
 -- Plantafel: Ressourcen und Einsaetze fuer Mitarbeiter, Fahrzeuge und Geraete.
--- Schreibrechte bleiben bei Chef/Admin; Vorarbeiter duerfen die Firmenplanung lesen.
+-- Schreibrechte bleiben bei Chef; Vorarbeiter duerfen die Firmenplanung lesen.
 
 create table if not exists public.planning_resources (
   id uuid primary key default gen_random_uuid(),

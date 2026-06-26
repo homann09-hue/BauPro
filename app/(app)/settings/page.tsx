@@ -8,7 +8,7 @@ import { updateCompanyProfileAction } from "@/lib/actions/auth-actions";
 import { updatePricingSettingsAction } from "@/lib/actions/material-calculation-actions";
 import { loadCalculationSettings } from "@/lib/ai/job-drafts";
 import { aiRuntimeState, loadAiSettings } from "@/lib/ai/permissions";
-import { requirePermission } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { companyPricingSettingsSelect } from "@/lib/data/selects";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -20,7 +20,7 @@ export default async function SettingsPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await requirePermission("settings.edit", "/dashboard");
+  const context = await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
 
@@ -55,7 +55,7 @@ export default async function SettingsPage({
     <>
       <PageHeader
         title="Einstellungen"
-        description="Betriebsdaten, Kalkulation und Rollen zentral pflegen. Preis- und Einkaufseinstellungen bleiben Chef/Admin vorbehalten."
+        description="System-, Firmen-, Sicherheits- und KI-Einstellungen. Dieser Bereich ist Systemadmins vorbehalten."
       />
       <MessageBox error={error} success={success} />
 
@@ -242,7 +242,7 @@ export default async function SettingsPage({
                 defaultChecked={calculationSettings.require_admin_confirmation}
                 className="h-4 w-4 rounded border-line text-moss"
               />
-              Chef/Admin-Bestätigung immer erforderlich
+              Chef-Bestätigung immer erforderlich
             </label>
           </div>
           <button className="btn-primary md:col-span-4" type="submit">
@@ -334,7 +334,7 @@ export default async function SettingsPage({
         <Link href="/settings/security" className="interactive-surface p-4">
           <ShieldCheck className="mb-3 h-5 w-5 text-moss" aria-hidden="true" />
           <h3 className="font-black text-ink">Sicherheit und 2FA</h3>
-          <p className="mt-2 text-sm text-slate-600">Zwei-Faktor-Authentifizierung für Admin- und Chef-Accounts einrichten.</p>
+          <p className="mt-2 text-sm text-slate-600">Zwei-Faktor-Authentifizierung für privilegierte Zugänge einrichten.</p>
         </Link>
         <Link href="/materials/catalog" className="interactive-surface p-4">
           <Calculator className="mb-3 h-5 w-5 text-moss" aria-hidden="true" />
@@ -344,7 +344,7 @@ export default async function SettingsPage({
         <div className="surface p-4">
           <ShieldCheck className="mb-3 h-5 w-5 text-moss" aria-hidden="true" />
           <h3 className="font-black text-ink">Rechte geprüft</h3>
-          <p className="mt-2 text-sm text-slate-600">EK, VK, Marge und Preisquellen sind nur in Chef/Admin-Flächen sichtbar.</p>
+          <p className="mt-2 text-sm text-slate-600">EK, VK, Marge und Preisquellen sind nur im Chef-Bereich sichtbar. Systemadmins verwalten Sicherheit, Lizenz und Integrationen.</p>
         </div>
       </div>
     </>

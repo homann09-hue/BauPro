@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
-import { allPermissionKeys, effectivePermissionKeys, hasAppPermission, type PermissionKey } from "@/lib/permissions";
-import { canOperate, isManager } from "@/lib/utils";
+import { effectivePermissionKeys, hasAppPermission, type PermissionKey } from "@/lib/permissions";
+import { canOperate, isAdmin, isChef, isManager } from "@/lib/utils";
 import type { Company, Profile } from "@/types/app";
 
 const PROFILE_SELECT_WITH_SESSION_TIMEOUT =
@@ -27,6 +27,8 @@ export type AppContext = {
   companyName: string;
   canManage: boolean;
   canOperate: boolean;
+  isAdmin: boolean;
+  isChef: boolean;
   permissions: PermissionKey[];
   mfaEnabled: boolean;
 };
@@ -84,7 +86,7 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
   const onboardingCompletedAt = companyExtendedFieldsAvailable
     ? company?.onboarding_completed_at ?? null
     : "1970-01-01T00:00:00.000Z";
-  let permissions: PermissionKey[] = isManager(typedProfile.role) ? allPermissionKeys : [];
+  let permissions: PermissionKey[] = effectivePermissionKeys(typedProfile.role, []);
 
   if (!isManager(typedProfile.role)) {
     const permissionsResult = await supabase
@@ -124,6 +126,8 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
     companyName,
     canManage: isManager(typedProfile.role),
     canOperate: canOperate(typedProfile.role),
+    isAdmin: isAdmin(typedProfile.role),
+    isChef: isChef(typedProfile.role),
     permissions,
     mfaEnabled
   };

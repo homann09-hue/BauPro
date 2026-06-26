@@ -362,7 +362,7 @@ export default async function DailyTimeTrackingPage({
                               <InfoTile label="Brutto" value={formatMinutesAsHours(entry.gross_minutes)} />
                               <InfoTile
                                 label="Genehmigt von"
-                                value={entry.approved_profile ? employeeName(entry.approved_profile) : entry.approved_at ? "Chef/Admin" : "-"}
+                                value={entry.approved_profile ? employeeName(entry.approved_profile) : entry.approved_at ? "Chef" : "-"}
                               />
                               <InfoTile
                                 label="Audit"

@@ -466,7 +466,7 @@ export default async function JobsiteDetailPage({
               <h2 className="text-2xl font-black">Alles Wichtige an einem Ort</h2>
               <p className="mt-1 max-w-2xl text-sm text-slate-200">
                 Dokumente, Fotos, Aufgaben, Zeiten und Materialbedarf laufen hier zusammen. Mitarbeiter sehen nur operative Infos,
-                Chef/Admin sieht zusätzlich Preise und kaufmännische Dokumente.
+                Chef sieht zusätzlich Preise und kaufmännische Dokumente.
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
@@ -541,7 +541,7 @@ export default async function JobsiteDetailPage({
                 </form>
               ) : (
                 <p className="mt-4 rounded-md bg-fog p-3 text-sm font-semibold text-slate-600">
-                  Dokumentenupload ist für Chef/Admin und Vorarbeiter freigeschaltet.
+                  Dokumentenupload ist für Chef und Vorarbeiter freigeschaltet.
                 </p>
               )}
 
@@ -912,7 +912,7 @@ export default async function JobsiteDetailPage({
           <MaterialCalculationForm jobsiteId={jobsite.id} defaultWastePercent={Number(settings.waste_percent ?? 20)} />
 
           <details className="surface p-4 sm:p-5">
-            <summary className="cursor-pointer text-sm font-black text-ink">Chef-Einstellungen und Materialregeln</summary>
+            <summary className="cursor-pointer text-sm font-black text-ink">Kalkulationswerte und Materialregeln</summary>
             <form action={updatePricingSettingsAction} className="mt-4 grid gap-3 sm:grid-cols-4">
               <input type="hidden" name="return_to" value={`/baustellen/${jobsite.id}`} />
               <label>

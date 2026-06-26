@@ -59,8 +59,9 @@ export default function FeaturesPage() {
           title="Chef, Vorarbeiter und Mitarbeiter arbeiten nicht mit derselben Ansicht"
           description="Ein häufiger Fehler bei Handwerker-Software: Alle sehen zu viel. BauPro trennt operative Baustellenarbeit von kaufmännischen und administrativen Bereichen."
         />
-        <div className="grid gap-5 lg:grid-cols-3">
-          <FeatureCluster title="Chef/Admin" items={["Alle Baustellen und Aufträge", "Preise, Kalkulation und Margen", "Team, Rechte und Einstellungen", "Stundenzettel und Exporte"]} />
+        <div className="grid gap-5 lg:grid-cols-4">
+          <FeatureCluster title="Chef" items={["Alle Baustellen und Aufträge", "Preise, Kalkulation und Margen", "Mitarbeitereinsatz", "Stundenzettel und Exporte"]} />
+          <FeatureCluster title="Systemadmin" items={["Benutzer und Rollen", "Abrechnung", "Integrationen", "Sicherheit und DSGVO"]} />
           <FeatureCluster title="Vorarbeiter" items={["Baustellen des Tages", "Team-Aufgaben", "Berichte prüfen", "Mitbringlisten packen"]} />
           <FeatureCluster title="Mitarbeiter" items={["Eigene Baustellen", "Zeiten erfassen", "Bericht schreiben", "Material fehlt melden"]} />
         </div>

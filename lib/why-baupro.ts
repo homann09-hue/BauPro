@@ -52,7 +52,7 @@ export const bauProValueDrivers: BauProValueDriver[] = [
     timeSaving: "Team und Vorarbeiter sehen eine klare Packliste mit Status statt mehrfacher Rueckfragen.",
     moneySaving: "Leerfahrten, Expresskaeufe und Baustellenstillstand durch fehlendes Material werden seltener.",
     errorPrevention: "Knappes oder fehlendes Material wird sichtbar, bevor das Team morgens losfaehrt.",
-    automation: "BauPro gleicht Bestand, Reservierungen und Mindestbestand ab und erzeugt Warnungen für Chef/Admin.",
+    automation: "BauPro gleicht Bestand, Reservierungen und Mindestbestand ab und erzeugt Warnungen für Chef.",
     demoProof: "Die Demo-Firma enthaelt Mitbringlisten, Materialwarnungen und Einkaufsvorschlaege."
   },
   {
@@ -81,7 +81,7 @@ export const bauProValueDrivers: BauProValueDriver[] = [
     id: "role-security",
     title: "Rollenrechte ohne Preis-Leaks",
     category: "Sicherheit",
-    switchReason: "Chef/Admin behalten kaufmännische Daten, während Mitarbeiter schnell arbeiten können.",
+    switchReason: "Chef behalten kaufmännische Daten, während Mitarbeiter schnell arbeiten können.",
     timeSaving: "Jeder sieht nur die Bereiche, die für seine Arbeit relevant sind.",
     moneySaving: "EK, VK, Margen und Preisquellen bleiben geschuetzt und werden nicht versehentlich geteilt.",
     errorPrevention: "Frontend und Supabase RLS trennen Firmen, Rollen und Preisfelder serverseitig.",

@@ -13,7 +13,7 @@ export const dataMap: DataMapEntry[] = [
     area: "Nutzerkonten und Rollen",
     data: ["E-Mail-Adresse", "Name", "Rolle", "Firmenzuordnung", "Aktivstatus"],
     purpose: "Authentifizierung, Berechtigung und Mandantentrennung.",
-    visibility: "Eigene Firma; Rollenverwaltung nur Chef/Admin.",
+    visibility: "Eigene Firma; Rollenverwaltung nur Chef.",
     retention: "Solange Vertrags-/Arbeitsverhaeltnis besteht; Deaktivierung vor harter Löschung vorbereiten.",
     processors: ["Supabase Auth", "Supabase Postgres"],
     risk: "sensibel"
@@ -22,7 +22,7 @@ export const dataMap: DataMapEntry[] = [
     area: "Kunden, Aufträge und Baustellen",
     data: ["Kundennamen", "Kontaktpersonen", "Adressen", "Telefon/E-Mail optional", "Notizen", "Baustellenstatus"],
     purpose: "Auftragsdurchfuehrung, Einsatzplanung, Dokumentation und Abrechnungsvorbereitung.",
-    visibility: "Chef/Admin vollstaendig; Mitarbeiter nur zugeordnete operative Daten ohne interne Preisdetails.",
+    visibility: "Chef vollstaendig; Mitarbeiter nur zugeordnete operative Daten ohne interne Preisdetails.",
     retention: "Nach handels-/steuerrechtlichen und vertraglichen Fristen; Archivierung statt Sofortloeschung vorbereiten.",
     processors: ["Supabase Postgres"],
     risk: "sensibel"
@@ -31,7 +31,7 @@ export const dataMap: DataMapEntry[] = [
     area: "Zeiterfassung und Stundenzettel",
     data: ["Mitarbeiter", "Datum", "Baustelle", "Arbeitsbeginn/-ende", "Pause", "Tätigkeit", "Korrekturhistorie"],
     purpose: "Arbeitszeitdokumentation, Lohn-/Projektkontrolle und PDF-/CSV-Export.",
-    visibility: "Mitarbeiter eigene Zeiten; Chef/Admin alle Zeiten der Firma.",
+    visibility: "Mitarbeiter eigene Zeiten; Chef alle Zeiten der Firma.",
     retention: "Arbeitszeit- und Nachweispflichten prüfen; Änderungen auditieren.",
     processors: ["Supabase Postgres", "PDF-Erzeugung serverseitig"],
     risk: "hoch"
@@ -40,7 +40,7 @@ export const dataMap: DataMapEntry[] = [
     area: "Fotos und Tagesberichte",
     data: ["Baustellenfotos", "Dateinamen", "Tagesberichtstexte", "Wetter", "Besonderheiten"],
     purpose: "Baustellendokumentation und Nachweis gegenüber Kunden/Betrieb.",
-    visibility: "Zugeordnete Nutzer und Chef/Admin; Storage-Pfade pro Firma getrennt.",
+    visibility: "Zugeordnete Nutzer und Chef; Storage-Pfade pro Firma getrennt.",
     retention: "Projekt-/Gewährleistungsfristen prüfen; unnötige Personen-/Kennzeichenfotos vermeiden.",
     processors: ["Supabase Storage", "Supabase Postgres"],
     risk: "hoch"
@@ -58,7 +58,7 @@ export const dataMap: DataMapEntry[] = [
     area: "Material, Lager und Preise",
     data: ["Materialnamen", "Bestand", "Lagerort", "EK/VK", "Marge", "Preisquellen", "Lieferanten"],
     purpose: "Lagerfuehrung, Kalkulation, Einkaufsvorschlaege und Preisvergleich.",
-    visibility: "Bestand ohne Preise für Mitarbeiter; Preise/Preisquellen nur Chef/Admin.",
+    visibility: "Bestand ohne Preise für Mitarbeiter; Preise/Preisquellen nur Chef.",
     retention: "Solange für Betrieb, Nachweis, Kalkulation und Einkauf erforderlich.",
     processors: ["Supabase Postgres", "optionale Preis-APIs/CSV-Feeds"],
     risk: "sensibel"
@@ -67,7 +67,7 @@ export const dataMap: DataMapEntry[] = [
     area: "Exports, Logs und Audit",
     data: ["Exportzeitpunkt", "Akteur", "Aktion", "Änderungen", "Fehler ohne personenbezogene Details"],
     purpose: "Nachvollziehbarkeit, Datenschutzanfragen, Sicherheitsanalyse und Vertragsende.",
-    visibility: "Chef/Admin; eigene Datenschutzanfragen für betroffene Nutzer.",
+    visibility: "Chef; eigene Datenschutzanfragen für betroffene Nutzer.",
     retention: "Audit- und Sicherheitsfristen im Datenschutzkonzept final festlegen.",
     processors: ["Supabase Postgres"],
     risk: "sensibel"
@@ -89,7 +89,7 @@ export const subprocessors = [
   },
   {
     name: "eBay/PriceAPI/DataForSEO/SearchApi/CSV-Feeds",
-    role: "Optionale Preisindikatoren für Chef/Admin",
+    role: "Optionale Preisindikatoren für Chef",
     data: "Materialsuchbegriffe und Angebotsmetadaten, keine Mitarbeiterdaten erforderlich",
     status: "Optional; jeweilige Anbieterbedingungen und Drittlandbezug prüfen"
   },

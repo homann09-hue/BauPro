@@ -3,7 +3,7 @@ import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { createCheckoutSessionAction, createPortalSessionAction } from "@/lib/actions/billing-actions";
 import { PLAN_LIMITS, getMonthlyAiUsage, getPlanLimits, isFeatureEnabled, type PlanId } from "@/lib/billing/plans";
-import { requireManager } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, formatMoney, searchParamMessage } from "@/lib/utils";
@@ -47,7 +47,7 @@ export default async function BillingPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await requireManager();
+  const context = await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
 

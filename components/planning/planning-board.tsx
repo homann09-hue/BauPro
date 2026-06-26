@@ -416,7 +416,7 @@ function AssignmentCard({
               </p>
               {weatherRisk.acknowledgedAction ? (
                 <p className="mt-2 rounded bg-white/70 px-2 py-1 text-[11px] font-black">
-                  {weatherRisk.acknowledgedAction === "ignored" ? "Von Chef/Admin ignoriert" : "Von Chef/Admin bestätigt"}
+                  {weatherRisk.acknowledgedAction === "ignored" ? "Von Chef ignoriert" : "Von Chef bestätigt"}
                   {weatherRisk.acknowledgedAt ? ` · ${new Date(weatherRisk.acknowledgedAt).toLocaleDateString("de-DE")}` : ""}
                 </p>
               ) : canManage && weatherRisk.missingLocation && assignment.jobsite_id ? (
