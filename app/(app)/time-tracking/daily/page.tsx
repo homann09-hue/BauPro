@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   CalendarDays,
-  CheckCircle2,
   CloudSun,
   Clock3,
   Download,
@@ -18,7 +17,7 @@ import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { StatCard } from "@/components/construction-ui";
-import { setTimeEntryStatusAction } from "@/lib/actions/time-tracking-actions";
+import { TimeEntryStatusControls } from "@/components/time-tracking/time-entry-status-controls";
 import { requirePermission } from "@/lib/auth";
 import { timeEntryAuditSelect } from "@/lib/data/selects";
 import { selectTimeEntriesWithWeatherFallback } from "@/lib/data/time-entries";
@@ -328,7 +327,7 @@ export default async function DailyTimeTrackingPage({
                       {employee.entries.map((entry) => {
                         const latestAudit = entry.audits?.[0];
                         return (
-                          <div key={entry.id} className="rounded-lg border border-line bg-fog p-4">
+                          <div key={entry.id} data-testid="daily-time-entry" className="rounded-lg border border-line bg-fog p-4">
                             <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
@@ -383,52 +382,7 @@ export default async function DailyTimeTrackingPage({
                                 </Link>
                               ) : null}
 
-                              {canEditTeamTimes ? (
-                                <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[620px]">
-                                  {entry.status !== "approved" ? (
-                                    <form action={setTimeEntryStatusAction} className="flex flex-col gap-2 sm:flex-row">
-                                      <input type="hidden" name="id" value={entry.id} />
-                                      <input type="hidden" name="status" value="approved" />
-                                      <input type="hidden" name="return_to" value={returnTo} />
-                                      <input
-                                        className="field-input min-h-12 sm:min-w-56"
-                                        name="change_reason"
-                                        placeholder="Kommentar optional"
-                                        defaultValue="Zeit freigegeben"
-                                      />
-                                      <button className="btn-primary sm:min-w-32" type="submit">
-                                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                                        Genehmigen
-                                      </button>
-                                    </form>
-                                  ) : (
-                                    <span className="inline-flex min-h-12 items-center justify-center rounded-md bg-primary/10 px-4 text-sm font-black text-primary-dark">
-                                      Genehmigt
-                                    </span>
-                                  )}
-
-                                  {entry.status !== "rejected" ? (
-                                    <form action={setTimeEntryStatusAction} className="flex flex-col gap-2 sm:flex-row">
-                                      <input type="hidden" name="id" value={entry.id} />
-                                      <input type="hidden" name="status" value="rejected" />
-                                      <input type="hidden" name="return_to" value={returnTo} />
-                                      <input
-                                        className="field-input min-h-12 sm:min-w-56"
-                                        name="change_reason"
-                                        placeholder="Ablehnungsgrund"
-                                        defaultValue="Zeit abgelehnt"
-                                      />
-                                      <button className="btn-secondary sm:min-w-32" type="submit">
-                                        Ablehnen
-                                      </button>
-                                    </form>
-                                  ) : (
-                                    <span className="inline-flex min-h-12 items-center justify-center rounded-md bg-red-50 px-4 text-sm font-black text-danger">
-                                      Abgelehnt
-                                    </span>
-                                  )}
-                                </div>
-                              ) : null}
+                              {canEditTeamTimes ? <TimeEntryStatusControls entryId={entry.id} initialStatus={entry.status} returnTo={returnTo} /> : null}
                             </div>
 
                             {entry.audits && entry.audits.length > 1 ? (

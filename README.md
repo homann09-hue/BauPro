@@ -119,6 +119,7 @@ supabase/migrations/20260707_performance_followup_indexes.sql
 supabase/migrations/20260708_privacy_security_hardening.sql
 supabase/migrations/20260709_fix_material_usage_confirmation_rpc.sql
 supabase/migrations/20260710_calculation_travel_rate.sql
+supabase/migrations/20260711_ai_job_estimates_gap_fix.sql
 supabase/migrations/20260711_invoice_atomic_stats.sql
 supabase/migrations/20260712_price_permission_hardening.sql
 supabase/migrations/20260713_redteam_storage_prefetch_hardening.sql
@@ -524,6 +525,7 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 - `supabase/migrations/20260704_resource_vehicle_management.sql`: Delta fuer Fahrzeuge, Maschinen, Werkzeuge, Prueftermine, Dokumente und Plantafel-Zuordnung
 - `supabase/migrations/20260705_flexible_checklists.sql`: Delta fuer wiederverwendbare Checklisten, Baustellen-Checks, Foto-Nachweise, optionale Signatur und automatische Problem-Aufgaben
 - `supabase/migrations/20260706_defect_management.sql`: Delta fuer Maengel, Fotos, Fristen, Kundenfreigabe, interne Benachrichtigungen und PDF-Maengelbericht
+- `supabase/migrations/20260711_ai_job_estimates_gap_fix.sql`: Gap-Fix fuer Bestandsdatenbanken mit fehlenden KI-Auftragsentwuerfen, Kostenschaetzungen und `inventory_locations.vehicle_id`
 - `supabase/migrations/20260712_price_permission_hardening.sql`: Delta entfernt delegierbare Chef-/Preisrechte fuer Mitarbeiter/Vorarbeiter und haertet `has_employee_permission`
 - `supabase/migrations/20260713_redteam_storage_prefetch_hardening.sql`: Delta bindet Report-Foto-Storage-Lesen an Bericht-Metadaten und Berichtsrechte
 - `supabase/material-catalog-seed.sql`: praxisnaher Dachdecker-Materialkatalog

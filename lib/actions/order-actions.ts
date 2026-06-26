@@ -42,6 +42,17 @@ import {
 } from "@/lib/roofing-material-estimate";
 import type { Customer, JobsiteStatus, OrderMeasurementItem, OrderMeasurementItemType, OrderPriority, OrderStatus, OrderType } from "@/types/app";
 
+const JOB_ESTIMATE_SCHEMA_MISSING_MESSAGE =
+  "Auftrag wurde gespeichert, aber die Kostenkalkulation konnte nicht gespeichert werden: Datenbank-Update fehlt. Bitte supabase/migrations/20260711_ai_job_estimates_gap_fix.sql ausführen.";
+
+function isMissingSchemaRelationError(error: unknown, relationName: string) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  const message = typeof candidate.message === "string" ? candidate.message : "";
+
+  return candidate.code === "PGRST205" && message.includes("schema cache") && message.includes(relationName);
+}
+
 function orderTypeValue(value: FormDataEntryValue | null): OrderType {
   const type = String(value ?? "steildach");
   if (
@@ -301,6 +312,10 @@ async function saveOrderCostEstimate({
     .single();
 
   if (error || !data) {
+    if (isMissingSchemaRelationError(error, "job_estimates")) {
+      throw new SafeActionError(JOB_ESTIMATE_SCHEMA_MISSING_MESSAGE);
+    }
+
     throw new Error("order_estimate_insert_failed");
   }
 
@@ -321,6 +336,10 @@ async function saveOrderCostEstimate({
   if (rows.length > 0) {
     const { error: itemError } = await supabase.from("job_estimate_items").insert(rows);
     if (itemError) {
+      if (isMissingSchemaRelationError(itemError, "job_estimate_items")) {
+        throw new SafeActionError(JOB_ESTIMATE_SCHEMA_MISSING_MESSAGE);
+      }
+
       throw new Error("order_estimate_items_insert_failed");
     }
   }
@@ -743,8 +762,11 @@ export async function createOrderAction(formData: FormData) {
           },
           roofingEstimate
         });
-      } catch {
-        costEstimateWarning = "Auftrag wurde gespeichert, aber die Kostenkalkulation konnte noch nicht gespeichert werden.";
+      } catch (error) {
+        costEstimateWarning = safeErrorMessage(
+          error,
+          "Auftrag wurde gespeichert, aber die Kostenkalkulation konnte noch nicht gespeichert werden."
+        );
       }
     }
 

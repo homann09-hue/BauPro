@@ -34,6 +34,11 @@ function warningMessage(entry: Pick<TimeEntry, "gross_minutes" | "net_minutes" |
   return warnings.length ? ` ${warnings.join(" ")}` : "";
 }
 
+type TimeEntryStatusUpdateResult = {
+  entry: TimeEntry;
+  returnTo: string;
+};
+
 function assertTimeEntryDateAllowed(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     throw new SafeActionError("Datum muss im Format JJJJ-MM-TT angegeben werden.");
@@ -281,70 +286,90 @@ export async function updateTimeEntryAction(formData: FormData) {
 }
 
 export async function setTimeEntryStatusAction(formData: FormData) {
+  const returnToFallback = safeReturnPath(formData.get("return_to"));
+  let target = returnToFallback;
+
+  try {
+    const result = await updateTimeEntryStatus(formData);
+    target = withStatusMessage(result.returnTo, "success", "Status wurde gespeichert.");
+  } catch (error) {
+    target = withStatusMessage(returnToFallback, "error", safeErrorMessage(error, "Status konnte nicht gespeichert werden."));
+  }
+
+  redirect(target);
+}
+
+export async function setTimeEntryStatusInlineAction(formData: FormData): Promise<{ ok: boolean; message: string; status?: TimeEntryStatus }> {
+  try {
+    const result = await updateTimeEntryStatus(formData);
+    return { ok: true, message: "Status wurde gespeichert.", status: result.entry.status };
+  } catch (error) {
+    return { ok: false, message: safeErrorMessage(error, "Status konnte nicht gespeichert werden.") };
+  }
+}
+
+async function updateTimeEntryStatus(formData: FormData): Promise<TimeEntryStatusUpdateResult> {
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
   const id = requiredString(formData, "id");
   const canEditTeamTimes = hasAppPermission(context.profile.role, context.permissions, "time.team.edit");
   const requestedStatus = statusValue(formData.get("status"), canEditTeamTimes);
   const returnTo = safeReturnPath(formData.get("return_to"));
-  let target = returnTo;
 
-  try {
-    const { data: oldEntry, error: oldError } = await selectSingleTimeEntryWithWeatherFallback((select) =>
-      supabase.from("time_entries").select(select).eq("id", id).eq("company_id", context.companyId).single()
-    );
+  const { data: oldEntry, error: oldError } = await selectSingleTimeEntryWithWeatherFallback((select) =>
+    supabase.from("time_entries").select(select).eq("id", id).eq("company_id", context.companyId).single()
+  );
 
-    if (oldError || !oldEntry) throw new SafeActionError("Arbeitszeit wurde nicht gefunden.");
-    const typedOld = oldEntry as unknown as TimeEntry;
+  if (oldError || !oldEntry) throw new SafeActionError("Arbeitszeit wurde nicht gefunden.");
+  const typedOld = oldEntry as unknown as TimeEntry;
 
-    if (!canEditTeamTimes && typedOld.employee_id !== context.userId) {
-      throw new SafeActionError("Keine Berechtigung fuer diese Arbeitszeit.");
-    }
-
-    if (!canEditTeamTimes && typedOld.status === "approved") {
-      throw new SafeActionError("Freigegebene Zeiten koennen von Mitarbeitern nicht mehr geaendert werden.");
-    }
-
-    if (!canEditTeamTimes && !["draft", "submitted"].includes(requestedStatus)) {
-      throw new SafeActionError("Mitarbeiter koennen Zeiten nur als Entwurf speichern oder einreichen.");
-    }
-
-    const statusPayload = {
-      status: requestedStatus,
-      approved_by: requestedStatus === "approved" ? context.userId : null,
-      approved_at: requestedStatus === "approved" ? new Date().toISOString() : null
-    };
-
-    const writeOptions = await timeEntryWriteOptions(supabase, statusPayload);
-    const { data, error } = await supabase
-      .from("time_entries")
-      .update(writeOptions.payload)
-      .eq("id", id)
-      .eq("company_id", context.companyId)
-      .select(writeOptions.select)
-      .single();
-
-    if (error || !data) throw new Error("time_entry_status_update_failed");
-
-    await insertAuditLog({
-      companyId: context.companyId,
-      entryId: id,
-      userId: context.userId,
-      oldValues: oldEntry,
-      newValues: data,
-      reason: optionalString(formData, "change_reason") ?? `Status geaendert zu ${requestedStatus}`
-    });
-
-    target = withStatusMessage(returnTo, "success", "Status wurde gespeichert.");
-  } catch (error) {
-    target = withStatusMessage(returnTo, "error", safeErrorMessage(error, "Status konnte nicht gespeichert werden."));
+  if (!canEditTeamTimes && typedOld.employee_id !== context.userId) {
+    throw new SafeActionError("Keine Berechtigung fuer diese Arbeitszeit.");
   }
+
+  if (!canEditTeamTimes && typedOld.status === "approved") {
+    throw new SafeActionError("Freigegebene Zeiten koennen von Mitarbeitern nicht mehr geaendert werden.");
+  }
+
+  if (!canEditTeamTimes && !["draft", "submitted"].includes(requestedStatus)) {
+    throw new SafeActionError("Mitarbeiter koennen Zeiten nur als Entwurf speichern oder einreichen.");
+  }
+
+  const statusPayload = {
+    status: requestedStatus,
+    approved_by: requestedStatus === "approved" ? context.userId : null,
+    approved_at: requestedStatus === "approved" ? new Date().toISOString() : null
+  };
+
+  const writeOptions = await timeEntryWriteOptions(supabase, statusPayload);
+  const { data, error } = await supabase
+    .from("time_entries")
+    .update(writeOptions.payload)
+    .eq("id", id)
+    .eq("company_id", context.companyId)
+    .select(writeOptions.select)
+    .single();
+
+  if (error || !data) throw new Error("time_entry_status_update_failed");
+
+  await insertAuditLog({
+    companyId: context.companyId,
+    entryId: id,
+    userId: context.userId,
+    oldValues: oldEntry,
+    newValues: data,
+    reason: optionalString(formData, "change_reason") ?? `Status geaendert zu ${requestedStatus}`
+  });
 
   revalidatePath("/time-tracking");
   revalidatePath("/time-tracking/daily");
   revalidatePath(returnTo.split("?")[0] || "/time-tracking");
   revalidateDashboardCache(context.companyId);
-  redirect(target);
+
+  return {
+    entry: data as unknown as TimeEntry,
+    returnTo
+  };
 }
 
 export async function createTimeReportAction(formData: FormData) {
