@@ -15,6 +15,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { searchParamMessage } from "@/lib/utils";
 import type { Profile } from "@/types/app";
 
+type CompanyOption = {
+  id: string;
+  name: string;
+};
+
 const roleLabels = {
   admin: "Systemadmin",
   chef: "Chef",
@@ -29,7 +34,7 @@ function RoleOptions() {
       <option value="mitarbeiter">Mitarbeiter</option>
       <option value="vorarbeiter">Vorarbeiter</option>
       <option value="chef">Chef</option>
-      <option value="admin">Admin</option>
+      <option value="admin">Systemadmin</option>
       <option value="kunde">Kunde</option>
     </>
   );
@@ -44,16 +49,22 @@ export default async function TeamPage({
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
 
-  const { data, error: profilesError } = await supabase
-    .from("profiles")
-    .select(teamProfileSelect)
-    .eq("company_id", context.companyId)
-    .order("created_at", { ascending: true });
+  const [companiesResult, profilesResult] = await Promise.all([
+    supabase.from("companies").select("id, name").order("name", { ascending: true }).limit(250),
+    supabase.from("profiles").select(teamProfileSelect).order("created_at", { ascending: true }).limit(500)
+  ]);
+  const companies = (companiesResult.data ?? []) as CompanyOption[];
+  const companyNameById = new Map(companies.map((company) => [company.id, company.name]));
+  const data = profilesResult.data;
+  const profilesError = profilesResult.error;
   const profiles = (data ?? []) as Profile[];
-  const permissionsResult = await supabase
-    .from("employee_permissions")
-    .select("profile_id, permission_key, granted")
-    .eq("company_id", context.companyId);
+  const permissionsResult =
+    profiles.length > 0
+      ? await supabase.from("employee_permissions").select("profile_id, permission_key, granted").in(
+          "profile_id",
+          profiles.map((profile) => profile.id)
+        )
+      : { data: [], error: null };
   const permissionsByProfile = new Map<string, PermissionKey[]>();
 
   if (!permissionsResult.error) {
@@ -70,7 +81,7 @@ export default async function TeamPage({
       ? "Datenbank-Update fehlt: Bitte supabase/migrations/20260622_employee_permissions.sql ausführen."
       : "Rechte konnten nicht geladen werden."
     : null;
-  const teamError = safeQueryErrorMessage(profilesError) || permissionsError;
+  const teamError = safeQueryErrorMessage(companiesResult.error) || safeQueryErrorMessage(profilesError) || permissionsError;
   const hasServiceRole = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
   const activeProfiles = profiles.filter((profile) => profile.active).length;
   const foremen = profiles.filter((profile) => profile.role === "vorarbeiter").length;
@@ -95,8 +106,10 @@ export default async function TeamPage({
                 <ShieldCheck className="h-5 w-5" aria-hidden="true" />
               </div>
               <div>
-                <h2 className="font-semibold text-ink">{context.companyName}</h2>
-                <p className="text-sm text-slate-500">Deine Rolle: {roleLabels[context.profile.role]}</p>
+                <h2 className="font-semibold text-ink">Systemadmin-Konsole</h2>
+                <p className="text-sm text-slate-500">
+                  {companies.length} Firmen · deine Rolle: {roleLabels[context.profile.role]}
+                </p>
               </div>
             </div>
           </div>
@@ -109,6 +122,18 @@ export default async function TeamPage({
               </p>
             ) : null}
             <form action={createEmployeeAction} className="space-y-3">
+              <div>
+                <label className="field-label" htmlFor="company_id">
+                  Zielfirma
+                </label>
+                <select className="field-input" id="company_id" name="company_id" defaultValue={context.companyId} required>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="field-label" htmlFor="full_name">
                   Name
@@ -160,11 +185,12 @@ export default async function TeamPage({
                 <ResponsiveTableCard
                   key={profile.id}
                   title={profile.full_name || profile.email || "Ohne Namen"}
-                  meta={`${profile.email || "Keine E-Mail"} · ${roleLabels[profile.role]}`}
+                  meta={`${companyNameById.get(profile.company_id) ?? "Unbekannte Firma"} · ${profile.email || "Keine E-Mail"} · ${roleLabels[profile.role]}`}
                 >
                   <div className="mb-3">
                     <EmployeePermissionsMenu
                       employeeId={profile.id}
+                      employeeCompanyId={profile.company_id}
                       employeeName={profile.full_name || profile.email || "Ohne Namen"}
                       employeeRole={profile.role}
                       grantedPermissions={effectivePermissionKeys(profile.role, permissionsByProfile.get(profile.id) ?? [])}
@@ -179,6 +205,7 @@ export default async function TeamPage({
                   </div>
                   <form action={updateEmployeeAction}>
                     <input type="hidden" name="id" value={profile.id} />
+                    <input type="hidden" name="company_id" value={profile.company_id} />
                     <div className="grid gap-3 md:grid-cols-[1fr_170px_110px_auto] md:items-end">
                       <div>
                         <label className="field-label" htmlFor={`full-name-${profile.id}`}>

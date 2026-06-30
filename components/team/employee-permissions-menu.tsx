@@ -10,6 +10,7 @@ import type { Role } from "@/types/app";
 
 type EmployeePermissionsMenuProps = {
   employeeId: string;
+  employeeCompanyId: string;
   employeeName: string;
   employeeRole: Role;
   grantedPermissions: PermissionKey[];
@@ -18,6 +19,7 @@ type EmployeePermissionsMenuProps = {
 
 export function EmployeePermissionsMenu({
   employeeId,
+  employeeCompanyId,
   employeeName,
   employeeRole,
   grantedPermissions,
@@ -122,6 +124,7 @@ export function EmployeePermissionsMenu({
             ) : (
               <form action={updateEmployeePermissionsAction}>
                 <input type="hidden" name="id" value={employeeId} />
+                <input type="hidden" name="company_id" value={employeeCompanyId} />
                 <div className="max-h-[68dvh] space-y-4 overflow-y-auto p-4 pb-28 sm:max-h-[70dvh] sm:p-5 sm:pb-5">
                   {employeePermissionGroups.map((group) => (
                     <fieldset key={group.id} className="rounded-lg border border-line bg-fog p-3 sm:p-4">

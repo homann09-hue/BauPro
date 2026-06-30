@@ -25,6 +25,10 @@ const pricePermissionHardening = fs.readFileSync(
   path.join(root, "supabase/migrations/20260712_price_permission_hardening.sql"),
   "utf8"
 );
+const platformSystemAdminHardening = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260715_platform_system_admin.sql"),
+  "utf8"
+);
 
 const failures = [];
 
@@ -100,6 +104,30 @@ check(
     pricePermissionHardening.includes("'users.permissions.manage'") &&
     pricePermissionHardening.includes("public.can_manage_company()"),
   "price/manager permission hardening migration must remove delegated Chef-only permissions."
+);
+check(
+  platformSystemAdminHardening.includes('create policy "systemadmins read all companies"') &&
+    platformSystemAdminHardening.includes('create policy "systemadmins read all profiles"') &&
+    platformSystemAdminHardening.includes('create policy "systemadmins update profiles"') &&
+    platformSystemAdminHardening.includes('create policy "systemadmins read company audit log"') &&
+    platformSystemAdminHardening.includes("public.current_role() = 'admin'") &&
+    platformSystemAdminHardening.includes("public.current_role() = 'chef'"),
+  "platform system-admin migration must make admin a cross-company system role without merging it with chef."
+);
+check(
+  schema.includes('create policy "systemadmins read all companies"') &&
+    schema.includes('create policy "systemadmins read all profiles"') &&
+    schema.includes('create policy "systemadmins update profiles"') &&
+    schema.includes('create policy "systemadmins read company audit log"') &&
+    schema.includes("admin = firmenuebergreifender BauPro-Systemadministrator") &&
+    schema.includes("chef = operative Betriebsleitung einer einzelnen Firma"),
+  "schema.sql must include platform system-admin policies and role documentation."
+);
+check(
+  !platformSystemAdminHardening.includes('create policy "systemadmins read all customers"') &&
+    !platformSystemAdminHardening.includes('create policy "systemadmins read all jobsites"') &&
+    !platformSystemAdminHardening.includes('create policy "systemadmins read all inventory'),
+  "platform system-admin migration must not open operative tenant data cross-company."
 );
 
 check(inventoryPublicView.includes("where i.company_id = public.current_company_id()"), "inventory_items_public must filter by current company.");

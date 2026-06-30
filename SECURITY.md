@@ -8,6 +8,7 @@ Pruefpflichtige technische Arbeitsgrundlage, keine Rechtsberatung.
 - Optionale TOTP-Zwei-Faktor-Authentifizierung ist fuer Systemadmin-Zugaenge verfuegbar und empfohlen, aber noch nicht erzwungen.
 - Firmenmandanten-Trennung ueber `company_id` und Supabase RLS.
 - Systemadminrechte und Chef-Rechte sind getrennt: `admin` verwaltet firmenuebergreifend System, Benutzer, Rechte, Abrechnung, Integrationen und Datenschutz; `chef` verwaltet die operative Firmenarbeit.
+- Die Migration `supabase/migrations/20260715_platform_system_admin.sql` gibt Systemadmins eigene firmenuebergreifende Policies fuer Firmen, Profile, Rechte- und Audit-Metadaten. Operative Kundendaten, Baustellen, Lager und Preise werden dadurch nicht global geoeffnet.
 - `vorarbeiter` und `mitarbeiter` sehen keine EK/VK-, Margen-, Aufschlags- oder Preisvergleichsdaten.
 - Server Actions und Export-Routen pruefen Auth-Kontext serverseitig.
 - OpenAI wird nur serverseitig genutzt; API-Keys duerfen nie `NEXT_PUBLIC_*` sein.
@@ -21,6 +22,7 @@ Pruefpflichtige technische Arbeitsgrundlage, keine Rechtsberatung.
 Wichtige Policies stehen in `supabase/schema.sql` und Delta-Migrationen:
 
 - Firmenmitglieder lesen nur eigene Firma.
+- Systemadmins lesen und verwalten Firmen-/Profil-/Rechte-Metadaten firmenuebergreifend ueber eigene `is_system_admin()`-Policies.
 - Kunden nur Chef.
 - Baustellen/Auftraege fuer Mitarbeiter nur bei Zuordnung.
 - Rollen-Eskalation wird per `assert_role_change_allowed` BEFORE-Trigger verhindert: `chef` darf keine Nutzer zu `admin` befoerdern und der letzte Systemadmin darf nicht herabgestuft werden.

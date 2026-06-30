@@ -7,7 +7,7 @@ import { requireAdmin, requireAppContext } from "@/lib/auth";
 import { checkUserLimit } from "@/lib/billing/plans";
 import { ensureDemoModeData } from "@/lib/demo/demo-mode";
 import { assignableEmployeePermissionKeys, isAssignableEmployeePermission, normalizePermissionKeys } from "@/lib/permissions";
-import { requiredFormUuid } from "@/lib/security/form-data";
+import { optionalFormUuid, requiredFormUuid } from "@/lib/security/form-data";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { logServerWarning } from "@/lib/security/logging";
 import { getClientIp, publicAppOrigin } from "@/lib/security/origin";
@@ -83,6 +83,10 @@ function demoStartRateLimitKey(requestHeaders: Headers) {
   // Demo-Starts werden pro Browser/IP gedrosselt. Ein globaler Key sperrt sonst
   // lokale Tests oder mehrere Interessenten gegenseitig aus.
   return `demo:start:${rateLimitKeyPart(clientIp)}:${rateLimitKeyPart(userAgent)}`;
+}
+
+function targetCompanyIdFromForm(formData: FormData, fallbackCompanyId: string) {
+  return optionalFormUuid(formData, "company_id", "Firma") ?? fallbackCompanyId;
 }
 
 export async function signInAction(formData: FormData) {
@@ -254,6 +258,7 @@ export async function createEmployeeAction(formData: FormData) {
   const context = await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const returnTo = safeReturnPath(formData.get("return_to"), "/team");
+  const targetCompanyId = targetCompanyIdFromForm(formData, context.companyId);
   let admin: ReturnType<typeof createSupabaseAdminClient>;
   try {
     admin = createSupabaseAdminClient();
@@ -273,7 +278,7 @@ export async function createEmployeeAction(formData: FormData) {
   }
 
   try {
-    await checkUserLimit(supabase, context.companyId);
+    await checkUserLimit(supabase, targetCompanyId);
   } catch (error) {
     redirectWithMessage(returnTo, "error", safeErrorMessage(error, "Nutzerlimit konnte nicht geprüft werden."));
   }
@@ -283,7 +288,7 @@ export async function createEmployeeAction(formData: FormData) {
     password,
     email_confirm: true,
     user_metadata: {
-      company_id: context.companyId,
+      company_id: targetCompanyId,
       full_name: fullName,
       role
     }
@@ -296,7 +301,7 @@ export async function createEmployeeAction(formData: FormData) {
   let finalRole = role;
   let profileResult = await admin.from("profiles").upsert({
     id: data.user.id,
-    company_id: context.companyId,
+    company_id: targetCompanyId,
     email,
     full_name: fullName,
     role: finalRole,
@@ -307,14 +312,14 @@ export async function createEmployeeAction(formData: FormData) {
     finalRole = "mitarbeiter";
     await admin.auth.admin.updateUserById(data.user.id, {
       user_metadata: {
-        company_id: context.companyId,
+        company_id: targetCompanyId,
         full_name: fullName,
         role: finalRole
       }
     });
     profileResult = await admin.from("profiles").upsert({
       id: data.user.id,
-      company_id: context.companyId,
+      company_id: targetCompanyId,
       email,
       full_name: fullName,
       role: finalRole,
@@ -339,6 +344,7 @@ export async function updateEmployeeAction(formData: FormData) {
   const context = await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const id = requiredFormUuid(formData, "id", "Mitarbeiter");
+  const targetCompanyId = targetCompanyIdFromForm(formData, context.companyId);
   const fullName = optionalString(formData, "full_name");
   const role = normalizeRole(formData.get("role"));
   const active = formData.get("active") === "on";
@@ -352,7 +358,7 @@ export async function updateEmployeeAction(formData: FormData) {
     .from("profiles")
     .update({ full_name: fullName, role: finalRole, active })
     .eq("id", id)
-    .eq("company_id", context.companyId);
+    .eq("company_id", targetCompanyId);
 
   if (error && role === "vorarbeiter" && isUnsupportedVorarbeiterRoleError(error)) {
     finalRole = "mitarbeiter";
@@ -360,7 +366,7 @@ export async function updateEmployeeAction(formData: FormData) {
       .from("profiles")
       .update({ full_name: fullName, role: finalRole, active })
       .eq("id", id)
-      .eq("company_id", context.companyId);
+      .eq("company_id", targetCompanyId);
     error = fallback.error;
   }
 
@@ -380,17 +386,22 @@ export async function updateEmployeePermissionsAction(formData: FormData) {
   const context = await requireAdmin();
   const supabase = await createSupabaseServerClient();
   const id = requiredFormUuid(formData, "id", "Mitarbeiter");
+  const requestedCompanyId = optionalFormUuid(formData, "company_id", "Firma");
 
   if (id === context.userId) {
     redirect(`/team?error=${toQuery("Du kannst deine eigenen Rechte nicht bearbeiten.")}`);
   }
 
-  const { data: target, error: targetError } = await supabase
+  let targetQuery = supabase
     .from("profiles")
     .select("id, company_id, role")
-    .eq("id", id)
-    .eq("company_id", context.companyId)
-    .maybeSingle();
+    .eq("id", id);
+
+  if (requestedCompanyId) {
+    targetQuery = targetQuery.eq("company_id", requestedCompanyId);
+  }
+
+  const { data: target, error: targetError } = await targetQuery.maybeSingle();
 
   if (targetError || !target) {
     redirect(`/team?error=${toQuery("Mitarbeiter wurde nicht gefunden.")}`);
@@ -400,11 +411,13 @@ export async function updateEmployeePermissionsAction(formData: FormData) {
     redirect(`/team?error=${toQuery("Systemadmin und Chef werden über ihre Rolle gesteuert und hier nicht eingeschränkt.")}`);
   }
 
+  const targetCompanyId = target.company_id;
+
   const requestedPermissions = normalizePermissionKeys(formData.getAll("permission").map(String)).filter(isAssignableEmployeePermission);
   const { data: currentRows, error: currentError } = await supabase
     .from("employee_permissions")
     .select("permission_key, granted")
-    .eq("company_id", context.companyId)
+    .eq("company_id", targetCompanyId)
     .eq("profile_id", id);
 
   if (currentError) {
@@ -422,7 +435,7 @@ export async function updateEmployeePermissionsAction(formData: FormData) {
   ).filter(isAssignableEmployeePermission);
 
   const rows = assignableEmployeePermissionKeys.map((permissionKey) => ({
-    company_id: context.companyId,
+    company_id: targetCompanyId,
     profile_id: id,
     permission_key: permissionKey,
     granted: requestedPermissions.includes(permissionKey),
@@ -438,7 +451,7 @@ export async function updateEmployeePermissionsAction(formData: FormData) {
   }
 
   const { error: auditError } = await supabase.from("employee_permission_audit_log").insert({
-    company_id: context.companyId,
+    company_id: targetCompanyId,
     actor_id: context.userId,
     target_profile_id: id,
     old_values: { permissions: oldPermissions },

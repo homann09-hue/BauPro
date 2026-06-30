@@ -96,4 +96,29 @@ describe("role permissions", () => {
     expect(hasAppPermission("mitarbeiter", ["settings.edit"], "settings.edit")).toBe(false);
     expect(hasAppPermission("vorarbeiter", ["settings.edit"], "settings.edit")).toBe(false);
   });
+
+  it("documents platform-admin cross-company RLS without opening operative tenant data", () => {
+    const migration = source("supabase/migrations/20260715_platform_system_admin.sql");
+    const schema = source("supabase/schema.sql");
+    const teamPage = source("app/(app)/team/page.tsx");
+    const authActions = source("lib/actions/auth-actions.ts");
+
+    for (const sourceText of [migration, schema]) {
+      expect(sourceText).toContain('create policy "systemadmins read all companies"');
+      expect(sourceText).toContain('create policy "systemadmins read all profiles"');
+      expect(sourceText).toContain('create policy "systemadmins update profiles"');
+      expect(sourceText).toContain('create policy "systemadmins read company audit log"');
+      expect(sourceText).toContain("public.current_role() = 'chef'");
+      expect(sourceText).toContain("public.current_role() = 'admin'");
+      expect(sourceText).toContain("Operative Firmendaten wie Baustellen, Kunden, Lager und Preise bleiben");
+    }
+
+    expect(migration).not.toContain('create policy "systemadmins read all customers"');
+    expect(migration).not.toContain('create policy "systemadmins read all jobsites"');
+    expect(migration).not.toContain('create policy "systemadmins read all inventory');
+    expect(teamPage).toContain('supabase.from("companies").select("id, name")');
+    expect(teamPage).toContain('name="company_id"');
+    expect(authActions).toContain("targetCompanyIdFromForm");
+    expect(authActions).toContain("await checkUserLimit(supabase, targetCompanyId)");
+  });
 });
