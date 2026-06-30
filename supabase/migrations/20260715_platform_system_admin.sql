@@ -279,18 +279,23 @@ on public.company_audit_log for insert
 to authenticated
 with check (public.is_system_admin());
 
-drop policy if exists "systemadmins read privacy requests" on public.privacy_requests;
-create policy "systemadmins read privacy requests"
-on public.privacy_requests for select
-to authenticated
-using (public.is_system_admin());
+do $$
+begin
+  if to_regclass('public.privacy_requests') is not null then
+    drop policy if exists "systemadmins read privacy requests" on public.privacy_requests;
+    create policy "systemadmins read privacy requests"
+    on public.privacy_requests for select
+    to authenticated
+    using (public.is_system_admin());
 
-drop policy if exists "systemadmins update privacy requests" on public.privacy_requests;
-create policy "systemadmins update privacy requests"
-on public.privacy_requests for update
-to authenticated
-using (public.is_system_admin())
-with check (public.is_system_admin());
+    drop policy if exists "systemadmins update privacy requests" on public.privacy_requests;
+    create policy "systemadmins update privacy requests"
+    on public.privacy_requests for update
+    to authenticated
+    using (public.is_system_admin())
+    with check (public.is_system_admin());
+  end if;
+end $$;
 
 comment on function public.is_system_admin() is
   'BauPro-Plattformrolle: admin verwaltet Firmen, Nutzer, Rechte, Abrechnung, Integrationen, Datenschutz und Systemstatus firmenuebergreifend.';
