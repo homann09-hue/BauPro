@@ -42,6 +42,7 @@ export function WorkOrderSendButton({ orderId, workOrderId }: { orderId: string;
 
       const success = payload.success ?? "Arbeitsauftrag ist jetzt im Kundenportal sichtbar.";
       setState({ success });
+      setPending(false);
       window.setTimeout(() => window.location.assign(statusUrl(`/orders/${orderId}`, "success", success)), 250);
     } catch {
       setState({ error: "Arbeitsauftrag konnte nicht gesendet werden." });

@@ -50,6 +50,7 @@ export function MaterialConfirmationForm({ reportId, returnTo }: { reportId: str
 
       const success = payload.success ?? "Materialmeldung wurde verarbeitet.";
       setState({ success });
+      setPending(false);
       window.setTimeout(() => window.location.assign(statusUrl(returnTo, "success", success)), 250);
     } catch {
       setState({ error: "Materialmeldung konnte nicht verarbeitet werden." });

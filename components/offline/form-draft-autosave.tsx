@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CloudOff, RotateCcw, Save } from "lucide-react";
+import { queueAction } from "@/lib/offline/queue";
 
 const DRAFT_VERSION = 1;
 const SAVE_DELAY_MS = 350;
@@ -126,19 +127,23 @@ function formatSavedAt(isoDate: string) {
 export function FormDraftAutosave({
   formId,
   storageKey,
-  description = "Eingaben werden lokal auf diesem Gerät gesichert. Bei schlechtem Empfang geht dein Entwurf nicht sofort verloren."
+  description = "Eingaben werden lokal auf diesem Gerät gesichert. Bei schlechtem Empfang geht dein Entwurf nicht sofort verloren.",
+  offlineActionEndpoint
 }: {
   formId: string;
   storageKey: string;
   description?: string;
+  offlineActionEndpoint?: string;
 }) {
   const [restored, setRestored] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [queuedOffline, setQueuedOffline] = useState(false);
 
   useEffect(() => {
     const formElement = document.getElementById(formId);
     if (!(formElement instanceof HTMLFormElement)) return undefined;
     const form = formElement;
+    const fallbackActionEndpoint = offlineActionEndpoint ?? formElement.getAttribute("action") ?? null;
 
     const draft = readDraft(storageKey);
     if (draft) {
@@ -150,6 +155,7 @@ export function FormDraftAutosave({
     }
 
     let timer: number | undefined;
+    let submitTimer: number | undefined;
 
     function saveSoon() {
       window.clearTimeout(timer);
@@ -161,24 +167,88 @@ export function FormDraftAutosave({
         };
         writeDraft(storageKey, payload);
         setSavedAt(payload.updatedAt);
+        setQueuedOffline(false);
       }, SAVE_DELAY_MS);
     }
 
-    function clearAfterSuccessfulOnlineSubmit() {
-      if (navigator.onLine) removeDraft(storageKey);
+  function clearAfterLikelySuccessfulSubmit() {
+    if (!navigator.onLine) return;
+
+    const submittedPath = window.location.pathname + window.location.search;
+    const submittedUrl = new URL(window.location.href);
+    const formNode = form;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    function checkForNavigation() {
+      const currentForm = document.getElementById(formId);
+      const currentUrl = new URL(window.location.href);
+
+      const currentPathname = currentUrl.pathname;
+      const hasErrorQuery = currentUrl.searchParams.has("error");
+      const isLikelyFailureRedirect = currentPathname.startsWith("/login") || hasErrorQuery;
+      const currentPath = currentUrl.pathname + currentUrl.search;
+
+      if (!currentForm || currentForm !== formNode) {
+        removeDraft(storageKey);
+        return;
+      }
+
+      if (currentPathname !== submittedUrl.pathname) {
+        if (isLikelyFailureRedirect) {
+          return;
+        }
+
+        removeDraft(storageKey);
+        return;
+      }
+
+      if (currentPath !== submittedPath && !hasErrorQuery) {
+        removeDraft(storageKey);
+        return;
+      }
+
+      attempts += 1;
+      if (attempts >= maxAttempts) return;
+      submitTimer = window.setTimeout(checkForNavigation, 250);
+    }
+
+    submitTimer = window.setTimeout(checkForNavigation, 250);
+  }
+
+    function handleSubmit(event: SubmitEvent) {
+      if (navigator.onLine) {
+        clearAfterLikelySuccessfulSubmit();
+        return;
+      }
+
+      if (!fallbackActionEndpoint) {
+        return;
+      }
+
+      event.preventDefault();
+      const formData = new FormData(form);
+      void queueAction(fallbackActionEndpoint, formData).then(() => {
+        removeDraft(storageKey);
+        setSavedAt(null);
+        setQueuedOffline(true);
+      }).catch(() => {
+        setQueuedOffline(false);
+      });
     }
 
     form.addEventListener("input", saveSoon, { passive: true });
     form.addEventListener("change", saveSoon, { passive: true });
-    form.addEventListener("submit", clearAfterSuccessfulOnlineSubmit);
+    form.addEventListener("submit", handleSubmit);
 
     return () => {
       window.clearTimeout(timer);
+      window.clearTimeout(submitTimer);
       form.removeEventListener("input", saveSoon);
       form.removeEventListener("change", saveSoon);
-      form.removeEventListener("submit", clearAfterSuccessfulOnlineSubmit);
+      form.removeEventListener("submit", handleSubmit);
     };
-  }, [formId, storageKey]);
+  }, [formId, storageKey, offlineActionEndpoint]);
 
   function discardDraft() {
     removeDraft(storageKey);
@@ -197,6 +267,7 @@ export function FormDraftAutosave({
             {restored ? "Entwurf wiederhergestellt" : savedAt ? `Lokal gesichert ${formatSavedAt(savedAt)}` : "Offline bereit"}
           </p>
           <p className="mt-1 leading-6 text-ash">{description}</p>
+          {queuedOffline ? <p className="mt-2 rounded border border-primary/40 bg-mint p-2 text-xs font-black">Offline: Entwurf wurde in die Warteschlange aufgenommen.</p> : null}
           {savedAt ? (
             <button
               type="button"

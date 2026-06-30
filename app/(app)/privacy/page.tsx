@@ -71,14 +71,14 @@ export default async function PrivacyPage({
               <h2 className="section-title">Datenexport und Anfrage</h2>
             </div>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Link href="/privacy/export" className="btn-primary">
+        <div className="flex flex-col gap-2 sm:flex-row">
+            <a href="/privacy/export" className="btn-primary">
               Eigene Daten exportieren
-            </Link>
+            </a>
             {context.canManage ? (
-              <Link href="/privacy/company-export" className="btn-secondary">
+              <a href="/privacy/company-export" className="btn-secondary">
                 Firmendaten exportieren
-              </Link>
+              </a>
             ) : null}
             <Link href="/profile" className="btn-secondary">
               Profil berichtigen

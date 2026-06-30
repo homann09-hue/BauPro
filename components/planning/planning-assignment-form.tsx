@@ -73,6 +73,7 @@ export function PlanningAssignmentForm({
 
       const success = payload.success ?? "Planung wurde gespeichert.";
       setState({ success });
+      setPending(false);
       window.setTimeout(() => window.location.assign(statusUrl(returnTo, "success", success)), 250);
     } catch {
       setState({ error: "Planung konnte nicht gespeichert werden." });

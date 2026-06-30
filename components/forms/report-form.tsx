@@ -61,11 +61,12 @@ export function ReportForm({
         </p>
       </div>
       <div className="mb-5">
-        <FormDraftAutosave
-          formId="report-form"
-          storageKey={`baupro:report:${report?.id ?? "new"}:${currentUserId}`}
-          description="Berichtstext, Zeiten, Wettervorschlag und Notizen werden lokal gesichert. Fotos bleiben im Dateifeld und müssen bei Bedarf erneut gewählt werden."
-        />
+      <FormDraftAutosave
+        formId="report-form"
+        storageKey={`baupro:report:${report?.id ?? "new"}:${currentUserId}`}
+        offlineActionEndpoint="/api/offline/report"
+        description="Berichtstext, Zeiten, Wettervorschlag und Notizen werden lokal gesichert. Fotos bleiben im Dateifeld und müssen bei Bedarf erneut gewählt werden."
+      />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

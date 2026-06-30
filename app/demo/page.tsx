@@ -17,7 +17,7 @@ import { MarketingShell } from "@/components/marketing/marketing-site";
 import { MessageBox } from "@/components/message-box";
 import { SubmitButton } from "@/components/submit-button";
 import { DEMO_USER_SHORTCUTS } from "@/lib/demo/constants";
-import { getOptionalAppContext } from "@/lib/auth";
+import { hasActiveSession } from "@/lib/auth";
 import { searchParamMessage } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -103,11 +103,11 @@ const demoTourSteps = [
   }
 ];
 
-async function getDemoLandingContext() {
+async function hasDemoSession() {
   try {
-    return await getOptionalAppContext();
+    return await hasActiveSession();
   } catch {
-    return null;
+    return false;
   }
 }
 
@@ -116,11 +116,11 @@ export default async function DemoPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await getDemoLandingContext();
+  const isLoggedIn = await hasDemoSession();
   const { error, success } = searchParamMessage(await searchParams);
 
   return (
-    <MarketingShell isLoggedIn={Boolean(context)}>
+    <MarketingShell isLoggedIn={isLoggedIn}>
       <section className="relative overflow-hidden border-b border-line bg-coal">
         <div className="absolute inset-0 opacity-55" aria-hidden="true">
           <div className="h-full w-full bg-cover bg-center grayscale-[0.25]" style={{ backgroundImage: `url(${demoHeroImageUrl})` }} />

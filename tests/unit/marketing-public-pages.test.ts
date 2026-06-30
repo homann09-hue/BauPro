@@ -21,7 +21,7 @@ describe("Öffentliche BauPro Marketing-Seiten", () => {
     expect(home).toContain("HeroSection");
     expect(hero).toContain("MarketingHero");
     expect(marketing).toContain("BauPro digitalisiert Dachdeckerbetriebe");
-    expect(home).toContain("getOptionalAppContext");
+    expect(home).toContain("hasActiveSession");
     expect(home).not.toContain('redirect("/login")');
     expect(home).not.toContain('redirect(context ? "/dashboard" : "/login")');
   });

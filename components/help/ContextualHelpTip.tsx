@@ -3,6 +3,7 @@ import { dismissHelpTipAction } from "@/lib/actions/help-actions";
 import { getOptionalAppContext } from "@/lib/auth";
 import { canSeeHelpTip, helpTipByKey, type HelpFeatureKey } from "@/lib/help/help-content";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { postgrestTimeoutResponse, withQueryTimeout } from "@/lib/performance/observability";
 
 export async function ContextualHelpTip({
   featureKey,
@@ -18,13 +19,24 @@ export async function ContextualHelpTip({
   if (!tip || !canSeeHelpTip(context.profile.role, tip.audience)) return null;
 
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
-    .from("user_help_state")
-    .select("dismissed_at")
-    .eq("user_id", context.userId)
-    .eq("company_id", context.companyId)
-    .eq("feature_key", featureKey)
-    .maybeSingle();
+  const { data, error } = await withQueryTimeout(
+    () =>
+      supabase
+        .from("user_help_state")
+        .select("dismissed_at")
+        .eq("user_id", context.userId)
+        .eq("company_id", context.companyId)
+        .eq("feature_key", featureKey)
+        .maybeSingle(),
+    {
+      route: "help-tip",
+      action: `user-help-state.${featureKey}`,
+      timeoutMs: 1_400,
+      fallback: () => postgrestTimeoutResponse("Timeout bei User-Help-Status")
+    }
+  );
+
+  if (error) return null;
 
   if ((data as { dismissed_at?: string | null } | null)?.dismissed_at) return null;
 

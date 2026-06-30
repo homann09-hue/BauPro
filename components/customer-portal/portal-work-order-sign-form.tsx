@@ -57,6 +57,7 @@ export function PortalWorkOrderSignForm({ token, workOrderId }: { token: string;
 
       const success = body.success ?? "Arbeitsauftrag wurde verarbeitet.";
       setState({ success });
+      setPendingDecision(null);
       window.setTimeout(() => window.location.assign(portalStatusUrl(token, "success", success)), 250);
     } catch {
       setState({ error: "Arbeitsauftrag konnte nicht verarbeitet werden." });

@@ -70,42 +70,70 @@ export function calculateMeasurementDraft(draft: MeasurementDraft) {
 
 export function aggregateMeasurementItems(items: OrderMeasurementItem[], fallbackWastePercent: number) {
   const activeItems = items.filter((item) => !item.archived_at);
-  const areaGross = activeItems
-    .filter((item) => item.item_type === "roof_area")
-    .reduce((sum, item) => sum + Number(item.calculated_area_m2 ?? 0), 0);
-  const areaDeduction = activeItems
-    .filter((item) => item.item_type === "deduction_area")
-    .reduce((sum, item) => sum + Number(item.calculated_area_m2 ?? 0), 0);
+  let areaGross = 0;
+  let areaDeduction = 0;
+  let eavesLength = 0;
+  let ridgeLength = 0;
+  let vergeLength = 0;
+  let valleyLength = 0;
+  let wallConnectionLength = 0;
+  let downpipeLength = 0;
+  let roofWindowsCount = 0;
+  let penetrationsCount = 0;
+  let roofDrainsCount = 0;
+  let emergencyOverflowsCount = 0;
+  let pitchAreaSum = 0;
+  let pitchWeight = 0;
 
-  const sumLength = (type: OrderMeasurementItemType) =>
-    activeItems
-      .filter((item) => item.item_type === type)
-      .reduce((sum, item) => sum + Number(item.calculated_length_m ?? 0), 0);
-  const sumCount = (type: OrderMeasurementItemType) =>
-    activeItems
-      .filter((item) => item.item_type === type)
-      .reduce((sum, item) => sum + Number(item.count_value ?? 0), 0);
+  for (const item of activeItems) {
+    const area = Number(item.calculated_area_m2 ?? 0);
+    const length = Number(item.calculated_length_m ?? 0);
+    const count = Number(item.count_value ?? 0);
 
-  const roofAreas = activeItems.filter((item) => item.item_type === "roof_area" && item.pitch_deg !== null);
-  const averagePitch =
-    roofAreas.length > 0 ? round(roofAreas.reduce((sum, item) => sum + Number(item.pitch_deg ?? 0), 0) / roofAreas.length) : null;
+    if (item.item_type === "roof_area") {
+      areaGross += area;
+      if (item.pitch_deg !== null && area > 0) {
+        pitchAreaSum += Number(item.pitch_deg) * area;
+        pitchWeight += area;
+      }
+      continue;
+    }
+
+    if (item.item_type === "deduction_area") {
+      areaDeduction += area;
+      continue;
+    }
+
+    if (item.item_type === "eaves_length") eavesLength += length;
+    if (item.item_type === "ridge_length") ridgeLength += length;
+    if (item.item_type === "verge_length") vergeLength += length;
+    if (item.item_type === "valley_length") valleyLength += length;
+    if (item.item_type === "wall_connection_length") wallConnectionLength += length;
+    if (item.item_type === "downpipe_length") downpipeLength += length;
+    if (item.item_type === "roof_window") roofWindowsCount += count;
+    if (item.item_type === "penetration") penetrationsCount += count;
+    if (item.item_type === "roof_drain") roofDrainsCount += count;
+    if (item.item_type === "emergency_overflow") emergencyOverflowsCount += count;
+  }
+
+  const averagePitch = pitchWeight > 0 ? round(pitchAreaSum / pitchWeight) : null;
 
   return {
     length_m: null,
     width_m: null,
     area_m2: Math.max(0, round(areaGross - areaDeduction)),
     roof_pitch: averagePitch,
-    eaves_length_m: round(sumLength("eaves_length")),
-    ridge_length_m: round(sumLength("ridge_length")),
-    verge_length_m: round(sumLength("verge_length")),
-    valley_length_m: round(sumLength("valley_length")),
-    wall_connection_length_m: round(sumLength("wall_connection_length")),
+    eaves_length_m: round(eavesLength),
+    ridge_length_m: round(ridgeLength),
+    verge_length_m: round(vergeLength),
+    valley_length_m: round(valleyLength),
+    wall_connection_length_m: round(wallConnectionLength),
     building_height_m: null,
-    downpipe_length_m: round(sumLength("downpipe_length")),
-    roof_windows_count: sumCount("roof_window"),
-    penetrations_count: sumCount("penetration"),
-    roof_drains_count: sumCount("roof_drain"),
-    emergency_overflows_count: sumCount("emergency_overflow"),
+    downpipe_length_m: round(downpipeLength),
+    roof_windows_count: roofWindowsCount,
+    penetrations_count: penetrationsCount,
+    roof_drains_count: roofDrainsCount,
+    emergency_overflows_count: emergencyOverflowsCount,
     waste_percent: fallbackWastePercent
   };
 }

@@ -53,6 +53,7 @@ export function CustomerPortalLinkForm({ orderId, defaultLabel }: { orderId: str
       const success = body.success ?? "Kundenportal-Link wurde erstellt.";
       const portalToken = body.portalToken;
       setState({ success, portalToken });
+      setPending(false);
       window.setTimeout(() => window.location.assign(statusUrl(orderId, { success, portalToken })), 250);
     } catch {
       setState({ error: "Kundenportal-Link konnte nicht erstellt werden." });

@@ -28,7 +28,7 @@ export function WorkOrderDraftForm({
     () => true,
     () => false
   );
-  const disabled = pending || !hydrated;
+  const disabled = pending || !hydrated || Boolean(state.success);
   const fallbackDescription = defaultDescription ?? "Bitte Leistung, Umfang und Besonderheiten für den Kunden eintragen.";
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -61,6 +61,7 @@ export function WorkOrderDraftForm({
 
       const success = body.success ?? "Arbeitsauftrag wurde als Entwurf angelegt.";
       setState({ success });
+      setPending(false);
       window.setTimeout(() => window.location.assign(statusUrl(`/orders/${orderId}`, "success", success)), 250);
     } catch {
       setState({ error: "Arbeitsauftrag konnte nicht erstellt werden." });

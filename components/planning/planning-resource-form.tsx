@@ -60,6 +60,8 @@ export function PlanningResourceForm({
       }
 
       const success = payload.success ?? "Ressource wurde angelegt.";
+      setState({ success });
+      setPending(false);
       window.location.assign(statusUrl(returnTo, "success", success));
     } catch {
       setState({ error: "Ressource konnte nicht angelegt werden." });

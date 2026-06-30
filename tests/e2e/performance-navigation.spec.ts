@@ -43,6 +43,15 @@ const loadingSelectors = [
   '[aria-label="Formular wird geladen"]'
 ].join(",");
 
+const criticalManagerLinks = [
+  { path: "/baustellen", label: "Dashboard → Baustellen" },
+  { path: "/materials/inventory", label: "Dashboard → Material / Lager" },
+  { path: "/time-tracking", label: "Dashboard → Zeiterfassung" },
+  { path: "/berichte", label: "Dashboard → Berichte" },
+  { path: "/dashboard", label: "Login → Dashboard" },
+  { path: "/dashboard", label: "Demo → Dashboard" }
+];
+
 async function expectNoEndlessLoading(route: string, page: Page) {
   const locator = page.locator(loadingSelectors);
   const visibleCount = async () => {
@@ -73,6 +82,24 @@ async function openMeasured(page: Page, route: string) {
     duration: Date.now() - start,
     url: page.url()
   };
+}
+
+async function clickLinkIfVisible(page: Page, selector: string, route: string, durationLimit: number) {
+  const link = page.locator(`a[href="${selector}"]`).first();
+  const count = await link.count();
+  if (!count) {
+    await openMeasured(page, route);
+    return;
+  }
+
+  await expect(link, `${selector} im UI`).toBeVisible({ timeout: 10_000 });
+  const start = Date.now();
+  await link.click();
+  await expect(page).toHaveURL(new RegExp(`^.*${route.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`), {
+    timeout: E2E_NAVIGATION_TIMEOUT
+  });
+  expect(Date.now() - start, `${route} via Dashboard-Link`).toBeLessThan(durationLimit);
+  await expectNoEndlessLoading(`Link ${route}`, page);
 }
 
 test.use({ viewport: { width: 1440, height: 1000 }, isMobile: false, hasTouch: false });
@@ -111,11 +138,31 @@ test("öffentliche und eingeloggte Hauptseiten laden ohne Endlos-Spinner", async
   await expectNoEndlessLoading("Startseite zu Dashboard", page);
 
   const protectedRoutes = landing === "onboarding" ? ["/onboarding"] : managerRoutes;
-  for (const route of protectedRoutes) {
+  const protectedRouteLimits = [...protectedRoutes, "/materials/inventory", "/time-tracking", "/berichte", "/baustellen"];
+  for (const route of [...new Set(protectedRouteLimits)]) {
     const result = await openMeasured(page, route);
     measurements.push({ route, ...result });
     expect(result.status, route).toBeLessThan(400);
     expect(result.duration, `${route} ist ungewöhnlich langsam`).toBeLessThan(15_000);
+  }
+
+  if (landing === "dashboard") {
+    for (const item of criticalManagerLinks.slice(0, 4)) {
+      await clickLinkIfVisible(page, item.path, item.path, 14_000);
+      await openMeasured(page, "/dashboard");
+    }
+  }
+
+  await openMeasured(page, "/demo");
+  const demoButton = page.getByRole("button", { name: "Demo als Chef starten" }).first();
+  const hasDemoButton = (await demoButton.count()) > 0;
+  if (hasDemoButton) {
+    const demoStart = Date.now();
+    await demoButton.click();
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: E2E_NAVIGATION_TIMEOUT });
+    expect(Date.now() - demoStart, "Demo -> Dashboard ist ungewöhnlich langsam").toBeLessThan(20_000);
+    await expectNoEndlessLoading("Demo -> Dashboard", page);
+    await openMeasured(page, "/dashboard");
   }
 
   await testInfo.attach("route-performance.json", {

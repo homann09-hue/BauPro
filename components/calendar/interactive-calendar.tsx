@@ -96,7 +96,23 @@ export function InteractiveCalendar({ events, summary, canManage }: InteractiveC
       const url = arg.event.url;
       if (!url) return;
       arg.jsEvent.preventDefault();
-      router.push(url);
+
+      try {
+        const target = new URL(url, window.location.href);
+        if (target.origin !== window.location.origin) {
+          window.location.assign(url);
+          return;
+        }
+
+        router.push(`${target.pathname}${target.search}${target.hash}`);
+      } catch {
+        if (url.startsWith("/") || url.startsWith("?") || url.startsWith("#")) {
+          router.push(url);
+          return;
+        }
+
+        window.location.assign(url);
+      }
     },
     [router]
   );

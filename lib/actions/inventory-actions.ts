@@ -13,7 +13,19 @@ import { safeReturnPath } from "@/lib/security/redirects";
 import { assertBringListAccess, assertJobsiteInCompany, assertSupplierInCompany } from "@/lib/security/tenant-guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { numberOrZero, optionalNumber, optionalString, requiredString } from "@/lib/utils";
+import { withQueryTimeout } from "@/lib/performance/observability";
 import type { MaterialCatalogItem, MaterialUsageBookingType } from "@/types/app";
+
+const actionRoute = "/app/material-inventory";
+
+function withActionTimeout<T>(action: string, fn: () => Promise<T>): Promise<T> {
+  return withQueryTimeout(fn, {
+    route: actionRoute,
+    action,
+    timeoutMs: 8_000,
+    slowMs: 1_900
+  });
+}
 
 function redirectTarget(formData: FormData, fallback = "/materials/inventory") {
   return safeReturnPath(formData.get("return_to"), fallback);
@@ -261,46 +273,49 @@ export async function addCatalogItemToInventoryAction(formData: FormData) {
 }
 
 export async function createCustomInventoryItemAction(formData: FormData) {
-  const context = await requirePermission("inventory.edit", "/materials/inventory");
-  const supabase = await createSupabaseServerClient();
-  await ensureDefaultInventoryLocations(supabase, context.companyId);
+  return withActionTimeout("createCustomInventoryItemAction", async () => {
+    const context = await requirePermission("inventory.edit", "/materials/inventory");
+    const supabase = await createSupabaseServerClient();
+    await ensureDefaultInventoryLocations(supabase, context.companyId);
 
-  const returnTo = redirectTarget(formData);
+    const returnTo = redirectTarget(formData);
 
-  try {
-    const locationId = requiredString(formData, "location_id");
-    if (!(await assertCompanyLocation(supabase, context.companyId, locationId))) {
-      throw new SafeActionError("Der Lagerort gehoert nicht zu deiner Firma.");
+    try {
+      const locationId = requiredString(formData, "location_id");
+      if (!(await assertCompanyLocation(supabase, context.companyId, locationId))) {
+        throw new SafeActionError("Der Lagerort gehoert nicht zu deiner Firma.");
+      }
+
+      const { error } = await supabase.from("inventory_items").insert({
+        company_id: context.companyId,
+        location_id: locationId,
+        name: requiredString(formData, "name"),
+        unit: requiredString(formData, "unit"),
+        stock: numberOrZero(formData, "stock"),
+        minimum_stock: numberOrZero(formData, "minimum_stock"),
+        package_unit: optionalString(formData, "package_unit"),
+        manufacturer: optionalString(formData, "manufacturer"),
+        article_number: optionalString(formData, "article_number"),
+        purchase_price: context.canManage ? optionalNumber(formData, "purchase_price") : null,
+        sales_price: context.canManage ? optionalNumber(formData, "sales_price") : null,
+        notes: optionalString(formData, "notes"),
+        created_by: context.userId
+      });
+
+      if (error) {
+        throw new SafeActionError("Material konnte nicht angelegt werden.");
+      }
+    } catch (error) {
+      redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Material konnte nicht angelegt werden."))}`);
     }
 
-    const { error } = await supabase.from("inventory_items").insert({
-      company_id: context.companyId,
-      location_id: locationId,
-      name: requiredString(formData, "name"),
-      unit: requiredString(formData, "unit"),
-      stock: numberOrZero(formData, "stock"),
-      minimum_stock: numberOrZero(formData, "minimum_stock"),
-      package_unit: optionalString(formData, "package_unit"),
-      manufacturer: optionalString(formData, "manufacturer"),
-      article_number: optionalString(formData, "article_number"),
-      purchase_price: context.canManage ? optionalNumber(formData, "purchase_price") : null,
-      sales_price: context.canManage ? optionalNumber(formData, "sales_price") : null,
-      notes: optionalString(formData, "notes"),
-      created_by: context.userId
-    });
-
-    if (error) {
-      throw new SafeActionError("Material konnte nicht angelegt werden.");
-    }
-  } catch (error) {
-    redirect(`${returnTo}?error=${toQuery(safeErrorMessage(error, "Material konnte nicht angelegt werden."))}`);
-  }
-
-  revalidateMaterialRoutes(context.companyId);
-  redirect(`${returnTo}?success=${toQuery("Eigenes Material wurde angelegt.")}`);
+    revalidateMaterialRoutes(context.companyId);
+    redirect(`${returnTo}?success=${toQuery("Eigenes Material wurde angelegt.")}`);
+  });
 }
 
 export async function adjustInventoryStockAction(formData: FormData) {
+  return withActionTimeout("adjustInventoryStockAction", async () => {
   const context = await requirePermission("inventory.edit", "/materials/inventory");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
@@ -324,9 +339,11 @@ export async function adjustInventoryStockAction(formData: FormData) {
 
   revalidateMaterialRoutes(context.companyId);
   redirect(`${returnTo}?success=${toQuery("Bestand wurde aktualisiert.")}`);
+  });
 }
 
 export async function transferInventoryAction(formData: FormData) {
+  return withActionTimeout("transferInventoryAction", async () => {
   const context = await requirePermission("inventory.edit", "/materials/inventory");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
@@ -355,9 +372,11 @@ export async function transferInventoryAction(formData: FormData) {
 
   revalidateMaterialRoutes(context.companyId);
   redirect(`${returnTo}?success=${toQuery("Material wurde umgelagert.")}`);
+  });
 }
 
 export async function reportMaterialUsageAction(formData: FormData) {
+  return withActionTimeout("reportMaterialUsageAction", async () => {
   const context = await requireAppContext();
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
@@ -403,6 +422,7 @@ export async function reportMaterialUsageAction(formData: FormData) {
 
   revalidateJobMaterialRoutes(context.companyId, jobsiteId);
   redirect(`${returnTo}?success=${toQuery("Materialbuchung wurde gemeldet und wartet auf Bestaetigung.")}`);
+  });
 }
 
 type MaterialUsageConfirmationResult = {
@@ -466,6 +486,7 @@ export async function confirmMaterialUsageReportAction(formData: FormData) {
 }
 
 export async function reserveMaterialForJobsiteAction(formData: FormData) {
+  return withActionTimeout("reserveMaterialForJobsiteAction", async () => {
   const context = await requirePermission("inventory.edit", "/materials/inventory");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
@@ -500,9 +521,11 @@ export async function reserveMaterialForJobsiteAction(formData: FormData) {
 
   revalidateJobMaterialRoutes(context.companyId, jobsiteId);
   redirect(`${returnTo}?success=${toQuery("Material wurde fuer die Baustelle reserviert.")}`);
+  });
 }
 
 export async function createInventoryLocationAction(formData: FormData) {
+  return withActionTimeout("createInventoryLocationAction", async () => {
   const context = await requirePermission("vehicles.manage", "/materials/locations");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/materials/locations");
@@ -524,9 +547,11 @@ export async function createInventoryLocationAction(formData: FormData) {
 
   revalidateMaterialRoutes(context.companyId);
   redirect(`${returnTo}?success=${toQuery("Lagerort wurde angelegt.")}`);
+  });
 }
 
 export async function updateInventoryLocationAction(formData: FormData) {
+  return withActionTimeout("updateInventoryLocationAction", async () => {
   const context = await requirePermission("vehicles.manage", "/materials/locations");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/materials/locations");
@@ -553,9 +578,11 @@ export async function updateInventoryLocationAction(formData: FormData) {
 
   revalidateMaterialRoutes(context.companyId);
   redirect(`${returnTo}?success=${toQuery("Lagerort wurde aktualisiert.")}`);
+  });
 }
 
 export async function deactivateInventoryLocationAction(formData: FormData) {
+  return withActionTimeout("deactivateInventoryLocationAction", async () => {
   const context = await requirePermission("vehicles.manage", "/materials/locations");
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData, "/materials/locations");
@@ -577,9 +604,11 @@ export async function deactivateInventoryLocationAction(formData: FormData) {
 
   revalidateMaterialRoutes(context.companyId);
   redirect(`${returnTo}?success=${toQuery("Lagerort wurde deaktiviert.")}`);
+  });
 }
 
 export async function updateInventoryPricingAction(formData: FormData) {
+  return withActionTimeout("updateInventoryPricingAction", async () => {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
   const returnTo = redirectTarget(formData);
@@ -616,4 +645,5 @@ export async function updateInventoryPricingAction(formData: FormData) {
 
   revalidateMaterialRoutes(context.companyId);
   redirect(`${returnTo}?success=${toQuery("Preise wurden aktualisiert.")}`);
+  });
 }

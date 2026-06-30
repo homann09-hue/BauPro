@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   PREFETCH_CACHE_TTL_MS,
@@ -68,6 +68,15 @@ function canRunBackgroundPrefetch() {
   return !(connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g");
 }
 
+function isSafePrefetchTarget(href: string) {
+  if (!href.startsWith("/")) return false;
+  if (href.startsWith("/_next")) return false;
+  if (href.startsWith("/api/")) return false;
+  if (href === "/favicon.ico") return false;
+  if (href.length > 300) return false;
+  return true;
+}
+
 function cachePrefetchPayload(scope: string, payload: unknown) {
   try {
     const serialized = JSON.stringify({ cachedAt: Date.now(), payload });
@@ -113,6 +122,7 @@ async function prefetchDataScopes(scopes: readonly string[]) {
 export function PredictivePrefetch({ role, canManage }: { role: Role; canManage: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
+  const pointeroverCooldownMsRef = useRef(0);
 
   useEffect(() => {
     if (!canRunBackgroundPrefetch()) return;
@@ -139,8 +149,13 @@ export function PredictivePrefetch({ role, canManage }: { role: Role; canManage:
       const target = event.target instanceof Element ? event.target.closest("a[href]") : null;
       if (!(target instanceof HTMLAnchorElement)) return;
       if (target.origin !== window.location.origin) return;
+      if (target.target && target.target !== "_self") return;
       const href = `${target.pathname}${target.search}`;
       if (!href || href === pathname) return;
+      if (!isSafePrefetchTarget(href)) return;
+      const now = Date.now();
+      if (now - pointeroverCooldownMsRef.current < PREFETCH_SCOPE_GAP_MS) return;
+      pointeroverCooldownMsRef.current = now;
 
       const key = `baupro-prefetch:hover:${href}`;
       if (recentlyPrefetched(key)) return;

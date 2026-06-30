@@ -58,11 +58,12 @@ export default async function MaterialReportPage({
         </div>
 
         <div className="mb-4">
-          <FormDraftAutosave
-            formId="material-report-form"
-            storageKey={`baupro:material-report:${context.companyId}:${context.userId}`}
-            description="Materialname, Menge, Baustelle und Hinweis bleiben lokal erhalten, wenn der Empfang beim Absenden weg ist."
-          />
+        <FormDraftAutosave
+          formId="material-report-form"
+          storageKey={`baupro:material-report:${context.companyId}:${context.userId}`}
+          offlineActionEndpoint="/api/offline/material-need"
+          description="Materialname, Menge, Baustelle und Hinweis bleiben lokal erhalten, wenn der Empfang beim Absenden weg ist."
+        />
         </div>
 
         <form id="material-report-form" action={reportMaterialNeedAction} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

@@ -49,7 +49,10 @@ const orderPriorities = Object.keys(orderPriorityLabels) as OrderPriority[];
 const customerTypes = Object.keys(customerTypeLabels) as CustomerType[];
 
 function decimalValue(value: string) {
-  const parsed = Number(value.replace(",", "."));
+  const normalized = value.replace(",", ".").trim();
+  if (!normalized) return null;
+
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
@@ -122,7 +125,7 @@ export function OrderWizardForm({
     const lengthValue = decimalValue(length);
     const widthValue = decimalValue(width);
 
-    if (!lengthValue || !widthValue) return "";
+    if (lengthValue === null || widthValue === null) return "";
     return String(Math.round(lengthValue * widthValue * 100) / 100).replace(".", ",");
   }, [length, width]);
   const areaValue = area || calculatedArea;
@@ -202,14 +205,18 @@ export function OrderWizardForm({
     setLength(value);
     const widthValue = decimalValue(width);
     const lengthValue = decimalValue(value);
-    if (lengthValue && widthValue) setArea(String(Math.round(lengthValue * widthValue * 100) / 100).replace(".", ","));
+    if (lengthValue !== null && widthValue !== null) {
+      setArea(String(Math.round(lengthValue * widthValue * 100) / 100).replace(".", ","));
+    }
   }
 
   function updateWidth(value: string) {
     setWidth(value);
     const widthValue = decimalValue(value);
     const lengthValue = decimalValue(length);
-    if (lengthValue && widthValue) setArea(String(Math.round(lengthValue * widthValue * 100) / 100).replace(".", ","));
+    if (lengthValue !== null && widthValue !== null) {
+      setArea(String(Math.round(lengthValue * widthValue * 100) / 100).replace(".", ","));
+    }
   }
 
   function scrollToEditing() {

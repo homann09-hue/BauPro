@@ -73,6 +73,7 @@ export function TimeEntryForm({
       <FormDraftAutosave
         formId="time-entry-form"
         storageKey={`baupro:time-entry:${entry?.id ?? "new"}:${currentUserId}`}
+        offlineActionEndpoint="/api/offline/time-entry"
         description="Zeiten, Baustelle und Beschreibung werden auf diesem Gerät zwischengespeichert, falls der Empfang auf der Baustelle abreißt."
       />
 

@@ -1149,7 +1149,7 @@ export default async function JobsiteDetailPage({
                       <PackageCheck className="h-4 w-4" aria-hidden="true" />
                       Mitbringliste erstellen
                     </Link>
-                    <Link href="/material" className="btn-secondary">
+                    <Link href="/materials/inventory" className="btn-secondary">
                       <Warehouse className="h-4 w-4" aria-hidden="true" />
                       Lager prüfen
                     </Link>

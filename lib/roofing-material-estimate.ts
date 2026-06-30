@@ -170,7 +170,6 @@ function withWaste(baseQuantity: number, wastePercent: number, wholeUnits = fals
 
 export function buildRoofingMaterialDrafts(input: RoofingMaterialEstimateInput): RoofingMaterialDraft[] {
   const area = safeNumber(input.areaM2);
-  const wastePercent = Math.max(0, safeNumber(input.wastePercent));
   const tileConfig = tileTypeConfig(input.tileType);
   const ridgeAndHipLength = safeNumber(input.ridgeLengthM) + safeNumber(input.hipLengthM);
   const vergeLength = safeNumber(input.vergeLengthM);
@@ -244,10 +243,7 @@ export function buildRoofingMaterialDrafts(input: RoofingMaterialEstimateInput):
     }
   ];
 
-  return drafts.filter((draft) => draft.baseQuantity > 0).map((draft) => ({
-    ...draft,
-    baseQuantity: withWaste(draft.baseQuantity, wastePercent, draft.wholeUnits).baseQuantity
-  }));
+  return drafts.filter((draft) => draft.baseQuantity > 0).map((draft) => ({ ...draft }));
 }
 
 export function calculateRoofingMaterialEstimate(

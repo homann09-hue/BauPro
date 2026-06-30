@@ -17,7 +17,7 @@ import { FeatureGrid } from "@/components/public/feature-grid";
 import { HeroSection } from "@/components/public/hero-section";
 import { SecuritySection } from "@/components/public/security-section";
 import { WorkflowSection } from "@/components/public/workflow-section";
-import { getOptionalAppContext } from "@/lib/auth";
+import { hasActiveSession } from "@/lib/auth";
 import { MessageBox } from "@/components/message-box";
 import { searchParamMessage } from "@/lib/utils";
 
@@ -29,11 +29,11 @@ export const metadata: Metadata = {
     "BauPro ist eine mobile-first SaaS für Dachdecker- und Handwerksbetriebe: Aufträge, Baustellen, Zeiten, Material, Bautagesberichte, Kundenportal und Rollenrechte."
 };
 
-async function getLandingContext() {
+async function hasLandingSession() {
   try {
-    return await getOptionalAppContext();
+    return await hasActiveSession();
   } catch {
-    return null;
+    return false;
   }
 }
 
@@ -42,8 +42,7 @@ export default async function HomePage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await getLandingContext();
-  const isLoggedIn = Boolean(context);
+  const isLoggedIn = await hasLandingSession();
   const { error, success } = searchParamMessage(await searchParams);
 
   return (

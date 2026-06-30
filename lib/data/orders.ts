@@ -1,4 +1,5 @@
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
+import { postgrestTimeoutResponse, withQueryTimeout } from "@/lib/performance/observability";
 import { pageParam, pageRange, searchOrFilter, stringParam, totalPages, type SearchParamsRecord } from "@/lib/data/shared";
 import type { Order, OrderStatus, PublicOrder } from "@/types/app";
 
@@ -76,11 +77,36 @@ export async function loadOrderList({
   }
 
   const [ordersResult, openCountResult, plannedCountResult, activeCountResult, finishedCountResult] = await Promise.all([
-    ordersQuery,
-    supabase.from(source).select("id", { count: "exact", head: true }).in("status", ["anfrage", "angebot"]),
-    supabase.from(source).select("id", { count: "exact", head: true }).eq("status", "geplant"),
-    supabase.from(source).select("id", { count: "exact", head: true }).eq("status", "in_arbeit"),
-    supabase.from(source).select("id", { count: "exact", head: true }).in("status", ["fertig", "abgerechnet"])
+    withQueryTimeout(() => ordersQuery, {
+      route: "orders",
+      action: "orders.page",
+      timeoutMs: 4_800,
+      fallback: () => postgrestTimeoutResponse("Timeout bei orders.list")
+    }),
+    withQueryTimeout(() => supabase.from(source).select("id", { count: "exact", head: true }).in("status", ["anfrage", "angebot"]), {
+      route: "orders",
+      action: "orders.count.open",
+      timeoutMs: 2_000,
+      fallback: () => postgrestTimeoutResponse("Timeout bei orders.count.open")
+    }),
+    withQueryTimeout(() => supabase.from(source).select("id", { count: "exact", head: true }).eq("status", "geplant"), {
+      route: "orders",
+      action: "orders.count.planned",
+      timeoutMs: 2_000,
+      fallback: () => postgrestTimeoutResponse("Timeout bei orders.count.planned")
+    }),
+    withQueryTimeout(() => supabase.from(source).select("id", { count: "exact", head: true }).eq("status", "in_arbeit"), {
+      route: "orders",
+      action: "orders.count.active",
+      timeoutMs: 2_000,
+      fallback: () => postgrestTimeoutResponse("Timeout bei orders.count.active")
+    }),
+    withQueryTimeout(() => supabase.from(source).select("id", { count: "exact", head: true }).in("status", ["fertig", "abgerechnet"]), {
+      route: "orders",
+      action: "orders.count.finished",
+      timeoutMs: 2_000,
+      fallback: () => postgrestTimeoutResponse("Timeout bei orders.count.finished")
+    })
   ]);
   const orders = (ordersResult.data ?? []) as unknown as Array<Order | PublicOrder>;
   const totalCount = ordersResult.count ?? orders.length;
