@@ -79,6 +79,14 @@ function sourceHash(items: AutomaticBringListItemDraft[]) {
   return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
 }
 
+async function mapInChunks<T, R>(items: T[], chunkSize: number, mapper: (item: T) => Promise<R>) {
+  const results: R[] = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    results.push(...(await Promise.all(items.slice(index, index + chunkSize).map(mapper))));
+  }
+  return results;
+}
+
 function actorMayGenerate(context: AppContext) {
   return context.canManage || context.canOperate;
 }
@@ -199,7 +207,7 @@ async function loadInventoryMatches({
   const names = [...new Set(items.filter((item) => item.itemType !== "document" && !item.inventoryItemId).map((item) => item.name))].slice(0, 50);
   const matches = new Map<string, InventoryMatch>();
 
-  for (const name of names) {
+  const rows = await mapInChunks(names, 8, async (name) => {
     const { data } = await supabase
       .from("inventory_items")
       .select("id, name, unit, location_id, stock, minimum_stock, inventory_locations(id, name, location_type, vehicle_id)")
@@ -209,13 +217,16 @@ async function loadInventoryMatches({
       .limit(1)
       .maybeSingle();
 
-    if (data) {
-      const row = data as unknown as InventoryMatch & {
-        inventory_locations?: InventoryMatch["inventory_locations"] | NonNullable<InventoryMatch["inventory_locations"]>[];
-      };
-      const location = Array.isArray(row.inventory_locations) ? row.inventory_locations[0] : row.inventory_locations;
-      matches.set(name, { ...row, inventory_locations: location ?? null });
-    }
+    return { name, data };
+  });
+
+  for (const { name, data } of rows) {
+    if (!data) continue;
+    const row = data as unknown as InventoryMatch & {
+      inventory_locations?: InventoryMatch["inventory_locations"] | NonNullable<InventoryMatch["inventory_locations"]>[];
+    };
+    const location = Array.isArray(row.inventory_locations) ? row.inventory_locations[0] : row.inventory_locations;
+    matches.set(name, { ...row, inventory_locations: location ?? null });
   }
 
   return matches;

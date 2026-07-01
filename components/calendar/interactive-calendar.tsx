@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { updateOrderDateAction } from "@/lib/actions/calendar-actions";
 import type { BauProCalendarEvent, CalendarEventSummary } from "@/lib/data/calendar-events";
 
-type InteractiveCalendarProps = {
+export type InteractiveCalendarProps = {
   events: BauProCalendarEvent[];
   summary: CalendarEventSummary;
   canManage: boolean;

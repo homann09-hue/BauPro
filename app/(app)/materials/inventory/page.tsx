@@ -4,15 +4,17 @@ import {
   ArrowRightLeft,
   Boxes,
   ClipboardList,
-  History,
   Minus,
   PackagePlus,
   Plus,
   Search,
 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
-import { MaterialConfirmationForm } from "@/components/forms/material-confirmation-form";
+import { InventoryActivityPanels } from "@/components/materials/inventory-activity-panels";
+import { InventoryLowStockLink } from "@/components/materials/inventory-low-stock-link";
+import { JobsiteSelectField } from "@/components/materials/jobsite-select-field";
 import { MaterialSubnav } from "@/components/materials/material-subnav";
+import { SupplierSelectField } from "@/components/materials/supplier-select-field";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import {
@@ -25,21 +27,14 @@ import {
 } from "@/lib/actions/inventory-actions";
 import { requireAppContext } from "@/lib/auth";
 import { searchOrFilter } from "@/lib/data/shared";
-import { materialMovementSelect, materialUsageReportSelect } from "@/lib/data/selects";
 import { ensureDefaultInventoryLocations, formatQuantity, isLowStock } from "@/lib/inventory";
 import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { cn, formatDateTime, formatMoney, searchParamMessage } from "@/lib/utils";
+import { cn, formatMoney, searchParamMessage } from "@/lib/utils";
 import type {
   InventoryItem,
   InventoryLocation,
-  Jobsite,
-  MaterialMovement,
-  MaterialMovementType,
-  MaterialUsageBookingType,
-  MaterialUsageReport,
   PublicInventoryItem,
-  Supplier
 } from "@/types/app";
 
 type InventoryListItem = InventoryItem | PublicInventoryItem;
@@ -88,24 +83,6 @@ function itemLocationName(item: InventoryListItem) {
   return isPublicInventoryItem(item) ? item.location_name : item.inventory_locations?.name ?? null;
 }
 
-const bookingLabels: Record<MaterialUsageBookingType, string> = {
-  consume: "Verbrauch",
-  return: "Rückgabe",
-  loss: "Verlust",
-  break: "Bruch"
-};
-
-const movementLabels: Record<MaterialMovementType, string> = {
-  purchase: "Einkauf",
-  transfer: "Umlagerung",
-  reserve: "Reservierung",
-  consume: "Verbrauch",
-  return: "Rückgabe",
-  correction: "Korrektur",
-  loss: "Verlust",
-  break: "Bruch"
-};
-
 export default async function InventoryPage({
   searchParams
 }: {
@@ -119,94 +96,41 @@ export default async function InventoryPage({
   const onlyLowStock = getSearchParam(params, "low") === "1";
   const page = onlyLowStock ? 1 : getPageParam(params);
   const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
 
   const supabase = await createSupabaseServerClient();
-  const locations = context.canManage ? await ensureDefaultInventoryLocations(supabase, context.companyId) : [];
+  const locationsPromise = context.canManage ? ensureDefaultInventoryLocations(supabase, context.companyId) : Promise.resolve([]);
   const managerSelect =
-    "id, company_id, catalog_item_id, category_id, subcategory_id, location_id, supplier_id, name, unit, stock, minimum_stock, package_unit, manufacturer, article_number, ean, purchase_price, sales_price, markup_percent, sales_unit, price_per_unit, last_price_changed_at, notes, created_by, inventory_locations(id, name, location_type), material_categories(id, name, slug), material_subcategories(id, name, slug), suppliers(id, name)";
+    "id, company_id, catalog_item_id, category_id, subcategory_id, location_id, supplier_id, name, unit, stock, minimum_stock, package_unit, manufacturer, article_number, purchase_price, sales_price, markup_percent, sales_unit, price_per_unit, notes, created_by, inventory_locations(id, name, location_type), material_categories(id, name, slug), material_subcategories(id, name, slug)";
   const publicSelect =
     "id, company_id, catalog_item_id, category_id, subcategory_id, location_id, name, unit, stock, minimum_stock, package_unit, manufacturer, article_number, notes, location_name, location_type, category_name, subcategory_name";
   let inventoryQuery = context.canManage
-    ? supabase.from("inventory_items").select(managerSelect, { count: "exact" }).eq("company_id", context.companyId)
-    : supabase.from("inventory_items_public").select(publicSelect, { count: "exact" }).eq("company_id", context.companyId);
+    ? supabase.from("inventory_items").select(managerSelect).eq("company_id", context.companyId)
+    : supabase.from("inventory_items_public").select(publicSelect).eq("company_id", context.companyId);
 
   if (activeLocation) inventoryQuery = inventoryQuery.eq("location_id", activeLocation);
   if (search) {
     inventoryQuery = inventoryQuery.or(searchOrFilter(["name", "manufacturer", "article_number", "package_unit"], search));
   }
 
-  let jobsitesQuery = supabase
-    .from("jobsites")
-    .select("id, company_id, name, customer, address, start_date, status, assigned_employee_ids, created_at")
-    .eq("company_id", context.companyId)
-    .in("status", ["geplant", "aktiv"])
-    .order("start_date", { ascending: true, nullsFirst: false });
-
-  if (!context.canManage) {
-    jobsitesQuery = jobsitesQuery.contains("assigned_employee_ids", [context.userId]);
-  }
-
   const [
-    inventoryResult,
-    suppliersResult,
-    lowStockResult,
-    jobsitesResult,
-    usageReportsResult,
-    movementsResult
+    locations,
+    inventoryResult
   ] = await Promise.all([
-    inventoryQuery.order("name", { ascending: true }).range(onlyLowStock ? 0 : from, onlyLowStock ? 199 : to),
-    context.canManage
-      ? supabase.from("suppliers").select("id, company_id, name, contact_name, phone, email, notes, active").eq("company_id", context.companyId).eq("active", true).order("name")
-      : Promise.resolve({ data: [], error: null }),
-    (context.canManage ? supabase.from("inventory_items") : supabase.from("inventory_items_public"))
-      .select("id, name, unit, stock, minimum_stock, location_id")
-      .eq("company_id", context.companyId)
-      .limit(lowStockScanLimit),
-    jobsitesQuery.limit(100),
-    supabase
-      .from("material_usage_reports")
-      .select(materialUsageReportSelect)
-      .eq("company_id", context.companyId)
-      .eq("status", "reported")
-      .order("created_at", { ascending: false })
-      .limit(12),
-    supabase
-      .from("material_movements")
-      .select(materialMovementSelect)
-      .eq("company_id", context.companyId)
-      .order("created_at", { ascending: false })
-      .limit(12)
+    locationsPromise,
+    inventoryQuery.order("name", { ascending: true }).range(onlyLowStock ? 0 : from, onlyLowStock ? 199 : from + pageSize)
   ]);
 
-  const { data, count } = inventoryResult;
-  const allItems = (data ?? []) as InventoryListItem[];
+  const data = (inventoryResult.data ?? []) as InventoryListItem[];
+  const hasNextPage = !onlyLowStock && data.length > pageSize;
+  const allItems = onlyLowStock ? data : data.slice(0, pageSize);
   const inventoryItems = allItems.filter((item) => {
     if (onlyLowStock && !isLowStock(item)) return false;
     return true;
   });
 
-  const totalCount = onlyLowStock ? inventoryItems.length : count ?? inventoryItems.length;
-  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-  const stockItems = (lowStockResult.data ?? []) as Array<
-    Pick<InventoryListItem, "id" | "name" | "unit" | "stock" | "minimum_stock" | "location_id">
-  >;
-  const inventoryItemById = new Map<string, Pick<InventoryListItem, "id" | "name" | "unit" | "stock" | "minimum_stock" | "location_id">>(
-    [...stockItems, ...allItems].map((item) => [item.id, item])
-  );
-  const lowStockCount = stockItems.filter(isLowStock).length;
-  const lowStockBadge = stockItems.length >= lowStockScanLimit ? `${lowStockCount}+` : String(lowStockCount);
-  const suppliers = (suppliersResult.data ?? []) as Supplier[];
-  const jobsites = (jobsitesResult.data ?? []) as Jobsite[];
-  const usageReports = (usageReportsResult.data ?? []) as unknown as MaterialUsageReport[];
-  const movements = (movementsResult.data ?? []) as unknown as MaterialMovement[];
-  const queryError =
-    safeQueryErrorMessage(inventoryResult.error) ||
-    safeQueryErrorMessage(suppliersResult.error) ||
-    safeQueryErrorMessage(lowStockResult.error) ||
-    safeQueryErrorMessage(jobsitesResult.error) ||
-    safeQueryErrorMessage(usageReportsResult.error) ||
-    safeQueryErrorMessage(movementsResult.error);
+  const visibleFrom = inventoryItems.length > 0 ? from + 1 : 0;
+  const visibleTo = from + inventoryItems.length;
+  const queryError = safeQueryErrorMessage(inventoryResult.error);
   const visibleLocations = context.canManage
     ? locations.map((location) => ({ id: location.id, name: location.name }))
     : [
@@ -264,16 +188,7 @@ export default async function InventoryPage({
           </button>
         </form>
 
-        <Link
-          href={onlyLowStock ? "/materials/inventory" : "/materials/inventory?low=1"}
-          className={cn(
-            "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-black shadow-sm",
-            onlyLowStock ? "bg-ink text-white" : "border border-red-200 bg-red-50 text-red-700"
-          )}
-        >
-          <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-          {lowStockBadge} knapp
-        </Link>
+        <InventoryLowStockLink onlyLowStock={onlyLowStock} scanLimit={lowStockScanLimit} />
       </div>
 
       <section className="mb-5 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
@@ -290,9 +205,9 @@ export default async function InventoryPage({
             </div>
           </div>
 
-          {inventoryItems.length === 0 || jobsites.length === 0 ? (
+          {inventoryItems.length === 0 ? (
             <div className="rounded-lg border border-dashed border-line bg-fog p-4 text-sm font-semibold text-slate-600">
-              Für eine Materialbuchung brauchst du sichtbares Material und eine zugewiesene aktive Baustelle.
+              Für eine Materialbuchung brauchst du sichtbares Material. Aktive Baustellen werden beim Auswählen geladen.
             </div>
           ) : (
             <form action={reportMaterialUsageAction} className="grid gap-3 lg:grid-cols-6" data-testid="material-usage-form">
@@ -310,13 +225,7 @@ export default async function InventoryPage({
               </label>
               <label className="lg:col-span-2">
                 <span className="field-label">Baustelle</span>
-                <select className="field-input" name="jobsite_id" required>
-                  {jobsites.map((jobsite) => (
-                    <option key={jobsite.id} value={jobsite.id}>
-                      {jobsite.name} · {jobsite.customer}
-                    </option>
-                  ))}
-                </select>
+                <JobsiteSelectField name="jobsite_id" required />
               </label>
               <label>
                 <span className="field-label">Buchung</span>
@@ -353,9 +262,9 @@ export default async function InventoryPage({
                 <p className="mt-1 text-sm text-slate-500">Reserviert Bestand für kommende Baustellen, ohne ihn direkt abzubuchen.</p>
               </div>
             </div>
-            {inventoryItems.length === 0 || jobsites.length === 0 ? (
+            {inventoryItems.length === 0 ? (
               <p className="rounded-lg border border-dashed border-line bg-fog p-4 text-sm font-semibold text-slate-600">
-                Sobald Material und aktive Baustellen vorhanden sind, kannst du hier reservieren.
+                Sobald Material vorhanden ist, kannst du hier reservieren. Aktive Baustellen werden beim Auswählen geladen.
               </p>
             ) : (
               <form action={reserveMaterialForJobsiteAction} className="grid gap-3" data-testid="material-reservation-form">
@@ -372,13 +281,7 @@ export default async function InventoryPage({
                 </label>
                 <label>
                   <span className="field-label">Baustelle</span>
-                  <select className="field-input" name="jobsite_id" required>
-                    {jobsites.map((jobsite) => (
-                      <option key={jobsite.id} value={jobsite.id}>
-                        {jobsite.name}
-                      </option>
-                    ))}
-                  </select>
+                  <JobsiteSelectField name="jobsite_id" required />
                 </label>
                 <label>
                   <span className="field-label">Menge</span>
@@ -397,92 +300,7 @@ export default async function InventoryPage({
         ) : null}
       </section>
 
-      <section className="mb-5 grid gap-4 xl:grid-cols-2">
-        <div className="surface p-4 sm:p-5">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <h2 className="section-title">Offene Materialmeldungen</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {context.canOperate ? "Direkt bestätigen oder ablehnen." : "Deine Meldungen warten auf Bestätigung."}
-              </p>
-            </div>
-            <span className="rounded-md bg-fog px-2.5 py-1 text-xs font-black text-ink">{usageReports.length}</span>
-          </div>
-
-          {usageReports.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-line bg-fog p-4 text-sm font-semibold text-slate-600">
-              Keine offenen Materialmeldungen.
-            </p>
-          ) : (
-            <div className="grid gap-3">
-              {usageReports.map((report) => (
-                <article key={report.id} className="rounded-lg border border-line bg-white p-3" data-testid="material-usage-report">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="font-black text-ink">
-                        {report.inventory_items?.name ?? inventoryItemById.get(report.inventory_item_id)?.name ?? "Material"}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-500">
-                        {bookingLabels[report.booking_type]} · {formatQuantity(report.quantity)} {report.unit} · {report.jobsites?.name ?? "Baustelle"}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Gemeldet von {report.reported_profile?.full_name ?? "Mitarbeiter"} · {formatDateTime(report.created_at)}
-                      </p>
-                      {report.notes ? <p className="mt-2 text-sm text-slate-600">{report.notes}</p> : null}
-                    </div>
-                    <span className="inline-flex w-fit rounded-md bg-amber-50 px-2.5 py-1 text-xs font-black text-amber-700 ring-1 ring-amber-200">
-                      offen
-                    </span>
-                  </div>
-
-                  {context.canOperate ? <MaterialConfirmationForm reportId={report.id} returnTo={returnTo} /> : null}
-                </article>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="surface p-4 sm:p-5">
-          <div className="mb-4 flex items-start gap-3">
-            <span className="rounded-md bg-fog p-2 text-ink">
-              <History className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <div>
-              <h2 className="section-title">Letzte Bewegungen</h2>
-              <p className="mt-1 text-sm text-slate-500">Verbrauch, Rückgabe, Reservierung, Umlagerung und Korrekturen ohne Preisfelder.</p>
-            </div>
-          </div>
-
-          {movements.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-line bg-fog p-4 text-sm font-semibold text-slate-600">
-              Noch keine Materialbewegungen gebucht.
-            </p>
-          ) : (
-            <div className="grid gap-2">
-              {movements.map((movement) => (
-                <div key={movement.id} className="rounded-lg border border-line bg-white p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-black text-ink">
-                        {movement.inventory_items?.name ?? inventoryItemById.get(movement.inventory_item_id)?.name ?? "Material"}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-slate-500">
-                        {movementLabels[movement.movement_type]} · {formatQuantity(movement.quantity)} {movement.unit}
-                        {movement.jobsites?.name ? ` · ${movement.jobsites.name}` : ""}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">{formatDateTime(movement.created_at)}</p>
-                    </div>
-                    <span className="rounded-md bg-fog px-2.5 py-1 text-xs font-black text-ink">
-                      {movementLabels[movement.movement_type]}
-                    </span>
-                  </div>
-                  {movement.notes ? <p className="mt-2 text-sm text-slate-600">{movement.notes}</p> : null}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
+      <InventoryActivityPanels canOperate={context.canOperate} returnTo={returnTo} />
 
       {context.canManage ? (
         <details className="surface mb-5 p-4">
@@ -638,14 +456,7 @@ export default async function InventoryPage({
                       </label>
                       <label>
                         <span className="field-label">Lieferant</span>
-                        <select className="field-input" name="supplier_id" defaultValue={item.supplier_id ?? ""}>
-                          <option value="">Kein Lieferant</option>
-                          {suppliers.map((supplier) => (
-                            <option key={supplier.id} value={supplier.id}>
-                              {supplier.name}
-                            </option>
-                          ))}
-                        </select>
+                        <SupplierSelectField name="supplier_id" defaultValue={item.supplier_id ?? ""} />
                       </label>
                       <label className="flex items-center gap-3 rounded-md border border-line bg-fog px-3 py-2 text-sm font-semibold text-ink lg:col-span-3">
                         <input
@@ -719,7 +530,7 @@ export default async function InventoryPage({
             );
           })}
           </div>
-          {totalPages > 1 ? (
+          {page > 1 || hasNextPage ? (
             <nav className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <Link
                 href={inventoryHref({ q: search, location: activeLocation, low: onlyLowStock, page: Math.max(1, page - 1) })}
@@ -728,11 +539,11 @@ export default async function InventoryPage({
                 Zurück
               </Link>
               <span className="text-center text-sm font-bold text-slate-500">
-                {from + 1}-{Math.min(to + 1, totalCount)} von {totalCount}
+                {visibleFrom}-{visibleTo} · Seite {page}
               </span>
               <Link
-                href={inventoryHref({ q: search, location: activeLocation, low: onlyLowStock, page: Math.min(totalPages, page + 1) })}
-                className={cn("btn-secondary", page >= totalPages && "pointer-events-none opacity-50")}
+                href={inventoryHref({ q: search, location: activeLocation, low: onlyLowStock, page: page + 1 })}
+                className={cn("btn-secondary", !hasNextPage && "pointer-events-none opacity-50")}
               >
                 Weiter
               </Link>

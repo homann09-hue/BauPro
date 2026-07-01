@@ -1,6 +1,6 @@
 import { CalendarDays } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
-import { InteractiveCalendar } from "@/components/calendar/interactive-calendar";
+import { InteractiveCalendarLoader } from "@/components/calendar/interactive-calendar-loader";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { requireAppContext } from "@/lib/auth";
@@ -47,7 +47,7 @@ export default async function CalendarPage({
       />
       <MessageBox error={error || loadError} success={success} />
 
-      <InteractiveCalendar events={calendarResult.events} summary={calendarResult.summary} canManage={context.canManage} />
+      <InteractiveCalendarLoader events={calendarResult.events} summary={calendarResult.summary} canManage={context.canManage} />
 
       {!hasContent ? (
         <div className="mt-5">

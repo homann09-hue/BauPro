@@ -8,6 +8,7 @@ import { EmployeePermissionsMenu } from "@/components/team/employee-permissions-
 import { createEmployeeAction, updateEmployeeAction } from "@/lib/actions/auth-actions";
 import { requireAdmin } from "@/lib/auth";
 import { teamProfileSelect } from "@/lib/data/selects";
+import { searchOrFilter } from "@/lib/data/shared";
 import { effectivePermissionKeys, normalizePermissionKeys, type PermissionKey } from "@/lib/permissions";
 import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
@@ -28,6 +29,14 @@ const roleLabels = {
   kunde: "Kunde"
 } as const;
 
+const companyOptionLimit = 200;
+const profileListLimit = 120;
+
+function stringParam(params: Record<string, string | string[] | undefined> | undefined, key: string) {
+  const value = params?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function RoleOptions() {
   return (
     <>
@@ -47,11 +56,18 @@ export default async function TeamPage({
 }) {
   const context = await requireAdmin();
   const supabase = await createSupabaseServerClient();
-  const { error, success } = searchParamMessage(await searchParams);
+  const resolvedSearchParams = await searchParams;
+  const { error, success } = searchParamMessage(resolvedSearchParams);
+  const query = stringParam(resolvedSearchParams, "q").slice(0, 80);
+  const companyFilter = stringParam(resolvedSearchParams, "company_id");
+
+  let profilesQuery = supabase.from("profiles").select(teamProfileSelect).order("created_at", { ascending: true }).limit(profileListLimit);
+  if (companyFilter) profilesQuery = profilesQuery.eq("company_id", companyFilter);
+  if (query) profilesQuery = profilesQuery.or(searchOrFilter(["full_name", "email"], query));
 
   const [companiesResult, profilesResult] = await Promise.all([
-    supabase.from("companies").select("id, name").order("name", { ascending: true }).limit(250),
-    supabase.from("profiles").select(teamProfileSelect).order("created_at", { ascending: true }).limit(500)
+    supabase.from("companies").select("id, name").order("name", { ascending: true }).limit(companyOptionLimit),
+    profilesQuery
   ]);
   const companies = (companiesResult.data ?? []) as CompanyOption[];
   const companyNameById = new Map(companies.map((company) => [company.id, company.name]));
@@ -174,6 +190,33 @@ export default async function TeamPage({
               <h2 className="text-lg font-black text-ink">Team und Rollen</h2>
             </div>
           </div>
+
+          <form className="mb-4 grid gap-3 md:grid-cols-[1fr_220px_auto]" action="/team">
+            <label>
+              <span className="field-label">Suche</span>
+              <input className="field-input" name="q" defaultValue={query} placeholder="Name oder E-Mail" />
+            </label>
+            <label>
+              <span className="field-label">Firma</span>
+              <select className="field-input" name="company_id" defaultValue={companyFilter}>
+                <option value="">Alle geladenen Firmen</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="btn-primary self-end" type="submit">
+              Filtern
+            </button>
+          </form>
+
+          {profiles.length >= profileListLimit ? (
+            <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+              Es werden maximal {profileListLimit} Benutzer angezeigt. Nutze Suche oder Firmenfilter für große Mandanten.
+            </p>
+          ) : null}
 
           {profiles.length === 0 ? (
             <p className="rounded-md border border-dashed border-line p-4 text-sm text-slate-600">

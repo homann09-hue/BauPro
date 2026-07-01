@@ -7,9 +7,8 @@ import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { syncAutomaticBringListsAction } from "@/lib/actions/bring-list-actions";
 import { requireAppContext } from "@/lib/auth";
-import { ensureAutomaticBringListsForDate } from "@/lib/bring-lists/auto-generate";
 import { bringListDetailSelect } from "@/lib/data/selects";
-import { safeErrorMessage, safeQueryErrorMessage } from "@/lib/security/errors";
+import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, searchParamMessage } from "@/lib/utils";
 import type { BringList } from "@/types/app";
@@ -47,15 +46,6 @@ export default async function BringListsPage({
   const dateFrom = selectedDate || today;
   const dateTo = selectedDate || inSevenDaysIsoDate();
   const autoSyncDate = selectedDate || tomorrowIsoDate();
-  let autoSyncError: string | null = null;
-
-  if (context.canOperate) {
-    try {
-      await ensureAutomaticBringListsForDate({ supabase, context, date: autoSyncDate });
-    } catch (syncError) {
-      autoSyncError = safeErrorMessage(syncError, "Automatische Mitbringlisten konnten nicht aktualisiert werden.");
-    }
-  }
 
   let listsQuery = supabase
     .from("bring_lists")
@@ -67,7 +57,7 @@ export default async function BringListsPage({
 
   if (!context.canManage) listsQuery = listsQuery.or(`assigned_to.eq.${context.userId},created_by.eq.${context.userId}`);
 
-  const { data, error: queryError } = await listsQuery;
+  const { data, error: queryError } = await listsQuery.limit(60);
   let assignedJobsiteLists: BringList[] = [];
 
   if (!context.canManage) {
@@ -86,7 +76,8 @@ export default async function BringListsPage({
         .gte("date", dateFrom)
         .lte("date", dateTo)
         .in("job_id", assignedJobsiteIds)
-        .order("date", { ascending: true });
+        .order("date", { ascending: true })
+        .limit(60);
       assignedJobsiteLists = (extraLists ?? []) as unknown as BringList[];
     }
   }
@@ -104,7 +95,7 @@ export default async function BringListsPage({
         actionLabel="Neue Mitbringliste"
         actionIcon={Plus}
       />
-      <MessageBox error={error || autoSyncError || safeQueryErrorMessage(queryError)} success={success} />
+      <MessageBox error={error || safeQueryErrorMessage(queryError)} success={success} />
       <ContextualHelpTip featureKey="bring_list_use" returnTo="/bring-lists" />
 
       <div className="mb-5 flex flex-wrap gap-2">

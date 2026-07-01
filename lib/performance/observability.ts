@@ -101,7 +101,7 @@ export async function withQueryTimeout<T>(
 
     const durationMs = Date.now() - startedAt;
     if (durationMs > slowMs && isDev) {
-      logServerWarning("perf.slow-query", { route, action, durationMs });
+      logServerWarning("perf.slow-query", "Langsame Datenbankabfrage", { route, action, durationMs });
     }
     return result;
   } catch (error) {
@@ -110,7 +110,7 @@ export async function withQueryTimeout<T>(
     if (isQueryTimeoutError(error)) {
       if (hasFallback(options)) {
         if (isDev) {
-          logServerWarning("perf.query-timeout-fallback", {
+          logServerWarning("perf.query-timeout-fallback", "Datenbankabfrage mit Fallback beendet", {
             route,
             action,
             timeoutMs,
@@ -161,14 +161,14 @@ export async function withRouteTiming<T>(
 
     if (isDev) {
       if (durationMs > slowMs) {
-        logServerWarning("perf.slow-route", {
+        logServerWarning("perf.slow-route", "Langsame Route", {
           label: meta,
           route,
           action,
           durationMs
         });
       } else {
-        logServerWarning("perf.route", {
+        logServerWarning("perf.route", "Route gemessen", {
           label: meta,
           route,
           action,

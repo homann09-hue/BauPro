@@ -43,6 +43,10 @@ type DailyTimeEntry = TimeEntry & {
   audits?: TimeEntryAuditLog[];
 };
 
+const dailyTimeEntryLimit = 200;
+const dailyOptionLimit = 250;
+const dailyAuditLimit = 500;
+
 function buildFilterParams(filters: ReturnType<typeof parseDailyTimeFilters>) {
   const params = new URLSearchParams({
     range: filters.preset,
@@ -84,7 +88,8 @@ export default async function DailyTimeTrackingPage({
         .gte("date", filters.dateFrom)
         .lte("date", filters.dateTo)
         .order("date", { ascending: false })
-        .order("start_time", { ascending: true });
+        .order("start_time", { ascending: true })
+        .limit(dailyTimeEntryLimit);
 
       if (filters.employeeId) entriesQuery = entriesQuery.eq("employee_id", filters.employeeId);
       if (filters.jobId) entriesQuery = entriesQuery.eq("job_id", filters.jobId);
@@ -92,12 +97,19 @@ export default async function DailyTimeTrackingPage({
 
       return entriesQuery;
     }),
-    supabase.from("profiles").select("id, company_id, email, full_name, role, active").eq("company_id", context.companyId).eq("active", true).order("full_name"),
+    supabase
+      .from("profiles")
+      .select("id, company_id, email, full_name, role, active")
+      .eq("company_id", context.companyId)
+      .eq("active", true)
+      .order("full_name")
+      .limit(dailyOptionLimit),
     supabase
       .from("jobsites")
       .select("id, company_id, name, customer, address, start_date, status, notes, assigned_employee_ids, created_at")
       .eq("company_id", context.companyId)
       .order("name", { ascending: true })
+      .limit(dailyOptionLimit)
   ]);
 
   const rawEntries = ((entriesResult.data ?? []) as unknown) as TimeEntry[];
@@ -120,6 +132,7 @@ export default async function DailyTimeTrackingPage({
           .eq("company_id", context.companyId)
           .in("time_entry_id", entryIds)
           .order("created_at", { ascending: false })
+          .limit(dailyAuditLimit)
       : { data: [], error: null };
 
   const auditMap = new Map<string, TimeEntryAuditLog[]>();
@@ -158,6 +171,11 @@ export default async function DailyTimeTrackingPage({
         actionIcon={Plus}
       />
       <MessageBox error={error || queryError} success={success} />
+      {rawEntries.length >= dailyTimeEntryLimit ? (
+        <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+          Es werden die ersten {dailyTimeEntryLimit} Einträge angezeigt. Grenze den Zeitraum oder Mitarbeiter ein, um schneller und genauer zu prüfen.
+        </p>
+      ) : null}
 
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={Clock3} label="Netto im Zeitraum" value={formatMinutesAsHours(netMinutes)} href={returnTo} tone="green" />

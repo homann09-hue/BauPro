@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
-import { requireAppContext } from "@/lib/auth";
+import { getOptionalAppContext } from "@/lib/auth";
 import { revalidateDashboardCache } from "@/lib/data/dashboard";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -16,7 +16,11 @@ function requiredString(value: unknown, label: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    const context = await requireAppContext();
+    const context = await getOptionalAppContext();
+    if (!context) {
+      return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
+    }
+
     if (!context.canOperate) throw new SafeActionError("Keine Berechtigung für Materialbestätigungen.");
 
     const payload = (await request.json()) as Record<string, unknown>;

@@ -6,6 +6,14 @@ import { logServerWarning } from "@/lib/security/logging";
 
 const UPDATE_SESSION_GETUSER_TIMEOUT_MS = 2_500;
 
+function hasSupabaseAuthCookie(request: NextRequest) {
+  return request.cookies.getAll().some((cookie) => cookie.name.startsWith("sb-") && cookie.name.includes("auth-token"));
+}
+
+function isMissingAuthSessionError(error: { name?: string | null; message?: string | null } | null | undefined) {
+  return error?.name === "AuthSessionMissingError" || error?.message === "Auth session missing!";
+}
+
 export async function updateSession(request: NextRequest, requestHeaders = request.headers) {
   const url = getSupabaseUrl();
   const anonKey = getSupabasePublishableKey();
@@ -15,6 +23,10 @@ export async function updateSession(request: NextRequest, requestHeaders = reque
   }
 
   let response = NextResponse.next({ request: { headers: requestHeaders } });
+
+  if (!hasSupabaseAuthCookie(request)) {
+    return response;
+  }
 
   const supabase = createServerClient(url, anonKey, {
     cookies: {
@@ -48,7 +60,7 @@ export async function updateSession(request: NextRequest, requestHeaders = reque
       });
     }
 
-    if (error) {
+    if (error && !isMissingAuthSessionError(error)) {
       logServerWarning("auth-middleware-get-user-failed", error, {
         path: request.nextUrl.pathname
       });
