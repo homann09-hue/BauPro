@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { SubmitButton } from "@/components/submit-button";
 import { EmployeePermissionsMenu } from "@/components/team/employee-permissions-menu";
 import { createEmployeeAction, updateEmployeeAction } from "@/lib/actions/auth-actions";
-import { requireAdmin } from "@/lib/auth";
+import { requirePlatformAdmin } from "@/lib/auth";
 import { teamProfileSelect } from "@/lib/data/selects";
 import { searchOrFilter } from "@/lib/data/shared";
 import { effectivePermissionKeys, normalizePermissionKeys, type PermissionKey } from "@/lib/permissions";
@@ -54,7 +54,7 @@ export default async function TeamPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await requireAdmin();
+  const context = await requirePlatformAdmin();
   const supabase = await createSupabaseServerClient();
   const resolvedSearchParams = await searchParams;
   const { error, success } = searchParamMessage(resolvedSearchParams);

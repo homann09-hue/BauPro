@@ -137,6 +137,7 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
     ? company?.onboarding_completed_at ?? null
     : "1970-01-01T00:00:00.000Z";
   let permissions: PermissionKey[] = effectivePermissionKeys(typedProfile.role, []);
+  const shouldLoadMfa = isAdmin(typedProfile.role) || isChef(typedProfile.role);
 
   const [permissionsResult, factorsResult] = await Promise.allSettled([
     !isManager(typedProfile.role)
@@ -151,12 +152,14 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
           { route: "auth", action: "employee_permissions.fetch", timeoutMs: PERMISSION_QUERY_TIMEOUT_MS, slowMs: 1_100 }
         )
       : Promise.resolve({ data: [], error: null } as QueryResult<PermissionRow[]>),
-    withQueryTimeout(() => supabase.auth.mfa.listFactors(), {
-      route: "auth",
-      action: "auth.mfa.listFactors",
-      timeoutMs: MFA_QUERY_TIMEOUT_MS,
-      slowMs: 900
-    }).catch((error: Error) => ({ data: null, error }))
+    shouldLoadMfa
+      ? withQueryTimeout(() => supabase.auth.mfa.listFactors(), {
+          route: "auth",
+          action: "auth.mfa.listFactors",
+          timeoutMs: MFA_QUERY_TIMEOUT_MS,
+          slowMs: 900
+        }).catch((error: Error) => ({ data: null, error }))
+      : Promise.resolve({ data: { totp: [] }, error: null })
   ]);
 
   if (permissionsResult.status === "fulfilled" && !permissionsResult.value.error) {
@@ -169,7 +172,7 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
   if (factorsResult.status === "fulfilled" && !factorsResult.value.error) {
     const factors = factorsResult.value as unknown as { data?: { totp?: unknown[] } };
     mfaEnabled = Array.isArray(factors.data?.totp) && factors.data.totp.length > 0;
-  } else {
+  } else if (shouldLoadMfa) {
     logServerWarning("auth-context-mfa-timeout", {
       route: "auth",
       action: "auth.mfa.listFactors"
@@ -233,6 +236,10 @@ export async function requireAdmin() {
   }
 
   return context;
+}
+
+export async function requirePlatformAdmin() {
+  return requireAdmin();
 }
 
 export async function requirePermission(permission: PermissionKey, redirectTo = "/dashboard") {

@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import QRCode from "qrcode";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth";
+import { requirePlatformAdmin } from "@/lib/auth";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -78,7 +78,7 @@ async function verifyPasswordWithoutPersistingSession(email: string, password: s
 }
 
 export async function listMfaFactorsAction(): Promise<MfaFactorSummary[]> {
-  await requireAdmin();
+  await requirePlatformAdmin();
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.mfa.listFactors();
 
@@ -87,7 +87,7 @@ export async function listMfaFactorsAction(): Promise<MfaFactorSummary[]> {
 }
 
 export async function enrollMfaAction(): Promise<MfaEnrollmentResult> {
-  await requireAdmin();
+  await requirePlatformAdmin();
   const supabase = await createSupabaseServerClient();
   const factors = await supabase.auth.mfa.listFactors();
 
@@ -121,7 +121,7 @@ export async function enrollMfaAction(): Promise<MfaEnrollmentResult> {
 }
 
 export async function verifyMfaEnrollmentAction(formData: FormData) {
-  await requireAdmin();
+  await requirePlatformAdmin();
   const supabase = await createSupabaseServerClient();
 
   try {
@@ -212,7 +212,7 @@ export async function verifyLoginMfaChallengeAction(formData: FormData) {
 }
 
 export async function unenrollMfaAction(formData: FormData) {
-  await requireAdmin();
+  await requirePlatformAdmin();
   const supabase = await createSupabaseServerClient();
 
   try {

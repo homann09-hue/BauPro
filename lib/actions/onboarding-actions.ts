@@ -8,7 +8,8 @@ import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/error
 import { checkPasswordBreach } from "@/lib/security/password-breach-check";
 import { safeReturnPath } from "@/lib/security/redirects";
 import { isMissingSchemaError, isUnsupportedVorarbeiterRoleError } from "@/lib/supabase/errors";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient, type SupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalString, requiredString } from "@/lib/utils";
 import type { Role } from "@/types/app";
 
@@ -139,7 +140,7 @@ export async function importOnboardingEmployeesAction(formData: FormData) {
   const returnTo = formData.get("return_to");
   const startPassword = requiredString(formData, "start_password");
   const raw = requiredString(formData, "employees_csv");
-  let admin: ReturnType<typeof createSupabaseAdminClient>;
+  let admin: SupabaseAdminClient;
 
   if (startPassword.length < 8) {
     redirectBack(returnTo, { error: "Startpasswort muss mindestens 8 Zeichen haben." });
@@ -152,7 +153,10 @@ export async function importOnboardingEmployeesAction(formData: FormData) {
   }
 
   try {
-    admin = createSupabaseAdminClient();
+    admin = createScopedSupabaseAdminClient({
+      caller: "actions.onboarding.importEmployees",
+      reason: "Onboarding importiert Mitarbeiter als Supabase-Auth-Nutzer."
+    });
   } catch {
     redirectBack(returnTo, { error: "SUPABASE_SERVICE_ROLE_KEY fehlt fuer Mitarbeiterimport." });
   }

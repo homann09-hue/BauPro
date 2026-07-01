@@ -4,7 +4,7 @@ import { MessageBox } from "@/components/message-box";
 import { MfaSettingsPanel } from "@/components/mfa-settings-panel";
 import { PageHeader } from "@/components/page-header";
 import { listMfaFactorsAction } from "@/lib/actions/mfa-actions";
-import { requireAdmin } from "@/lib/auth";
+import { requirePlatformAdmin } from "@/lib/auth";
 import { searchParamMessage } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export default async function SecuritySettingsPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireAdmin();
+  await requirePlatformAdmin();
   const { error, success } = searchParamMessage(await searchParams);
   const factors = await listMfaFactorsAction();
 

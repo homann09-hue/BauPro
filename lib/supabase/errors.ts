@@ -17,7 +17,9 @@ export function isMissingSchemaError(error: unknown) {
     text.includes("42P01") ||
     text.includes("42703") ||
     text.includes("PGRST205") ||
+    text.includes("PGRST202") ||
     text.includes("Could not find the table") ||
+    text.includes("Could not find the function") ||
     text.includes("Could not find the column") ||
     (text.includes("Could not find") && text.includes("column")) ||
     text.includes("does not exist")

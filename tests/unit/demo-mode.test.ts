@@ -30,7 +30,7 @@ describe("Demo-Modus", () => {
 
     expect(demoMode).toContain("DEMO_MODE_ENABLED");
     expect(demoMode).toContain("process.env.NODE_ENV !== \"production\"");
-    expect(demoMode).toContain("createSupabaseAdminClient");
+    expect(demoMode).toContain("createScopedSupabaseAdminClient");
     expect(demoMode).toContain("SUPABASE_SERVICE_ROLE_KEY");
     expect(demoMode).toContain("example.invalid");
     expect(demoMode).toContain("ensureDemoModeData");

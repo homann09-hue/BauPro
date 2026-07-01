@@ -59,7 +59,7 @@ describe("Stripe billing", () => {
 
     expect(stripe).toContain("process.env.STRIPE_SECRET_KEY");
     expect(stripe).toContain("constructWebhookEvent");
-    expect(actions).toContain("requireAdmin");
+    expect(actions).toContain("requirePlatformAdmin");
     expect(actions).toContain("createCheckoutSession");
     expect(actions).toContain("createPortalSession");
     expect(webhook).toContain("checkout.session.completed");

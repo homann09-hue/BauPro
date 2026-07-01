@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import { SafeActionError } from "@/lib/security/errors";
-import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getPlanLimits, normalizePlanId, type PlanId } from "@/lib/billing/plans";
 
 export type BillingInterval = "monthly" | "yearly";
@@ -25,7 +25,10 @@ function priceIdFor(planId: string, interval: BillingInterval) {
 }
 
 async function loadCompany(companyId: string) {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createScopedSupabaseAdminClient({
+    caller: "billing.stripe.loadCompany",
+    reason: "Stripe braucht Firmen- und Customer-Daten serverseitig ohne Nutzer-RLS."
+  });
   const { data, error } = await supabase
     .from("companies")
     .select("id, name, contact_email, stripe_customer_id")
@@ -62,7 +65,10 @@ export async function createCheckoutSession(
   }
 
   const stripe = getStripeClient();
-  const supabase = createSupabaseAdminClient();
+  const supabase = createScopedSupabaseAdminClient({
+    caller: "billing.stripe.createCheckoutSession",
+    reason: "Stripe Customer-ID wird nach erfolgreicher Erstellung an der Firma gespeichert."
+  });
   const company = await loadCompany(companyId);
   const customerId =
     company.stripe_customer_id ?? (await createStripeCustomer(companyId, company.contact_email, company.name));

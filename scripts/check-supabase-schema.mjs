@@ -29,6 +29,10 @@ const platformSystemAdminHardening = fs.readFileSync(
   path.join(root, "supabase/migrations/20260715_platform_system_admin.sql"),
   "utf8"
 );
+const atomicOrderCreation = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260716_atomic_order_creation.sql"),
+  "utf8"
+);
 
 const failures = [];
 
@@ -129,6 +133,13 @@ check(
     !platformSystemAdminHardening.includes('create policy "systemadmins read all inventory'),
   "platform system-admin migration must not open operative tenant data cross-company."
 );
+for (const source of [schema, atomicOrderCreation]) {
+  check(source.includes("create or replace function public.generate_order_number"), "atomic order creation must define generate_order_number.");
+  check(source.includes("create or replace function public.create_order_with_jobsite"), "atomic order creation must define create_order_with_jobsite.");
+  check(source.includes("pg_advisory_xact_lock"), "order number generation must use an advisory transaction lock.");
+  check(source.includes("public.has_employee_permission('orders.create')"), "atomic order creation must enforce orders.create permission in SQL.");
+  check(source.includes("p_created_by is distinct from auth.uid()"), "atomic order creation must bind created_by to auth.uid().");
+}
 
 check(inventoryPublicView.includes("where i.company_id = public.current_company_id()"), "inventory_items_public must filter by current company.");
 check(

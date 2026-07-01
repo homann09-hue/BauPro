@@ -24,7 +24,8 @@ import { publicAppOrigin } from "@/lib/security/origin";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { sanitizeUploadFileName, validateCustomerDocument } from "@/lib/security/uploads";
 import { validateSignatureDataUrl } from "@/lib/signatures/signature";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { CustomerPortalEventType, CustomerPortalToken, Order, Report, ReportPhoto, WorkOrder } from "@/types/app";
 
 function redirectBack(path: string, message: { success?: string; error?: string; portalToken?: string }) {
@@ -90,7 +91,10 @@ async function audit({
   newValues?: Record<string, unknown> | null;
 }) {
   try {
-    const supabase = createSupabaseAdminClient();
+    const supabase = createScopedSupabaseAdminClient({
+      caller: "actions.customer-portal.audit",
+      reason: "Audit-Log fuer Kundenportal-Aktionen wird serverseitig unabhaengig von Nutzer-RLS geschrieben."
+    });
     await supabase.from("company_audit_log").insert({
       company_id: companyId,
       actor_id: actorId,
@@ -495,7 +499,10 @@ export async function signWorkOrderFromPortalAction(formData: FormData) {
     if (decisionValue === "reject" && !rejectionReason) {
       throw new SafeActionError("Bitte bei Ablehnung kurz angeben, was angepasst werden soll.");
     }
-    const supabase = createSupabaseAdminClient();
+    const supabase = createScopedSupabaseAdminClient({
+      caller: "actions.customer-portal.signWorkOrderFromPortal",
+      reason: "Oeffentliche Kundenportal-Signatur nutzt Hash-Token statt eingeloggtem Supabase-Nutzer."
+    });
     const tokenHash = hashCustomerPortalToken(token);
 
     const { data: tokenRow } = await supabase
@@ -643,7 +650,10 @@ export async function sendCustomerPortalMessageAction(formData: FormData) {
     const senderName = boundedText(requiredFormString(formData, "sender_name", "Name"), "Name", 120) as string;
     const senderEmail = boundedEmail(optionalFormString(formData, "sender_email"));
     const message = boundedText(requiredFormString(formData, "message", "Nachricht"), "Nachricht", 2000) as string;
-    const supabase = createSupabaseAdminClient();
+    const supabase = createScopedSupabaseAdminClient({
+      caller: "actions.customer-portal.sendCustomerPortalMessage",
+      reason: "Oeffentliche Kundenportal-Nachricht nutzt Hash-Token statt eingeloggtem Supabase-Nutzer."
+    });
     const tokenHash = hashCustomerPortalToken(token);
 
     const { data: tokenRow } = await supabase

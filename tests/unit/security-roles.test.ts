@@ -64,7 +64,7 @@ describe("role permissions", () => {
     expect(shell).toContain("if (context.isChef)");
   });
 
-  it("protects system pages with requireAdmin and operative pages with manager checks", () => {
+  it("protects system pages with requirePlatformAdmin and operative pages with manager checks", () => {
     const guardedAdminPages = [
       "app/(app)/billing/page.tsx",
       "app/(app)/team/page.tsx",
@@ -75,7 +75,7 @@ describe("role permissions", () => {
     ];
 
     for (const file of guardedAdminPages) {
-      expect(source(file), file).toContain("requireAdmin");
+      expect(source(file), file).toContain("requirePlatformAdmin");
     }
 
     const guardedOperationalPages = [

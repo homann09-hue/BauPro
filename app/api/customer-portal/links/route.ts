@@ -4,7 +4,8 @@ import { requireManager } from "@/lib/auth";
 import { createCustomerPortalToken, customerPortalExpiresAt, hashCustomerPortalToken } from "@/lib/customer-portal/tokens";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { checkRateLimit } from "@/lib/security/rate-limit";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function requiredString(value: unknown, label: string, maxLength = 500) {
   if (typeof value !== "string" || !value.trim()) throw new SafeActionError(`${label} fehlt.`);
@@ -76,7 +77,10 @@ export async function POST(request: NextRequest) {
         visible_to_customer: true,
         created_by: context.userId
       }),
-      createSupabaseAdminClient().from("company_audit_log").insert({
+      createScopedSupabaseAdminClient({
+        caller: "api.customer-portal.links.create.audit",
+        reason: "Audit-Log für Kundenportal-Link wird unabhängig von Nutzer-RLS geschrieben."
+      }).from("company_audit_log").insert({
         company_id: context.companyId,
         actor_id: context.userId,
         entity_type: "customer_portal_token",

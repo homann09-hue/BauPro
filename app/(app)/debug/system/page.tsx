@@ -2,7 +2,7 @@ import { AlertTriangle, CheckCircle2, Database, KeyRound, RefreshCw, ShieldCheck
 import Link from "next/link";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
-import { requireAdmin } from "@/lib/auth";
+import { requirePlatformAdmin } from "@/lib/auth";
 import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -111,7 +111,7 @@ function StatusPill({ ok }: { ok: boolean }) {
 }
 
 export default async function SystemDebugPage() {
-  const context = await requireAdmin();
+  const context = await requirePlatformAdmin();
   const supabase = await createSupabaseServerClient();
   const timestamp = new Date().toLocaleString("de-DE", { dateStyle: "short", timeStyle: "medium" });
 

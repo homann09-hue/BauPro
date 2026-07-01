@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { logServerWarning } from "@/lib/security/logging";
-import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
 import type {
   CommercialDocument,
@@ -172,20 +172,27 @@ function isActiveToken(token: Pick<CustomerPortalToken, "expires_at" | "revoked_
   return !token.revoked_at && new Date(token.expires_at).getTime() > Date.now();
 }
 
+function customerPortalAdminClient(caller: string) {
+  return createScopedSupabaseAdminClient({
+    caller,
+    reason: "Kundenportal nutzt Hash-Token und kurzlebige Signed URLs ohne eingeloggten Supabase-Nutzer."
+  });
+}
+
 async function signedReportPhoto(photo: ReportPhoto): Promise<PortalPhoto> {
-  const supabase = createSupabaseAdminClient();
+  const supabase = customerPortalAdminClient("customer-portal.signedReportPhoto");
   const { data } = await supabase.storage.from("report-photos").createSignedUrl(photo.storage_path, 60 * 15);
   return { ...photo, signedUrl: data?.signedUrl };
 }
 
 async function signedCustomerDocument(document: CustomerDocument): Promise<PortalDocument> {
-  const supabase = createSupabaseAdminClient();
+  const supabase = customerPortalAdminClient("customer-portal.signedCustomerDocument");
   const { data } = await supabase.storage.from("customer-documents").createSignedUrl(document.storage_path, 60 * 15);
   return { ...document, signedUrl: data?.signedUrl };
 }
 
 async function signedJobsiteDocument(document: PortalJobsiteDocument): Promise<PortalJobsiteDocument> {
-  const supabase = createSupabaseAdminClient();
+  const supabase = customerPortalAdminClient("customer-portal.signedJobsiteDocument");
   const { data } = await supabase.storage.from("jobsite-documents").createSignedUrl(document.storage_path, 60 * 15);
   return { ...document, signedUrl: data?.signedUrl };
 }
@@ -274,7 +281,7 @@ function deriveWeatherDelays(events: CustomerPortalEvent[], reports: PortalRepor
 export async function loadCustomerPortalData(token: string): Promise<CustomerPortalData | null> {
   if (!token || token.length < 24) return null;
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = customerPortalAdminClient("customer-portal.loadCustomerPortalData");
   const tokenHash = hashCustomerPortalToken(token);
 
   const { data: tokenRow, error: tokenError } = await supabase

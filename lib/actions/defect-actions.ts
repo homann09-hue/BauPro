@@ -12,7 +12,8 @@ import { logServerWarning } from "@/lib/security/logging";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { assertProfilesInCompany } from "@/lib/security/tenant-guards";
 import { sanitizeUploadFileName, validateReportPhoto } from "@/lib/security/uploads";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Defect, DefectPriority, DefectSourceType, DefectStatus, Jobsite } from "@/types/app";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
@@ -95,7 +96,10 @@ async function writeAudit({
   newValues?: Record<string, unknown> | null;
 }) {
   try {
-    await createSupabaseAdminClient().from("company_audit_log").insert({
+    await createScopedSupabaseAdminClient({
+      caller: "actions.defects.writeAudit",
+      reason: "Mangel-Audit wird als unveraenderbare Begleitspur serverseitig geschrieben."
+    }).from("company_audit_log").insert({
       company_id: companyId,
       actor_id: actorId,
       entity_type: "defect",

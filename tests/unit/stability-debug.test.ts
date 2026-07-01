@@ -18,7 +18,7 @@ describe("stability and debug hardening", () => {
   it("stellt eine geschuetzte System-Debug-Seite ohne Secrets bereit", () => {
     const page = source("app/(app)/debug/system/page.tsx");
 
-    expect(page).toContain("requireAdmin");
+    expect(page).toContain("requirePlatformAdmin");
     expect(page).toContain("NEXT_PUBLIC_SUPABASE_URL");
     expect(page).toContain("SUPABASE_SERVICE_ROLE_KEY");
     expect(page).toContain("importantTables");

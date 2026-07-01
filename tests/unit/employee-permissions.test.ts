@@ -96,7 +96,7 @@ describe("employee permission management", () => {
     const actions = source("lib/actions/auth-actions.ts");
 
     expect(actions).toContain("export async function updateEmployeePermissionsAction");
-    expect(actions).toContain("const context = await requireAdmin()");
+    expect(actions).toContain("const context = await requirePlatformAdmin()");
     expect(actions).toContain("id === context.userId");
     expect(actions).toContain('target.role === "admin" || target.role === "chef"');
     expect(actions).toContain('.from("employee_permissions").upsert');

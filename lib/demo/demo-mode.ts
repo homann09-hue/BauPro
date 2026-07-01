@@ -4,7 +4,7 @@ import { contentHash, hashCustomerPortalToken } from "@/lib/customer-portal/toke
 import { SafeActionError } from "@/lib/security/errors";
 import { logServerError } from "@/lib/security/logging";
 import { isMissingSchemaError, isUnsupportedVorarbeiterRoleError } from "@/lib/supabase/errors";
-import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient, type SupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Role } from "@/types/app";
 
 type DemoRole = Extract<Role, "chef" | "vorarbeiter" | "mitarbeiter">;
@@ -15,7 +15,7 @@ type DemoUserSeed = {
   role: DemoRole;
 };
 type DemoUser = DemoUserSeed & { id: string; role: DemoRole };
-type AdminClient = ReturnType<typeof createSupabaseAdminClient>;
+type AdminClient = SupabaseAdminClient;
 type DemoRow = Record<string, unknown> & { id: string };
 type EnsureDemoModeOptions = {
   forceUserSync?: boolean;
@@ -1020,7 +1020,10 @@ export async function ensureDemoModeData(options: EnsureDemoModeOptions = {}) {
 
   let admin: AdminClient;
   try {
-    admin = createSupabaseAdminClient();
+    admin = createScopedSupabaseAdminClient({
+      caller: "demo.ensureDemoModeData",
+      reason: "Demo-Modus legt isolierte Beispiel-Firma, Benutzer und Beispieldaten serverseitig an."
+    });
   } catch {
     throw new SafeActionError("Demo-Modus braucht serverseitig SUPABASE_SERVICE_ROLE_KEY.");
   }

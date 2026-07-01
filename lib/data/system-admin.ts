@@ -1,5 +1,5 @@
-import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { postgrestTimeoutResponse, withQueryTimeout } from "@/lib/performance/observability";
+import { tryCreateScopedSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type SystemAdminStats = {
   serviceRoleAvailable: boolean;
@@ -12,11 +12,10 @@ export type SystemAdminStats = {
 
 export async function loadSystemAdminStats(): Promise<SystemAdminStats> {
   const supabase = (() => {
-    try {
-      return createSupabaseAdminClient();
-    } catch {
-      return null;
-    }
+    return tryCreateScopedSupabaseAdminClient({
+      caller: "data.system-admin.loadSystemAdminStats",
+      reason: "Systemadmin-Dashboard zeigt firmenuebergreifende Kennzahlen."
+    });
   })();
 
   if (!supabase) {

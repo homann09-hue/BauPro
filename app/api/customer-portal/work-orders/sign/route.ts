@@ -8,7 +8,7 @@ import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { validateSignatureDataUrl } from "@/lib/signatures/signature";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
-import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { CustomerPortalToken, WorkOrder } from "@/types/app";
 
 const customerPortalTokenSelect = "id, company_id, customer_id, jobsite_id, label, expires_at, revoked_at, created_by, created_at, last_used_at";
@@ -69,7 +69,10 @@ export async function POST(request: NextRequest) {
     const tokenHash = hashCustomerPortalToken(token);
     await checkRateLimit(`portal-sign:${tokenHash}`, 8, 60_000);
 
-    const supabase = createSupabaseAdminClient();
+    const supabase = createScopedSupabaseAdminClient({
+      caller: "api.customer-portal.work-orders.sign",
+      reason: "Oeffentliche Kundenportal-Signatur nutzt Hash-Token statt eingeloggtem Supabase-Nutzer."
+    });
     const { data: tokenRow } = await supabase
       .from("customer_portal_tokens")
       .select(customerPortalTokenSelect)

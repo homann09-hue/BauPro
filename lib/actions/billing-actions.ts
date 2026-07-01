@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createCheckoutSession, createPortalSession, type BillingInterval } from "@/lib/billing/stripe";
-import { requireAdmin } from "@/lib/auth";
+import { requirePlatformAdmin } from "@/lib/auth";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -16,7 +16,7 @@ function normalizeInterval(interval: string): BillingInterval {
 }
 
 export async function createCheckoutSessionAction(planId: string, interval: string) {
-  const context = await requireAdmin();
+  const context = await requirePlatformAdmin();
   let target = "/billing";
 
   try {
@@ -30,7 +30,7 @@ export async function createCheckoutSessionAction(planId: string, interval: stri
 }
 
 export async function createPortalSessionAction() {
-  const context = await requireAdmin();
+  const context = await requirePlatformAdmin();
   const supabase = await createSupabaseServerClient();
   let target = "/billing";
 

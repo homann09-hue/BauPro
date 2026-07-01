@@ -6,7 +6,7 @@ import {
 } from "@/lib/billing/stripe";
 import { normalizePlanId } from "@/lib/billing/plans";
 import { logServerError } from "@/lib/security/logging";
-import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -37,13 +37,20 @@ function subscriptionPriceId(subscription: Record<string, unknown>) {
   return items?.data?.[0]?.price?.id ?? null;
 }
 
+function stripeWebhookAdminClient(caller: string) {
+  return createScopedSupabaseAdminClient({
+    caller,
+    reason: "Stripe Webhooks laufen ohne eingeloggten Nutzer und muessen Abonnementdaten synchronisieren."
+  });
+}
+
 async function markProcessed(eventId: string) {
-  const supabase = createSupabaseAdminClient();
+  const supabase = stripeWebhookAdminClient("stripe.webhook.markProcessed");
   await supabase.from("stripe_webhook_events").update({ processed_at: new Date().toISOString() }).eq("id", eventId);
 }
 
 async function rememberEvent(event: { id: string; type: string }) {
-  const supabase = createSupabaseAdminClient();
+  const supabase = stripeWebhookAdminClient("stripe.webhook.rememberEvent");
   const { error } = await supabase.from("stripe_webhook_events").insert({
     id: event.id,
     event_type: event.type,
@@ -64,7 +71,7 @@ async function rememberEvent(event: { id: string; type: string }) {
 }
 
 async function updateCompanyFromSubscription(subscription: Record<string, unknown>, fallbackPlanId?: string | null) {
-  const supabase = createSupabaseAdminClient();
+  const supabase = stripeWebhookAdminClient("stripe.webhook.updateCompanyFromSubscription");
   const metadata = (subscription.metadata ?? {}) as Record<string, string | undefined>;
   const companyId = metadata.company_id ?? null;
   const customerId = stripeId(subscription.customer);
@@ -99,7 +106,7 @@ async function updateCompanyFromSubscription(subscription: Record<string, unknow
 
 async function handleCheckoutCompleted(session: Record<string, unknown>) {
   const stripe = getStripeClient();
-  const supabase = createSupabaseAdminClient();
+  const supabase = stripeWebhookAdminClient("stripe.webhook.handleCheckoutCompleted");
   const metadata = (session.metadata ?? {}) as Record<string, string | undefined>;
   const companyId = metadata.company_id ?? (typeof session.client_reference_id === "string" ? session.client_reference_id : null);
   const planId = normalizePlanId(metadata.plan_id);
@@ -126,7 +133,7 @@ async function handleCheckoutCompleted(session: Record<string, unknown>) {
 }
 
 async function handleSubscriptionDeleted(subscription: Record<string, unknown>) {
-  const supabase = createSupabaseAdminClient();
+  const supabase = stripeWebhookAdminClient("stripe.webhook.handleSubscriptionDeleted");
   const metadata = (subscription.metadata ?? {}) as Record<string, string | undefined>;
   const companyId = metadata.company_id ?? null;
   const subscriptionId = stripeId(subscription);
@@ -154,7 +161,7 @@ async function handleSubscriptionDeleted(subscription: Record<string, unknown>) 
 }
 
 async function handleInvoicePaymentFailed(invoice: Record<string, unknown>) {
-  const supabase = createSupabaseAdminClient();
+  const supabase = stripeWebhookAdminClient("stripe.webhook.handleInvoicePaymentFailed");
   const subscriptionId =
     stripeId(invoice.subscription) ??
     stripeId((invoice.parent as { subscription_details?: { subscription?: unknown } } | undefined)?.subscription_details?.subscription);

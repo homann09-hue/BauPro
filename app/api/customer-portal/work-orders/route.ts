@@ -3,7 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireManager } from "@/lib/auth";
 import { contentHash } from "@/lib/customer-portal/tokens";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function requiredString(value: unknown, label: string, maxLength = 5000) {
   if (typeof value !== "string" || !value.trim()) throw new SafeActionError(`${label} fehlt.`);
@@ -71,7 +72,10 @@ export async function POST(request: NextRequest) {
 
     if (error || !data) throw new SafeActionError("Arbeitsauftrag konnte nicht erstellt werden.");
 
-    const auditResult = await createSupabaseAdminClient()
+    const auditResult = await createScopedSupabaseAdminClient({
+      caller: "api.customer-portal.work-orders.create.audit",
+      reason: "Audit-Log für Arbeitsauftrag wird unabhängig von Nutzer-RLS geschrieben."
+    })
       .from("company_audit_log")
       .insert({
         company_id: context.companyId,

@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireAdmin, requireAppContext } from "@/lib/auth";
+import { requireAppContext, requirePlatformAdmin } from "@/lib/auth";
 import { checkUserLimit } from "@/lib/billing/plans";
 import { ensureDemoModeData } from "@/lib/demo/demo-mode";
 import { assignableEmployeePermissionKeys, isAssignableEmployeePermission, normalizePermissionKeys } from "@/lib/permissions";
@@ -15,7 +15,8 @@ import { checkPasswordBreach } from "@/lib/security/password-breach-check";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { safeReturnPath } from "@/lib/security/redirects";
 import { isMissingSchemaError, isUnsupportedVorarbeiterRoleError } from "@/lib/supabase/errors";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient, type SupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalString, requiredString } from "@/lib/utils";
 import type { Role } from "@/types/app";
 
@@ -255,13 +256,16 @@ export async function signOutAction(formData?: FormData) {
 }
 
 export async function createEmployeeAction(formData: FormData) {
-  const context = await requireAdmin();
+  const context = await requirePlatformAdmin();
   const supabase = await createSupabaseServerClient();
   const returnTo = safeReturnPath(formData.get("return_to"), "/team");
   const targetCompanyId = targetCompanyIdFromForm(formData, context.companyId);
-  let admin: ReturnType<typeof createSupabaseAdminClient>;
+  let admin: SupabaseAdminClient;
   try {
-    admin = createSupabaseAdminClient();
+    admin = createScopedSupabaseAdminClient({
+      caller: "actions.auth.createEmployeeAction",
+      reason: "Systemadmin legt Supabase-Auth-Nutzer fuer eine Firma an."
+    });
   } catch {
     redirectWithMessage(returnTo, "error", "SUPABASE_SERVICE_ROLE_KEY fehlt für das Anlegen von Mitarbeitern.");
   }
@@ -341,7 +345,7 @@ export async function createEmployeeAction(formData: FormData) {
 }
 
 export async function updateEmployeeAction(formData: FormData) {
-  const context = await requireAdmin();
+  const context = await requirePlatformAdmin();
   const supabase = await createSupabaseServerClient();
   const id = requiredFormUuid(formData, "id", "Mitarbeiter");
   const targetCompanyId = targetCompanyIdFromForm(formData, context.companyId);
@@ -383,7 +387,7 @@ export async function updateEmployeeAction(formData: FormData) {
 }
 
 export async function updateEmployeePermissionsAction(formData: FormData) {
-  const context = await requireAdmin();
+  const context = await requirePlatformAdmin();
   const supabase = await createSupabaseServerClient();
   const id = requiredFormUuid(formData, "id", "Mitarbeiter");
   const requestedCompanyId = optionalFormUuid(formData, "company_id", "Firma");
@@ -489,7 +493,7 @@ export async function updateOwnProfileAction(formData: FormData) {
 }
 
 export async function updateCompanyProfileAction(formData: FormData) {
-  const context = await requireAdmin();
+  const context = await requirePlatformAdmin();
   const supabase = await createSupabaseServerClient();
   const returnTo = safeReturnPath(formData.get("return_to"), "/settings");
   const name = requiredString(formData, "name");

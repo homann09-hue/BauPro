@@ -3,7 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireManager } from "@/lib/auth";
 import { contentHash, publicWorkOrderSnapshot } from "@/lib/customer-portal/tokens";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { WorkOrder } from "@/types/app";
 
 const sendWorkOrderSelect =
@@ -70,7 +71,10 @@ export async function POST(request: NextRequest) {
         visible_to_customer: true,
         created_by: context.userId
       }),
-      createSupabaseAdminClient().from("company_audit_log").insert({
+      createScopedSupabaseAdminClient({
+        caller: "api.customer-portal.work-orders.send.audit",
+        reason: "Audit-Log für gesendeten Arbeitsauftrag wird unabhängig von Nutzer-RLS geschrieben."
+      }).from("company_audit_log").insert({
         company_id: context.companyId,
         actor_id: context.userId,
         entity_type: "work_order",

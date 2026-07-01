@@ -8,7 +8,7 @@ import { updateCompanyProfileAction } from "@/lib/actions/auth-actions";
 import { updatePricingSettingsAction } from "@/lib/actions/material-calculation-actions";
 import { loadCalculationSettings } from "@/lib/ai/job-drafts";
 import { aiRuntimeState, loadAiSettings } from "@/lib/ai/permissions";
-import { requireAdmin } from "@/lib/auth";
+import { requirePlatformAdmin } from "@/lib/auth";
 import { companyPricingSettingsSelect } from "@/lib/data/selects";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -20,7 +20,7 @@ export default async function SettingsPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await requireAdmin();
+  const context = await requirePlatformAdmin();
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
 

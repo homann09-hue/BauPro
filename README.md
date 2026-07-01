@@ -125,6 +125,7 @@ supabase/migrations/20260712_price_permission_hardening.sql
 supabase/migrations/20260713_redteam_storage_prefetch_hardening.sql
 supabase/migrations/20260714_system_admin_role_split.sql
 supabase/migrations/20260715_platform_system_admin.sql
+supabase/migrations/20260716_atomic_order_creation.sql
 ```
 
 `20260615_material_alerts_repair.sql` bleibt idempotent, damit aeltere Testdatenbanken mit fehlender Mitbringlisten-Kette repariert werden koennen. Fuer neue Projekte ist der vollstaendige Stand bereits in `supabase/schema.sql` enthalten.
@@ -545,6 +546,7 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 - `supabase/migrations/20260713_redteam_storage_prefetch_hardening.sql`: Delta bindet Report-Foto-Storage-Lesen an Bericht-Metadaten und Berichtsrechte
 - `supabase/migrations/20260714_system_admin_role_split.sql`: Delta trennt BauPro-Systemadmin und operativen Chef in App- und RLS-Rechten
 - `supabase/migrations/20260715_platform_system_admin.sql`: Delta macht `admin` zur firmenuebergreifenden Plattformrolle fuer Firmen, Benutzer, Rechte und Audit-Metadaten, ohne operative Kundendaten global zu oeffnen
+- `supabase/migrations/20260716_atomic_order_creation.sql`: Delta erstellt Auftragsnummer, Baustelle und Auftrag atomar per Postgres-RPC und verhindert doppelte Auftragsnummern bei parallelen Klicks
 - `supabase/material-catalog-seed.sql`: praxisnaher Dachdecker-Materialkatalog
 - `scripts/seed-demo-company.mjs`: realistische Demo-Firma fuer Verkauf, QA und Produktdemos
 - `tests/`: Unit-, Integration- und E2E-Smoke-Tests
