@@ -219,3 +219,5 @@ grant execute on function public.create_order_with_jobsite(
   boolean,
   uuid
 ) to authenticated;
+
+select pg_notify('pgrst', 'reload schema');
