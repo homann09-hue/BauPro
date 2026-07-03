@@ -73,6 +73,18 @@ describe("Demo-Modus", () => {
     expect(demoSeed).toContain("customer_summary");
   });
 
+  it("rate-limits the public demo start before reading FormData in production", () => {
+    const demoStartRoute = source("app/api/auth/demo/start/route.ts");
+
+    const rateLimitIndex = demoStartRoute.indexOf("await checkRateLimit(demoStartRateLimitKey(request), 30, 60_000)");
+    const formDataIndex = demoStartRoute.indexOf("await request.formData()");
+
+    expect(rateLimitIndex).toBeGreaterThanOrEqual(0);
+    expect(formDataIndex).toBeGreaterThan(rateLimitIndex);
+    expect(demoStartRoute).toContain('const defaultReturnTo = "/demo"');
+    expect(demoStartRoute).toContain("`${defaultReturnTo}?error=${encodeMessage(publicMessage.message)}`");
+  });
+
   it("keeps the tour reachable without forcing it into the demo start flow", () => {
     const appShell = source("components/app-shell.tsx");
     const tourPage = source("app/(app)/demo-tour/page.tsx");

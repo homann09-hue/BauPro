@@ -13,12 +13,28 @@ describe("public endpoint hardening", () => {
     const apiLogin = source("app/api/auth/login/route.ts");
     const authActions = source("lib/actions/auth-actions.ts");
 
-    for (const file of [apiLogin, authActions]) {
-      expect(file).toContain("LOGIN_EMAIL_RATE_LIMIT");
-      expect(file).toContain("LOGIN_IP_RATE_LIMIT");
-      expect(file).toContain("checkRateLimit(`login:");
-      expect(file).toContain("checkRateLimit(`login-ip:${getClientIp(");
-    }
+    expect(apiLogin).toContain("LOGIN_EMAIL_RATE_LIMIT");
+    expect(apiLogin).toContain("LOGIN_IP_RATE_LIMIT");
+    expect(apiLogin).toContain("const clientIp = getClientIp(request.headers)");
+    expect(apiLogin).toContain("checkRateLimit(`login-ip:${clientIp}`, LOGIN_IP_RATE_LIMIT");
+    expect(apiLogin).toContain("checkRateLimit(`login:${email}`, LOGIN_EMAIL_RATE_LIMIT");
+
+    expect(authActions).toContain("LOGIN_EMAIL_RATE_LIMIT");
+    expect(authActions).toContain("LOGIN_IP_RATE_LIMIT");
+    expect(authActions).toContain("checkRateLimit(`login:");
+    expect(authActions).toContain("checkRateLimit(`login-ip:${getClientIp(");
+  });
+
+  it("rate-limits login by IP before parsing public form bodies", () => {
+    const apiLogin = source("app/api/auth/login/route.ts");
+
+    const ipLimitIndex = apiLogin.indexOf("await checkRateLimit(`login-ip:${clientIp}`, LOGIN_IP_RATE_LIMIT");
+    const formDataIndex = apiLogin.indexOf("await request.formData()");
+    const emailLimitIndex = apiLogin.indexOf("await checkRateLimit(`login:${email}`, LOGIN_EMAIL_RATE_LIMIT");
+
+    expect(ipLimitIndex).toBeGreaterThanOrEqual(0);
+    expect(formDataIndex).toBeGreaterThan(ipLimitIndex);
+    expect(emailLimitIndex).toBeGreaterThan(formDataIndex);
   });
 
   it("rate-limits the public database health endpoint before running a Supabase query", () => {

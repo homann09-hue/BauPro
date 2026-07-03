@@ -104,18 +104,12 @@ async function signInDemoUser(
 export async function POST(request: NextRequest) {
   return withRouteTiming("api/auth/demo/start", "POST", async () => {
     const cookiesToSet: CookieToSet[] = [];
-    let formData: FormData;
-
-    try {
-      formData = await request.formData();
-    } catch {
-      formData = new FormData();
-    }
-
-    const returnTo = safeReturnPath(formData.get("return_to"), "/demo");
+    const defaultReturnTo = "/demo";
 
     if (process.env.NODE_ENV === "production") {
       try {
+        // Der Demo-Start ist oeffentlich. In Production wird deshalb vor dem
+        // FormData-Parsing gedrosselt, damit grosse Bodies keine Arbeit erzeugen.
         await checkRateLimit(demoStartRateLimitKey(request), 30, 60_000);
       } catch (error) {
         const publicMessage = demoRateLimitPublicMessage(error);
@@ -125,11 +119,21 @@ export async function POST(request: NextRequest) {
 
         return redirectWithCookies(
           request,
-          `${returnTo}?error=${encodeMessage(publicMessage.message)}`,
+          `${defaultReturnTo}?error=${encodeMessage(publicMessage.message)}`,
           cookiesToSet
         );
       }
     }
+
+    let formData: FormData;
+
+    try {
+      formData = await request.formData();
+    } catch {
+      formData = new FormData();
+    }
+
+    const returnTo = safeReturnPath(formData.get("return_to"), defaultReturnTo);
 
     let demo: Awaited<ReturnType<typeof ensureDemoModeData>>;
     try {

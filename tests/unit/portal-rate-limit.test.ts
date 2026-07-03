@@ -124,4 +124,19 @@ describe("portal IP rate limiting", () => {
     expect(pdfRoute).toContain("status: 404");
     expect(pdfRoute).toContain("Portal-Datei ist nicht verfügbar. Bitte warte einen Moment");
   });
+
+  it("drosselt oeffentliche Kundenportal-Signaturen vor dem JSON-Parsing", () => {
+    const route = read("app/api/customer-portal/work-orders/sign/route.ts");
+
+    const ipLimitIndex = route.indexOf("await checkRateLimit(`portal-sign:ip:${clientIp}`, 25, 60_000)");
+    const jsonIndex = route.indexOf("await request.json()");
+    const tokenHashIndex = route.indexOf("const tokenHash = hashCustomerPortalToken(token)");
+    const tokenLimitIndex = route.indexOf("await checkRateLimit(`portal-sign:token:${tokenHash}`, 5, 60_000)");
+
+    expect(route).toContain("const clientIp = getClientIp(request.headers)");
+    expect(ipLimitIndex).toBeGreaterThanOrEqual(0);
+    expect(jsonIndex).toBeGreaterThan(ipLimitIndex);
+    expect(tokenLimitIndex).toBeGreaterThan(tokenHashIndex);
+    expect(route).toContain("safeErrorStatus(error)");
+  });
 });

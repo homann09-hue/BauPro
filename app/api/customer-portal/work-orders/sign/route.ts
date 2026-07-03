@@ -4,7 +4,7 @@ import {
   hashCustomerPortalToken,
   publicWorkOrderSnapshot
 } from "@/lib/customer-portal/tokens";
-import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
+import { SafeActionError, safeErrorMessage, safeErrorStatus } from "@/lib/security/errors";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { getClientIp } from "@/lib/security/origin";
 import { validateSignatureDataUrl } from "@/lib/signatures/signature";
@@ -50,6 +50,13 @@ function logBestEffort(label: string, result: PromiseSettledResult<{ error: unkn
 
 export async function POST(request: NextRequest) {
   try {
+    const clientIp = getClientIp(request.headers);
+
+    // Oeffentliche Signatur-Endpunkte muessen vor dem Body-Parsing gedrosselt werden.
+    // Sonst koennen grosse JSON-/Signatur-Payloads Server-Ressourcen verbrauchen,
+    // bevor die Anfrage ueberhaupt als Missbrauch erkannt wird.
+    await checkRateLimit(`portal-sign:ip:${clientIp}`, 25, 60_000);
+
     const payload = (await request.json()) as Record<string, unknown>;
     const token = requiredString(payload.token, "Portal-Link", 500);
     const workOrderId = requiredString(payload.workOrderId, "Arbeitsauftrag", 80);
@@ -64,10 +71,8 @@ export async function POST(request: NextRequest) {
     }
 
     const tokenHash = hashCustomerPortalToken(token);
-    const clientIp = getClientIp(request.headers);
 
-    // 2-stufiges Limit: Erst IP-basiert (Abwehr von Token-Scans), anschließend tokenbezogen.
-    await checkRateLimit(`portal-sign:ip:${clientIp}`, 25, 60_000);
+    // Zweite Stufe: tokenbezogenes Limit, sobald der Hash ohne Klartext-Token vorliegt.
     await checkRateLimit(`portal-sign:token:${tokenHash}`, 5, 60_000);
 
     const supabase = createScopedSupabaseAdminClient({
@@ -201,7 +206,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: safeErrorMessage(error, "Arbeitsauftrag konnte nicht verarbeitet werden.") },
-      { status: error instanceof SafeActionError ? 400 : 500 }
+      { status: safeErrorStatus(error) }
     );
   }
 }

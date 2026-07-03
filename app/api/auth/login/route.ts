@@ -82,6 +82,16 @@ function createAuthRouteClient(request: NextRequest, cookiesToSet: CookieToSet[]
 export async function POST(request: NextRequest) {
   return withRouteTiming("api/auth/login", "POST", async () => {
     const cookiesToSet: CookieToSet[] = [];
+    const clientIp = getClientIp(request.headers);
+
+    try {
+      // Der Login-Endpunkt ist oeffentlich. IP-basiertes Limit vor FormData-Parsing
+      // schuetzt gegen Request-Flooding mit grossen oder kaputten Bodies.
+      await checkRateLimit(`login-ip:${clientIp}`, LOGIN_IP_RATE_LIMIT, 60_000);
+    } catch {
+      return loginError(request, "Zu viele Login-Versuche. Bitte kurz warten.");
+    }
+
     let formData: FormData;
 
     try {
@@ -99,7 +109,6 @@ export async function POST(request: NextRequest) {
 
     try {
       await checkRateLimit(`login:${email}`, LOGIN_EMAIL_RATE_LIMIT, 60_000);
-      await checkRateLimit(`login-ip:${getClientIp(request.headers)}`, LOGIN_IP_RATE_LIMIT, 60_000);
     } catch {
       return loginError(request, "Zu viele Login-Versuche. Bitte kurz warten.");
     }
