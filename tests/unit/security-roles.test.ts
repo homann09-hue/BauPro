@@ -97,6 +97,32 @@ describe("role permissions", () => {
     expect(hasAppPermission("vorarbeiter", ["settings.edit"], "settings.edit")).toBe(false);
   });
 
+  it("blocks deactivated profiles before permissions or MFA are loaded", () => {
+    const auth = source("lib/auth.ts");
+    const activeGuardIndex = auth.indexOf("if (typedProfile.active === false)");
+    const permissionLoadIndex = auth.indexOf("const [permissionsResult, factorsResult]");
+    const contextReturnIndex = auth.indexOf("return {", activeGuardIndex);
+
+    expect(auth).toContain("active, companies");
+    expect(activeGuardIndex).toBeGreaterThan(-1);
+    expect(activeGuardIndex).toBeLessThan(permissionLoadIndex);
+    expect(activeGuardIndex).toBeLessThan(contextReturnIndex);
+  });
+
+  it("vermeidet alte Chef/Admin-Mischtexte in operativen App-Bereichen", () => {
+    const checkedFiles = [
+      "app/(app)/fahrzeuge/page.tsx",
+      "app/(app)/materials/catalog/page.tsx",
+      "app/(app)/materials/import/page.tsx",
+      "app/(app)/materials/locations/page.tsx",
+      "app/(app)/materials/low-stock/page.tsx"
+    ];
+
+    for (const file of checkedFiles) {
+      expect(source(file), file).not.toMatch(/Admin oder Chef|Chef\/Admin|Admin\/Chef/);
+    }
+  });
+
   it("documents platform-admin cross-company RLS without opening operative tenant data", () => {
     const migration = source("supabase/migrations/20260715_platform_system_admin.sql");
     const schema = source("supabase/schema.sql");

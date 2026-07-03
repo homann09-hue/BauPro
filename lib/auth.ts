@@ -130,6 +130,10 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
   }
 
   const typedProfile = profile as unknown as ProfileWithCompany;
+  if (typedProfile.active === false) {
+    return null;
+  }
+
   const company = typedProfile.companies;
   const companyName = company?.name ?? "Meine Firma";
   const sessionTimeoutMinutes = Number(company?.session_timeout_minutes ?? 30);
