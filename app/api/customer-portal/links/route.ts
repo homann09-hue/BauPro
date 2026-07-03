@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 import { getOptionalAppContext } from "@/lib/auth";
 import { createCustomerPortalToken, customerPortalExpiresAt, hashCustomerPortalToken } from "@/lib/customer-portal/tokens";
-import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
+import { SafeActionError, safeErrorMessage, safeErrorStatus } from "@/lib/security/errors";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: safeErrorMessage(error, "Kundenportal-Link konnte nicht erstellt werden.") },
-      { status: error instanceof SafeActionError ? 400 : 500 }
+      { status: safeErrorStatus(error) }
     );
   }
 }

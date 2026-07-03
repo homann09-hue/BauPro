@@ -49,4 +49,13 @@ describe("public endpoint hardening", () => {
     expect(healthRoute).toContain("Health-Check ist aktuell nicht verfügbar.");
     expect(healthRoute).not.toContain("safeErrorMessage(error");
   });
+
+  it("uses central safe error statuses for rate-limited JSON endpoints", () => {
+    for (const file of ["app/api/customer-portal/links/route.ts", "app/api/weather/suggest/route.ts"]) {
+      const apiRoute = source(file);
+
+      expect(apiRoute, file).toContain("safeErrorStatus");
+      expect(apiRoute, file).not.toContain("error instanceof SafeActionError ? 400 : 500");
+    }
+  });
 });

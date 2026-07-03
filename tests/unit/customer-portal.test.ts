@@ -121,6 +121,20 @@ describe("customer portal security", () => {
     expect(portalPage).toContain("Portal-Link ist abgelaufen oder ungültig");
   });
 
+  it("keeps freshly generated portal tokens out of internal order URLs", () => {
+    const linkForm = fs.readFileSync(path.join(root, "components/customer-portal/customer-portal-link-form.tsx"), "utf8");
+    const portalActions = fs.readFileSync(path.join(root, "lib/actions/customer-portal-actions.ts"), "utf8");
+    const orderPage = fs.readFileSync(path.join(root, "app/(app)/orders/[id]/page.tsx"), "utf8");
+
+    expect(linkForm).not.toContain("portal_token");
+    expect(linkForm).toContain("fresh-portal-link");
+    expect(linkForm).toContain("Der Link wird bewusst nicht in der Adresszeile gespeichert");
+    expect(portalActions).not.toContain('params.set("portal_token"');
+    expect(portalActions).not.toContain("customerPortalUrl(await requestOrigin()");
+    expect(orderPage).not.toContain("resolvedSearchParams?.portal_token");
+    expect(orderPage).not.toContain("createdPortalToken");
+  });
+
   it("checks affected rows for portal revocation, sending, signing and photo releases", () => {
     const portalActions = fs.readFileSync(path.join(root, "lib/actions/customer-portal-actions.ts"), "utf8");
     const portalPage = fs.readFileSync(path.join(root, "app/portal/[token]/page.tsx"), "utf8");

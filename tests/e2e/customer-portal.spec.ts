@@ -34,9 +34,8 @@ test("Kundenportal-Link wird erzeugt, Kunde unterschreibt Arbeitsauftrag und ung
   await page.getByRole("button", { name: "Link erzeugen" }).click();
   await expect(page.getByText("Neuer Kundenlink, nur jetzt voll sichtbar")).toBeVisible({ timeout: E2E_NAVIGATION_TIMEOUT });
 
-  const portalToken = new URL(page.url()).searchParams.get("portal_token");
-  expect(portalToken).toBeTruthy();
-  const portalUrl = `${BASE_URL}/portal/${encodeURIComponent(portalToken ?? "")}`;
+  expect(new URL(page.url()).searchParams.get("portal_token")).toBeNull();
+  const portalUrl = await page.getByTestId("fresh-portal-link").getByLabel("Neuer Kundenportal-Link").inputValue();
   expect(portalUrl).toContain("/portal/");
 
   const portalContext = await browser.newContext({ baseURL: BASE_URL });

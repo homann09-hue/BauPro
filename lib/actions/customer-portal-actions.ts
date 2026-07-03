@@ -8,7 +8,6 @@ import {
   contentHash,
   createCustomerPortalToken,
   customerPortalExpiresAt,
-  customerPortalUrl,
   hashCustomerPortalToken,
   publicWorkOrderSnapshot
 } from "@/lib/customer-portal/tokens";
@@ -20,7 +19,6 @@ import {
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { optionalFormString, requiredFormString, requiredFormUuid } from "@/lib/security/form-data";
 import { logServerWarning } from "@/lib/security/logging";
-import { publicAppOrigin } from "@/lib/security/origin";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { sanitizeUploadFileName, validateCustomerDocument } from "@/lib/security/uploads";
 import { validateSignatureDataUrl } from "@/lib/signatures/signature";
@@ -28,11 +26,10 @@ import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { CustomerPortalEventType, CustomerPortalToken, Order, Report, ReportPhoto, WorkOrder } from "@/types/app";
 
-function redirectBack(path: string, message: { success?: string; error?: string; portalToken?: string }) {
+function redirectBack(path: string, message: { success?: string; error?: string }) {
   const params = new URLSearchParams();
   if (message.success) params.set("success", message.success);
   if (message.error) params.set("error", message.error);
-  if (message.portalToken) params.set("portal_token", message.portalToken);
   redirect(`${path}?${params.toString()}`);
 }
 
@@ -66,16 +63,6 @@ function boundedEmail(value: string | null) {
   if (!email) return null;
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new SafeActionError("Bitte eine gueltige E-Mail-Adresse angeben.");
   return email;
-}
-
-async function requestOrigin() {
-  const headerStore = await headers();
-  const origin = publicAppOrigin(headerStore.get("origin"));
-  if (!origin) {
-    throw new SafeActionError("Kundenportal-Link konnte nicht erstellt werden: App-URL fehlt.");
-  }
-
-  return origin;
 }
 
 async function audit({
@@ -131,7 +118,7 @@ async function loadManagedOrder(orderId: string) {
 export async function createCustomerPortalLinkAction(formData: FormData) {
   const orderId = requiredFormUuid(formData, "order_id", "Auftrag");
   const backPath = `/orders/${orderId}`;
-  let result: { success?: string; error?: string; portalToken?: string };
+  let result: { success?: string; error?: string };
 
   try {
     const { context, supabase, order } = await loadManagedOrder(orderId);
@@ -179,8 +166,7 @@ export async function createCustomerPortalLinkAction(formData: FormData) {
 
     revalidatePath(backPath);
     result = {
-      success: `Kundenlink erstellt: ${customerPortalUrl(await requestOrigin(), token)}`,
-      portalToken: token
+      success: "Kundenlink wurde erstellt. Aus Sicherheitsgruenden wird der volle Link nicht in der Adresszeile gespeichert."
     };
   } catch (error) {
     result = { error: safeErrorMessage(error, "Kundenportal-Link konnte nicht erstellt werden.") };

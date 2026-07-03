@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { headers } from "next/headers";
 import {
   BriefcaseBusiness,
   Calculator,
-  ExternalLink,
   FileDown,
   FileSignature,
   FileText,
@@ -38,12 +36,10 @@ import {
   updateOrderStatusAction
 } from "@/lib/actions/order-actions";
 import { requireAppContext } from "@/lib/auth";
-import { customerPortalUrl } from "@/lib/customer-portal/tokens";
 import { orderMeasurementItemSelect } from "@/lib/data/selects";
 import { formatQuantity } from "@/lib/inventory";
 import { customerDisplayName, orderPriorityLabels, orderStatusLabels, orderTypeLabels } from "@/lib/order-labels";
 import { aggregateMeasurementItems, orderMeasurementItemTypeLabels } from "@/lib/order-measurements";
-import { publicAppOrigin } from "@/lib/security/origin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, formatDateTime, formatMoney, searchParamMessage } from "@/lib/utils";
 import type {
@@ -539,8 +535,6 @@ function CustomerPortalPanel({
   portalMessages,
   customerDocuments,
   workOrders,
-  origin,
-  createdPortalToken,
   nowIso
 }: {
   order: Order;
@@ -549,11 +543,8 @@ function CustomerPortalPanel({
   portalMessages: CustomerPortalMessage[];
   customerDocuments: CustomerDocument[];
   workOrders: WorkOrderListItem[];
-  origin: string;
-  createdPortalToken: string | null;
   nowIso: string;
 }) {
-  const freshLink = createdPortalToken ? customerPortalUrl(origin, createdPortalToken) : null;
   const nowTime = new Date(nowIso).getTime();
 
   return (
@@ -569,19 +560,6 @@ function CustomerPortalPanel({
         </div>
         <CustomerPortalLinkForm orderId={order.id} defaultLabel={`Portal ${order.order_number}`} />
       </div>
-
-      {freshLink ? (
-        <div className="mb-4 rounded-lg border border-primary/20 bg-mint p-3">
-          <p className="text-sm font-black text-ink">Neuer Kundenlink, nur jetzt voll sichtbar</p>
-          <div className="mt-2 grid gap-2 lg:grid-cols-[1fr_auto]">
-            <input className="field-input bg-white" readOnly value={freshLink} />
-            <a href={freshLink} target="_blank" rel="noreferrer" className="btn-secondary">
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              Öffnen
-            </a>
-          </div>
-        </div>
-      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="rounded-lg border border-line bg-white p-4">
@@ -813,7 +791,6 @@ export default async function OrderDetailPage({
   const { id } = await params;
   const resolvedSearchParams = await searchParams;
   const { error, success } = searchParamMessage(resolvedSearchParams);
-  const createdPortalToken = typeof resolvedSearchParams?.portal_token === "string" ? resolvedSearchParams.portal_token : null;
   const materialSource = context.canManage ? "job_material_requirements" : "job_material_requirements_public";
   const orderSelect =
     "id, company_id, customer_id, jobsite_id, order_number, title, order_type, status, priority, jobsite_address, start_date, end_date, description, internal_notes, assigned_employee_ids, has_dimensions, created_by, created_at, updated_at, customers(id, company, first_name, last_name, contact_person, phone, email), jobsites(id, name, address, customer)";
@@ -875,11 +852,8 @@ export default async function OrderDetailPage({
   let portalMessages: CustomerPortalMessage[] = [];
   let customerDocuments: CustomerDocument[] = [];
   let workOrders: WorkOrderListItem[] = [];
-  let portalOrigin = "";
 
   if (context.canManage) {
-    const headerStore = await headers();
-    portalOrigin = publicAppOrigin(headerStore.get("origin")) || "";
     let tokenQuery = supabase
       .from("customer_portal_tokens")
       .select("id, company_id, customer_id, jobsite_id, label, expires_at, revoked_at, created_by, created_at, last_used_at")
@@ -1025,8 +999,6 @@ export default async function OrderDetailPage({
           portalMessages={portalMessages}
           customerDocuments={customerDocuments}
           workOrders={workOrders}
-          origin={portalOrigin}
-          createdPortalToken={createdPortalToken}
           nowIso={new Date().toISOString()}
         />
       ) : null}
