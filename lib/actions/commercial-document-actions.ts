@@ -172,7 +172,6 @@ export async function createCommercialDocumentFromOrderAction(formData: FormData
       if (error) throw new SafeActionError("Dokument wurde angelegt, aber die Pauschalposition konnte nicht erstellt werden.");
     }
 
-    await supabase.rpc("recalculate_commercial_document_totals", { p_document_id: document.id });
     if (type === "quote") {
       await supabase.from("orders").update({ status: "angebot" }).eq("id", order.id).eq("company_id", context.companyId);
     }

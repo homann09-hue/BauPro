@@ -132,6 +132,7 @@ supabase/migrations/20260719_delivery_note_original_price_hardening.sql
 supabase/migrations/20260720_public_view_security_invoker.sql
 supabase/migrations/20260721_internal_invoice_rpc_hardening.sql
 supabase/migrations/20260722_internal_invoice_rpc_explicit_role_revoke.sql
+supabase/migrations/20260723_commercial_document_rpc_hardening.sql
 ```
 
 `20260615_material_alerts_repair.sql` bleibt idempotent, damit aeltere Testdatenbanken mit fehlender Mitbringlisten-Kette repariert werden koennen. Fuer neue Projekte ist der vollstaendige Stand bereits in `supabase/schema.sql` enthalten.
@@ -559,6 +560,7 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 - `supabase/migrations/20260720_public_view_security_invoker.sql`: Delta setzt preisbereinigte Public-Views auf `security_invoker`, damit Basistabellen-RLS nicht durch View-Ausfuehrung umgangen wird
 - `supabase/migrations/20260721_internal_invoice_rpc_hardening.sql`: Delta entfernt direkte RPC-Ausfuehrung interner Invoice-Helfer; erlaubt bleiben nur die geprueften Beleg-Wrapper
 - `supabase/migrations/20260722_internal_invoice_rpc_explicit_role_revoke.sql`: Delta entzieht explizite RPC-Ausfuehrung fuer `anon` und `authenticated`, falls aeltere Grants bereits existierten
+- `supabase/migrations/20260723_commercial_document_rpc_hardening.sql`: Delta entzieht direkte RPC-Ausfuehrung fuer interne Angebot-/Rechnung-Summenberechnung; die Berechnung laeuft ueber Trigger
 - `supabase/material-catalog-seed.sql`: praxisnaher Dachdecker-Materialkatalog
 - `scripts/seed-demo-company.mjs`: realistische Demo-Firma fuer Verkauf, QA und Produktdemos
 - `tests/`: Unit-, Integration- und E2E-Smoke-Tests

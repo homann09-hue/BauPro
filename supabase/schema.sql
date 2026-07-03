@@ -3551,7 +3551,9 @@ create trigger recalculate_commercial_document_totals_on_items
 after insert or update or delete on public.commercial_document_items
 for each row execute function public.recalculate_commercial_document_totals_trigger();
 
-grant execute on function public.recalculate_commercial_document_totals(uuid) to authenticated;
+revoke all on function public.recalculate_commercial_document_totals(uuid) from public;
+revoke all on function public.recalculate_commercial_document_totals(uuid) from anon;
+revoke all on function public.recalculate_commercial_document_totals(uuid) from authenticated;
 
 select pg_notify('pgrst', 'reload schema');
 

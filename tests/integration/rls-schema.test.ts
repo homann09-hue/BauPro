@@ -66,6 +66,10 @@ const internalInvoiceRpcExplicitRoleRevokeMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260722_internal_invoice_rpc_explicit_role_revoke.sql"),
   "utf8"
 );
+const commercialDocumentRpcHardeningMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260723_commercial_document_rpc_hardening.sql"),
+  "utf8"
+);
 const aiRoofMaterialCalculationMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260703_ai_roof_material_calculation.sql"),
   "utf8"
@@ -560,5 +564,17 @@ describe("Supabase RLS and security schema", () => {
 
     expect(schema).toContain("grant execute on function public.create_invoice_with_items");
     expect(schema).toContain("grant execute on function public.update_invoice_with_items");
+  });
+
+  it("keeps commercial document total recalculation behind table triggers", () => {
+    for (const roleName of ["public", "anon", "authenticated"]) {
+      expect(schema).toContain(`revoke all on function public.recalculate_commercial_document_totals(uuid) from ${roleName}`);
+      expect(commercialDocumentRpcHardeningMigration).toContain(
+        `revoke all on function public.recalculate_commercial_document_totals(uuid) from ${roleName}`
+      );
+    }
+
+    expect(schema).not.toContain("grant execute on function public.recalculate_commercial_document_totals(uuid) to authenticated");
+    expect(schema).toContain("create trigger recalculate_commercial_document_totals_on_items");
   });
 });

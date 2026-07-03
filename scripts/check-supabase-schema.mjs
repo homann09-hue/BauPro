@@ -49,6 +49,10 @@ const internalInvoiceRpcExplicitRoleRevoke = fs.readFileSync(
   path.join(root, "supabase/migrations/20260722_internal_invoice_rpc_explicit_role_revoke.sql"),
   "utf8"
 );
+const commercialDocumentRpcHardening = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260723_commercial_document_rpc_hardening.sql"),
+  "utf8"
+);
 
 const failures = [];
 
@@ -249,6 +253,21 @@ for (const signature of ["generate_invoice_number(uuid, text)", "recalculate_inv
   }
   check(!schema.includes(`grant execute on function public.${signature} to authenticated`), `${signature} must not be granted directly to authenticated.`);
 }
+
+for (const roleName of ["public", "anon", "authenticated"]) {
+  check(
+    schema.includes(`revoke all on function public.recalculate_commercial_document_totals(uuid) from ${roleName}`),
+    `recalculate_commercial_document_totals must not be directly executable by ${roleName}.`
+  );
+  check(
+    commercialDocumentRpcHardening.includes(`revoke all on function public.recalculate_commercial_document_totals(uuid) from ${roleName}`),
+    `commercial document RPC hardening migration must revoke ${roleName} execute on recalculate_commercial_document_totals.`
+  );
+}
+check(
+  !schema.includes("grant execute on function public.recalculate_commercial_document_totals(uuid) to authenticated"),
+  "recalculate_commercial_document_totals must not be granted directly to authenticated."
+);
 
 check(schema.includes("archived_at timestamptz"), "reports must support archived_at for soft deletion.");
 check(reportArchiveHardening.includes("alter table public.reports add column if not exists archived_at timestamptz"), "report archive migration must add archived_at.");

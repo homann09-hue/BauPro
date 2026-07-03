@@ -49,6 +49,16 @@ describe("RedTeam hardening guards", () => {
     expect(route).not.toContain('query = query.eq("created_by", userId)');
   });
 
+  it("does not call internal commercial document recalculation over public RPC", () => {
+    const actions = source("lib/actions/commercial-document-actions.ts");
+    const schema = source("supabase/schema.sql");
+
+    expect(actions).not.toContain('rpc("recalculate_commercial_document_totals"');
+    expect(schema).not.toContain("grant execute on function public.recalculate_commercial_document_totals(uuid) to authenticated");
+    expect(schema).toContain("revoke all on function public.recalculate_commercial_document_totals(uuid) from authenticated");
+    expect(schema).toContain("create trigger recalculate_commercial_document_totals_on_items");
+  });
+
   it("limits CSV imports and sanitizes PostgREST ilike search patterns", () => {
     const supplierActions = source("lib/actions/supplier-actions.ts");
     const germanText = source("lib/text/german.ts");
