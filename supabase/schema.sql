@@ -2138,7 +2138,9 @@ on public.job_material_requirements for delete
 to authenticated
 using (company_id = public.current_company_id() and public.can_manage_company());
 
-create or replace view public.orders_public as
+create or replace view public.orders_public
+with (security_invoker = true)
+as
 select
   o.id,
   o.company_id,
@@ -2172,7 +2174,9 @@ where o.company_id = public.current_company_id()
 
 grant select on public.orders_public to authenticated;
 
-create or replace view public.inventory_items_public as
+create or replace view public.inventory_items_public
+with (security_invoker = true)
+as
 select
   i.id,
   i.company_id,
@@ -2202,7 +2206,9 @@ where i.company_id = public.current_company_id();
 
 grant select on public.inventory_items_public to authenticated;
 
-create or replace view public.job_material_calculation_items_public as
+create or replace view public.job_material_calculation_items_public
+with (security_invoker = true)
+as
 select
   item.id,
   item.company_id,
@@ -2236,7 +2242,9 @@ where item.company_id = public.current_company_id()
 
 grant select on public.job_material_calculation_items_public to authenticated;
 
-create or replace view public.job_material_requirements_public as
+create or replace view public.job_material_requirements_public
+with (security_invoker = true)
+as
 select
   item.id,
   item.company_id,
@@ -3207,7 +3215,9 @@ create index if not exists job_dimensions_archived_idx on public.job_dimensions(
 create index if not exists job_material_requirements_archived_idx on public.job_material_requirements(company_id, archived_at, order_id);
 create index if not exists vehicle_materials_archived_idx on public.vehicle_materials(company_id, archived_at, vehicle_id);
 
-create or replace view public.job_material_requirements_public as
+create or replace view public.job_material_requirements_public
+with (security_invoker = true)
+as
 select
   item.id,
   item.company_id,

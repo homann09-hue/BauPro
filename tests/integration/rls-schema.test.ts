@@ -54,6 +54,10 @@ const deliveryNoteOriginalPriceHardeningMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260719_delivery_note_original_price_hardening.sql"),
   "utf8"
 );
+const publicViewSecurityInvokerMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260720_public_view_security_invoker.sql"),
+  "utf8"
+);
 const aiRoofMaterialCalculationMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260703_ai_roof_material_calculation.sql"),
   "utf8"
@@ -110,7 +114,8 @@ describe("Supabase RLS and security schema", () => {
   });
 
   it("keeps employee inventory reads price-free", () => {
-    const publicInventoryView = block("create or replace view public.inventory_items_public as", "grant select on public.inventory_items_public");
+    const publicInventoryView = block("create or replace view public.inventory_items_public", "grant select on public.inventory_items_public");
+    expect(publicInventoryView).toContain("with (security_invoker = true)");
     expect(publicInventoryView).toContain("where i.company_id = public.current_company_id()");
     expect(publicInventoryView).not.toMatch(/\b(purchase_price|sales_price|markup_percent|price_per_unit|price_net|price_gross)\b/);
     expect(schema).toContain('drop policy if exists "read own company inventory items"');
@@ -510,12 +515,26 @@ describe("Supabase RLS and security schema", () => {
     expect(aiRoofMaterialCalculationMigration).toContain("steildach_schornsteinanschluss");
 
     const publicCalculationView = block(
-      "create or replace view public.job_material_calculation_items_public as",
+      "create or replace view public.job_material_calculation_items_public",
       "grant select on public.job_material_calculation_items_public"
     );
+    expect(publicCalculationView).toContain("with (security_invoker = true)");
     expect(publicCalculationView).toContain("missing_quantity");
     expect(publicCalculationView).toContain("source");
     expect(publicCalculationView).toContain("ai_reason");
     expect(publicCalculationView).not.toMatch(/\b(purchase_price|sales_price|purchase_total|sales_total|margin_total)\b/);
+  });
+
+  it("marks all price-sanitized public views as security invoker", () => {
+    for (const viewName of [
+      "orders_public",
+      "inventory_items_public",
+      "job_material_calculation_items_public",
+      "job_material_requirements_public"
+    ]) {
+      const publicView = block(`create or replace view public.${viewName}`, `grant select on public.${viewName}`);
+      expect(publicView).toContain("with (security_invoker = true)");
+      expect(publicViewSecurityInvokerMigration).toContain(`alter view if exists public.${viewName} set (security_invoker = true)`);
+    }
   });
 });

@@ -37,6 +37,10 @@ const authSignupMetadataHardening = fs.readFileSync(
   path.join(root, "supabase/migrations/20260717_auth_signup_metadata_hardening.sql"),
   "utf8"
 );
+const publicViewSecurityInvoker = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260720_public_view_security_invoker.sql"),
+  "utf8"
+);
 
 const failures = [];
 
@@ -52,9 +56,15 @@ function block(source, start, end) {
 
 const inventoryPublicView = block(
   schema,
-  "create or replace view public.inventory_items_public as",
+  "create or replace view public.inventory_items_public",
   "grant select on public.inventory_items_public"
 );
+const publicViewNames = [
+  "orders_public",
+  "inventory_items_public",
+  "job_material_calculation_items_public",
+  "job_material_requirements_public"
+];
 
 check(schema.includes("force row level security"), "schema.sql must force RLS on public tables.");
 check(hardening.includes("force row level security"), "redteam migration must force RLS.");
@@ -70,6 +80,14 @@ check(
     schema.includes("force row level security"),
   "schema.sql must include the final privacy/security hardening block."
 );
+for (const viewName of publicViewNames) {
+  const viewBlock = block(schema, `create or replace view public.${viewName}`, `grant select on public.${viewName}`);
+  check(viewBlock.includes("with (security_invoker = true)"), `${viewName} must use security_invoker=true.`);
+  check(
+    publicViewSecurityInvoker.includes(`alter view if exists public.${viewName} set (security_invoker = true)`),
+    `public view hardening migration must set security_invoker=true on ${viewName}.`
+  );
+}
 check(schema.includes("redteam managers select fallback"), "schema.sql must include tenant manager CRUD fallback policies.");
 check(hardening.includes("redteam managers delete fallback"), "redteam migration must include tenant delete fallback policies.");
 check(
