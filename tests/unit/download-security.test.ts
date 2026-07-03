@@ -61,4 +61,56 @@ describe("download security", () => {
       expect(source, file).not.toContain("inline; filename=");
     }
   });
+
+  it("rate limits sensitive authenticated downloads and exports per tenant, user and IP", () => {
+    const protectedRoutes = [
+      {
+        file: "app/(app)/baustellen/[id]/documents/[documentId]/route.ts",
+        keyPrefix: "jobsite-document:"
+      },
+      {
+        file: "app/(app)/fahrzeuge/documents/[documentId]/route.ts",
+        keyPrefix: "resource-document:"
+      },
+      {
+        file: "app/(app)/time-tracking/reports/[id]/csv/route.ts",
+        keyPrefix: "time-report-csv:"
+      },
+      {
+        file: "app/(app)/time-tracking/daily/export/route.ts",
+        keyPrefix: "daily-time-export:"
+      },
+      {
+        file: "app/(app)/angebote-rechnungen/[id]/datev/route.ts",
+        keyPrefix: "commercial-document-datev:"
+      },
+      {
+        file: "app/(app)/angebote-rechnungen/[id]/xrechnung/route.ts",
+        keyPrefix: "commercial-document-xrechnung:"
+      }
+    ];
+
+    for (const route of protectedRoutes) {
+      const source = fs.readFileSync(path.join(root, route.file), "utf8");
+      expect(source, route.file).toContain("checkRateLimit(");
+      expect(source, route.file).toContain(route.keyPrefix);
+      expect(source, route.file).toContain("${context.companyId}:${context.userId}:");
+      expect(source, route.file).toContain("getClientIp(request.headers)");
+    }
+  });
+
+  it("returns safe responses instead of raw rate-limit or provider errors in export routes", () => {
+    for (const file of [
+      "app/(app)/baustellen/[id]/documents/[documentId]/route.ts",
+      "app/(app)/fahrzeuge/documents/[documentId]/route.ts",
+      "app/(app)/time-tracking/reports/[id]/csv/route.ts",
+      "app/(app)/time-tracking/daily/export/route.ts",
+      "app/(app)/angebote-rechnungen/[id]/datev/route.ts",
+      "app/(app)/angebote-rechnungen/[id]/xrechnung/route.ts"
+    ]) {
+      const source = fs.readFileSync(path.join(root, file), "utf8");
+      expect(source, file).toContain("safeErrorMessage(error");
+      expect(source, file).toContain("safeErrorStatus(error)");
+    }
+  });
 });
