@@ -112,10 +112,9 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
       profile = retryResult.data;
       error = retryResult.error;
     } catch (bootstrapError) {
-      logServerWarning("auth-context-bootstrap-failed", {
+      logServerWarning("auth-context-bootstrap-failed", bootstrapError, {
         route: "auth",
-        action: "bootstrap_my_profile",
-        errorMessage: bootstrapError instanceof Error ? bootstrapError.message : "bootstrap-failed"
+        action: "bootstrap_my_profile"
       });
     }
   }
@@ -178,7 +177,7 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
     const factors = factorsResult.value as unknown as { data?: MfaFactorListLike };
     mfaEnabled = hasVerifiedTotpFactor(factors.data);
   } else if (shouldLoadMfa) {
-    logServerWarning("auth-context-mfa-timeout", {
+    logServerWarning("auth-context-mfa-timeout", factorsResult.status === "fulfilled" ? factorsResult.value.error : "mfa-list-factors-rejected", {
       route: "auth",
       action: "auth.mfa.listFactors"
     });

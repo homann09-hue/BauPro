@@ -228,10 +228,9 @@ export async function POST(request: NextRequest) {
     });
 
     if (bootstrapResult?.error && String(bootstrapResult.error.message).includes("Bootstrap Timeout")) {
-      logServerWarning("demo-start-bootstrap-timeout", {
+      logServerWarning("demo-start-bootstrap-timeout", bootstrapResult.error, {
         route: "api/auth/demo/start",
-        action: "auth.bootstrap_my_profile",
-        message: bootstrapResult.error.message
+        action: "auth.bootstrap_my_profile"
       });
     }
 
