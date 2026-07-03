@@ -28,15 +28,26 @@ function positiveDays(value: unknown) {
   return Math.min(Math.max(Math.floor(parsed), 1), 180);
 }
 
+function json(payload: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(payload, {
+    ...init,
+    headers: {
+      "Cache-Control": "no-store, max-age=0",
+      "X-Content-Type-Options": "nosniff",
+      ...(init?.headers ?? {})
+    }
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const context = await getOptionalAppContext();
     if (!context) {
-      return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
+      return json({ error: "Nicht angemeldet." }, { status: 401 });
     }
 
     if (!context.canManage) {
-      return NextResponse.json({ error: "Keine Berechtigung." }, { status: 403 });
+      return json({ error: "Keine Berechtigung." }, { status: 403 });
     }
 
     await checkRateLimit(`customer-portal-link:${context.companyId}:${context.userId}`, 10, 60_000);
@@ -103,9 +114,9 @@ export async function POST(request: NextRequest) {
     }
 
     revalidatePath(`/orders/${orderId}`);
-    return NextResponse.json({ success: "Kundenportal-Link wurde erstellt.", portalToken: token });
+    return json({ success: "Kundenportal-Link wurde erstellt.", portalToken: token });
   } catch (error) {
-    return NextResponse.json(
+    return json(
       { error: safeErrorMessage(error, "Kundenportal-Link konnte nicht erstellt werden.") },
       { status: safeErrorStatus(error) }
     );

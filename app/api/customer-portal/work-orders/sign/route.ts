@@ -48,6 +48,17 @@ function logBestEffort(label: string, result: PromiseSettledResult<{ error: unkn
   }
 }
 
+function json(payload: Record<string, unknown>, init?: ResponseInit) {
+  return NextResponse.json(payload, {
+    ...init,
+    headers: {
+      "Cache-Control": "no-store, max-age=0",
+      "X-Content-Type-Options": "nosniff",
+      ...(init?.headers ?? {})
+    }
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const clientIp = getClientIp(request.headers);
@@ -200,11 +211,11 @@ export async function POST(request: NextRequest) {
     logBestEffort("das Kundenportal-Event", eventResult);
     logBestEffort("der Audit-Log", auditResult);
 
-    return NextResponse.json({
+    return json({
       success: status === "signed" ? "Arbeitsauftrag wurde unterschrieben." : "Rückmeldung wurde gespeichert."
     });
   } catch (error) {
-    return NextResponse.json(
+    return json(
       { error: safeErrorMessage(error, "Arbeitsauftrag konnte nicht verarbeitet werden.") },
       { status: safeErrorStatus(error) }
     );

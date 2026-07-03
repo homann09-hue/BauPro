@@ -58,4 +58,15 @@ describe("public endpoint hardening", () => {
       expect(apiRoute, file).not.toContain("error instanceof SafeActionError ? 400 : 500");
     }
   });
+
+  it("marks token-bearing and public signature JSON responses as non-cacheable", () => {
+    for (const file of ["app/api/customer-portal/links/route.ts", "app/api/customer-portal/work-orders/sign/route.ts"]) {
+      const apiRoute = source(file);
+
+      expect(apiRoute, file).toContain('"Cache-Control": "no-store, max-age=0"');
+      expect(apiRoute, file).toContain('"X-Content-Type-Options": "nosniff"');
+      expect(apiRoute, file).toContain("function json(");
+      expect(apiRoute, file).not.toContain("return NextResponse.json({ success:");
+    }
+  });
 });
