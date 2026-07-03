@@ -22,7 +22,7 @@ const requestTypeLabels: Record<string, string> = {
   access: "Auskunft",
   rectification: "Berichtigung",
   erasure: "Löschung/Anonymisierung",
-  restriction: "Einschraenkung",
+  restriction: "Einschränkung",
   portability: "Datenübertragbarkeit",
   objection: "Widerspruch",
   contract_end_export: "Firmenexport Vertragsende"
@@ -75,7 +75,7 @@ export default async function PrivacyPage({
             <a href="/privacy/export" className="btn-primary">
               Eigene Daten exportieren
             </a>
-            {context.canManage ? (
+            {context.isAdmin ? (
               <a href="/privacy/company-export" className="btn-secondary">
                 Firmendaten exportieren
               </a>
@@ -124,7 +124,7 @@ export default async function PrivacyPage({
             <li>Fotos nur zweckbezogen hochladen; private Inhalte vermeiden.</li>
             <li>Preis- und Margendaten bleiben für Mitarbeiter verborgen.</li>
             <li>Eigene Datenexporte enthalten keine EK-, VK-, Margen- oder Preisvergleichsdaten.</li>
-            <li>Der Firmenexport trennt operative Daten von eingeschränkten Chef-Finanzdaten.</li>
+            <li>Der Firmenexport ist Systemadministratoren vorbehalten und trennt operative Daten von eingeschränkten Finanzdaten.</li>
             <li>Löschung läuft als geprüfter Prozess: archivieren, Aufbewahrung prüfen, dann anonymisieren oder löschen.</li>
           </ul>
         </aside>
