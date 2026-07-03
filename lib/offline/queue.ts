@@ -4,6 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { del, get, set } from "idb-keyval";
 
 const QUEUE_KEY = "baupro:offline-actions";
+const OFFLINE_QUEUE_TTL_MS = 72 * 60 * 60 * 1000;
+const MAX_QUEUE_ITEMS = 20;
+const MAX_FILE_BYTES = 6 * 1024 * 1024;
+const SENSITIVE_FIELD_NAME_PATTERN = /(password|passwort|secret|token|api[_-]?key|signature|unterschrift)/i;
 
 type SerializedTextEntry = {
   name: string;
@@ -60,6 +64,8 @@ async function serializeFormData(formData: FormData) {
   const rows: SerializedEntry[] = [];
 
   for (const [name, value] of Array.from(formData.entries())) {
+    if (SENSITIVE_FIELD_NAME_PATTERN.test(name)) continue;
+
     if (typeof value === "string") {
       rows.push({
         name,
@@ -70,6 +76,8 @@ async function serializeFormData(formData: FormData) {
     }
 
     const arrayBuffer = await value.arrayBuffer();
+    if (arrayBuffer.byteLength > MAX_FILE_BYTES) continue;
+
     rows.push({
       name,
       kind: "file",
@@ -89,7 +97,18 @@ function restoreFileEntry(entry: SerializedFileEntry) {
 }
 
 async function readQueue() {
-  return (await get<QueuedOfflineAction[]>(QUEUE_KEY)) ?? [];
+  const queue = (await get<QueuedOfflineAction[]>(QUEUE_KEY)) ?? [];
+  const now = Date.now();
+  const freshQueue = queue.filter((item) => {
+    const createdAtMs = Date.parse(item.createdAt);
+    return Number.isFinite(createdAtMs) && now - createdAtMs <= OFFLINE_QUEUE_TTL_MS;
+  });
+
+  if (freshQueue.length !== queue.length) {
+    await writeQueue(freshQueue);
+  }
+
+  return freshQueue;
 }
 
 async function writeQueue(queue: QueuedOfflineAction[]) {
@@ -102,7 +121,15 @@ async function writeQueue(queue: QueuedOfflineAction[]) {
 }
 
 function actionEndpoint(actionName: string) {
-  if (/^https?:\/\//i.test(actionName)) return actionName;
+  if (/^https?:\/\//i.test(actionName)) {
+    if (typeof window === "undefined") throw new Error("Offline-Ziel muss relativ sein.");
+
+    const url = new URL(actionName);
+    if (url.origin !== window.location.origin) throw new Error("Offline-Ziel muss zur BauPro-App gehören.");
+    return `${url.pathname}${url.search}`;
+  }
+
+  if (actionName.startsWith("//")) throw new Error("Offline-Ziel muss relativ sein.");
   if (actionName.startsWith("/")) return actionName;
   return `/api/offline/${encodeURIComponent(actionName)}`;
 }
@@ -155,17 +182,23 @@ function restoreFormData(entries: SerializedEntry[]) {
 
 export async function queueAction(actionName: string, formData: FormData) {
   const queue = await readQueue();
+  const safeActionName = actionEndpoint(actionName);
   const entries = await serializeFormData(formData);
+
+  if (entries.length === 0) {
+    throw new Error("Keine offline speicherbaren Formulardaten vorhanden.");
+  }
 
   queue.push({
     id: crypto.randomUUID(),
-    actionName,
+    actionName: safeActionName,
     entries,
     createdAt: new Date().toISOString()
   });
 
-  await writeQueue(queue);
-  window.dispatchEvent(new CustomEvent("baupro-offline-queue-changed", { detail: { count: queue.length } }));
+  const boundedQueue = queue.slice(-MAX_QUEUE_ITEMS);
+  await writeQueue(boundedQueue);
+  window.dispatchEvent(new CustomEvent("baupro-offline-queue-changed", { detail: { count: boundedQueue.length } }));
 }
 
 export async function flushQueue() {

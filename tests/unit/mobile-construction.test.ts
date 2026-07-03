@@ -81,11 +81,25 @@ describe("mobile construction workflows", () => {
     const reportForm = source("components/forms/report-form.tsx");
     const materialPage = source("app/(app)/material-melden/page.tsx");
 
+    expect(draftAutosave).toContain("DRAFT_TTL_MS");
+    expect(draftAutosave).toContain("SENSITIVE_FIELD_NAME_PATTERN");
     expect(draftAutosave).toContain('"file", "password", "hidden"');
     expect(draftAutosave).toContain("localStorage.setItem");
     expect(timeForm).toContain("baupro:time-entry");
     expect(reportForm).toContain("baupro:report");
     expect(materialPage).toContain("baupro:material-report");
+  });
+
+  it("keeps offline queue bounded and same-origin only", () => {
+    const offlineQueue = source("lib/offline/queue.ts");
+
+    expect(offlineQueue).toContain("OFFLINE_QUEUE_TTL_MS");
+    expect(offlineQueue).toContain("MAX_QUEUE_ITEMS");
+    expect(offlineQueue).toContain("MAX_FILE_BYTES");
+    expect(offlineQueue).toContain("SENSITIVE_FIELD_NAME_PATTERN");
+    expect(offlineQueue).toContain("url.origin !== window.location.origin");
+    expect(offlineQueue).toContain("actionName.startsWith(\"//\")");
+    expect(offlineQueue).toContain("queue.slice(-MAX_QUEUE_ITEMS)");
   });
 
   it("keeps bring-list voice flow free of price fields and still runs stock alerts", () => {

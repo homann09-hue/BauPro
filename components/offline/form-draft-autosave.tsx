@@ -5,7 +5,10 @@ import { CloudOff, RotateCcw, Save } from "lucide-react";
 import { queueAction } from "@/lib/offline/queue";
 
 const DRAFT_VERSION = 1;
+const DRAFT_TTL_MS = 72 * 60 * 60 * 1000;
+const MAX_DRAFT_FIELD_CHARS = 10_000;
 const SAVE_DELAY_MS = 350;
+const SENSITIVE_FIELD_NAME_PATTERN = /(password|passwort|secret|token|api[_-]?key|signature|unterschrift)/i;
 
 type DraftValue = string | string[];
 type DraftPayload = {
@@ -22,6 +25,7 @@ function fieldsFor(form: HTMLFormElement) {
 
 function shouldSkipField(field: RestorableField) {
   if (field.disabled) return true;
+  if (SENSITIVE_FIELD_NAME_PATTERN.test(field.name)) return true;
   if (field instanceof HTMLInputElement) {
     return ["file", "password", "hidden", "submit", "button", "reset"].includes(field.type);
   }
@@ -34,7 +38,13 @@ function readDraft(storageKey: string) {
     const raw = window.localStorage.getItem(storageKey);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as DraftPayload;
-    return parsed.version === DRAFT_VERSION ? parsed : null;
+    const updatedAtMs = Date.parse(parsed.updatedAt);
+    if (parsed.version !== DRAFT_VERSION || !Number.isFinite(updatedAtMs) || Date.now() - updatedAtMs > DRAFT_TTL_MS) {
+      window.localStorage.removeItem(storageKey);
+      return null;
+    }
+
+    return parsed;
   } catch {
     return null;
   }
@@ -80,7 +90,7 @@ function collectValues(form: HTMLFormElement) {
       continue;
     }
 
-    values[field.name] = field.value;
+    values[field.name] = field.value.slice(0, MAX_DRAFT_FIELD_CHARS);
   }
 
   return values;
