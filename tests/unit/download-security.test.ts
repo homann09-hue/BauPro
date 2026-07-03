@@ -113,4 +113,14 @@ describe("download security", () => {
       expect(source, file).toContain("safeErrorStatus(error)");
     }
   });
+
+  it("keeps customer portal PDF failures token-neutral and non-leaky", () => {
+    const source = fs.readFileSync(path.join(root, "app/portal/[token]/work-orders/[id]/pdf/route.ts"), "utf8");
+
+    expect(source).toContain("portalPdfUnavailableResponse()");
+    expect(source).toContain("if (rateLimitError instanceof SafeActionError) return portalPdfUnavailableResponse()");
+    expect(source).toContain("catch {");
+    expect(source).toContain("return portalPdfUnavailableResponse();");
+    expect(source).not.toContain("safeErrorMessage(error");
+  });
 });

@@ -110,7 +110,7 @@ describe("portal IP rate limiting", () => {
     await expect(checkRateLimit("portal-view:198.51.100.2", 30, 60_000)).rejects.toThrow("Zu viele Anfragen");
   });
 
-  it("macht Rate-Limit und ungueltige Tokens nicht ueber unterschiedliche Portal-Antworten unterscheidbar", () => {
+  it("macht Rate-Limit und ungültige Tokens nicht über unterschiedliche Portal-Antworten unterscheidbar", () => {
     const page = read("app/portal/[token]/page.tsx");
     const pdfRoute = read("app/portal/[token]/work-orders/[id]/pdf/route.ts");
 
@@ -122,6 +122,6 @@ describe("portal IP rate limiting", () => {
     expect(pdfRoute).toContain("await checkRateLimit(`portal-pdf:${clientIp}`, 30, 60_000)");
     expect(pdfRoute.match(/return portalPdfUnavailableResponse\(\)/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
     expect(pdfRoute).toContain("status: 404");
-    expect(pdfRoute).toContain("Portal-Datei ist nicht verfuegbar. Bitte warte einen Moment");
+    expect(pdfRoute).toContain("Portal-Datei ist nicht verfügbar. Bitte warte einen Moment");
   });
 });
