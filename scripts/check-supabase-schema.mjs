@@ -66,6 +66,11 @@ const materialMovementAuditTriggerRevoke = fs.readFileSync(
   "utf8"
 );
 const triggerFunctionHardeningMigrations = `${triggerFunctionExecuteHardening}\n${materialMovementAuditTriggerRevoke}`;
+const dashboardRpc = fs.readFileSync(path.join(root, "supabase/migrations/20260619_dashboard_rpc.sql"), "utf8");
+const dashboardRpcAnonRevoke = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260727_dashboard_rpc_anon_revoke.sql"),
+  "utf8"
+);
 
 const failures = [];
 
@@ -306,6 +311,28 @@ check(
 check(
   !schema.includes("grant execute on function public.insert_invoice_items_from_json(uuid, jsonb) to authenticated"),
   "insert_invoice_items_from_json must not be granted directly to authenticated."
+);
+
+const dashboardSummaryRpc = block(
+  schema,
+  "create or replace function public.get_dashboard_summary(",
+  "grant execute on function public.get_dashboard_summary(uuid, uuid, boolean, date) to authenticated"
+);
+check(dashboardSummaryRpc.includes("security definer"), "schema.sql must include the dashboard summary SECURITY DEFINER RPC.");
+check(dashboardSummaryRpc.includes("p_user_id is distinct from auth.uid()"), "dashboard summary RPC must bind p_user_id to auth.uid().");
+check(dashboardSummaryRpc.includes("and p.company_id = p_company_id"), "dashboard summary RPC must validate the caller's company.");
+check(dashboardSummaryRpc.includes("v_can_manage := v_role = 'chef'"), "dashboard summary RPC must derive manager access server-side.");
+check(dashboardSummaryRpc.includes("p_can_manage") && dashboardSummaryRpc.includes("not v_can_manage"), "dashboard summary RPC must reject forged manager flags.");
+check(
+  schema.includes("revoke all on function public.get_dashboard_summary(uuid, uuid, boolean, date) from public") &&
+    schema.includes("revoke all on function public.get_dashboard_summary(uuid, uuid, boolean, date) from anon") &&
+    schema.includes("grant execute on function public.get_dashboard_summary(uuid, uuid, boolean, date) to authenticated"),
+  "dashboard summary RPC must be callable only by authenticated users."
+);
+check(dashboardRpc.includes("revoke all on function public.get_dashboard_summary(uuid, uuid, boolean, date) from anon"), "dashboard RPC migration must revoke anon execute.");
+check(
+  dashboardRpcAnonRevoke.includes("revoke all on function public.get_dashboard_summary(uuid, uuid, boolean, date) from anon"),
+  "dashboard RPC anon revoke migration must exist for already-migrated databases."
 );
 
 for (const functionName of triggerOnlySecurityDefinerFunctions) {

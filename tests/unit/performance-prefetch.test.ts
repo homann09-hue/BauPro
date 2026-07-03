@@ -196,6 +196,8 @@ describe("predictive prefetching", () => {
     const dashboard = source("app/(app)/dashboard/page.tsx");
     const dashboardData = source("lib/data/dashboard.ts");
     const dashboardRpc = source("supabase/migrations/20260619_dashboard_rpc.sql");
+    const dashboardRpcAnonRevoke = source("supabase/migrations/20260727_dashboard_rpc_anon_revoke.sql");
+    const schema = source("supabase/schema.sql");
 
     expect(dashboard).toContain("loadDashboardSummary");
     expect(dashboard).toContain("loadDashboardDetails");
@@ -213,6 +215,10 @@ describe("predictive prefetching", () => {
     expect(dashboardRpc).toContain("t.assigned_to = p_user_id");
     expect(dashboardRpc).toContain("bl.assigned_to = p_user_id or bl.created_by = p_user_id");
     expect(dashboardRpc).toContain("p.role in ('mitarbeiter', 'vorarbeiter')");
+    expect(dashboardRpc).toContain("revoke all on function public.get_dashboard_summary(uuid, uuid, boolean, date) from anon");
+    expect(dashboardRpcAnonRevoke).toContain("revoke all on function public.get_dashboard_summary(uuid, uuid, boolean, date) from anon");
+    expect(schema).toContain("create or replace function public.get_dashboard_summary");
+    expect(schema).toContain("grant execute on function public.get_dashboard_summary(uuid, uuid, boolean, date) to authenticated");
   });
 
   it("keeps operational list pages tenant- and assignment-scoped for non-managers", () => {

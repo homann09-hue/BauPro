@@ -136,6 +136,7 @@ supabase/migrations/20260723_commercial_document_rpc_hardening.sql
 supabase/migrations/20260724_invoice_items_rpc_explicit_role_revoke.sql
 supabase/migrations/20260725_trigger_function_execute_hardening.sql
 supabase/migrations/20260726_material_movement_audit_trigger_revoke.sql
+supabase/migrations/20260727_dashboard_rpc_anon_revoke.sql
 ```
 
 `20260615_material_alerts_repair.sql` bleibt idempotent, damit aeltere Testdatenbanken mit fehlender Mitbringlisten-Kette repariert werden koennen. Fuer neue Projekte ist der vollstaendige Stand bereits in `supabase/schema.sql` enthalten.
@@ -568,6 +569,7 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 - `supabase/migrations/20260724_invoice_items_rpc_explicit_role_revoke.sql`: Delta entzieht direkte RPC-Ausfuehrung fuer rohe Invoice-Positionsanlage; erlaubt bleiben nur die geprueften Invoice-Wrapper
 - `supabase/migrations/20260725_trigger_function_execute_hardening.sql`: Delta entzieht direkte RPC-Ausfuehrung fuer reine SECURITY-DEFINER-Trigger-Helfer; Trigger selbst bleiben funktionsfaehig
 - `supabase/migrations/20260726_material_movement_audit_trigger_revoke.sql`: Delta entzieht direkte RPC-Ausfuehrung fuer den Materialbewegungs-Audit-Trigger-Helfer
+- `supabase/migrations/20260727_dashboard_rpc_anon_revoke.sql`: Delta entzieht anonymen Execute-Zugriff auf die Dashboard-Summary-RPC; authentifizierte Nutzer bleiben erlaubt
 - `supabase/material-catalog-seed.sql`: praxisnaher Dachdecker-Materialkatalog
 - `scripts/seed-demo-company.mjs`: realistische Demo-Firma fuer Verkauf, QA und Produktdemos
 - `tests/`: Unit-, Integration- und E2E-Smoke-Tests
