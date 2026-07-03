@@ -738,9 +738,12 @@ export default async function JobsiteDetailPage({
                           </div>
                           <StatusBadge value={checklist.status} label={jobsiteChecklistStatusLabels[checklist.status]} />
                         </div>
-                        <div className="mt-3 h-2 rounded-full bg-white">
-                          <div className="h-2 rounded-full bg-primary" style={{ width: `${progress.percent}%` }} />
-                        </div>
+                        <progress
+                          className="bp-progress-inline mt-3 h-2 w-full"
+                          aria-label={`Fortschritt der Checkliste ${checklist.title}`}
+                          value={progress.percent}
+                          max={100}
+                        />
                         {progress.problems > 0 ? (
                           <p className="mt-2 text-xs font-black text-red-700">{progress.problems} Problem(e) als Aufgabe erfasst</p>
                         ) : null}

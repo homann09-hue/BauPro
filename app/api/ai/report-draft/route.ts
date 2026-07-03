@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { generateDailyReportDraftFromPayload } from "@/lib/actions/ai-actions";
 import { getOptionalAppContext } from "@/lib/auth";
-import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { SafeActionError, safeErrorMessage, safeErrorStatus } from "@/lib/security/errors";
+import { hasAppPermission } from "@/lib/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { DailyReportAutomationContext } from "@/lib/ai/types";
 
@@ -79,7 +81,13 @@ export async function POST(request: Request) {
   const context = await getOptionalAppContext();
   if (!context) return json({ ok: false, configured: false, message: "Nicht angemeldet." }, { status: 401 });
 
+  if (!hasAppPermission(context.profile.role, context.permissions, "reports.create")) {
+    return json({ ok: false, configured: true, message: "Keine Berechtigung für KI-Report-Vorlagen." }, { status: 403 });
+  }
+
   try {
+    await checkRateLimit(`ai-report-draft:${context.companyId}:${context.userId}`, 30, 60_000);
+
     const body = request.headers.get("content-type")?.includes("application/json")
       ? await request.json().catch(() => ({}))
       : {};
@@ -111,7 +119,7 @@ export async function POST(request: Request) {
         configured: true,
         message: safeErrorMessage(error, "KI-Bautagesbericht konnte nicht erstellt werden.")
       },
-      { status: error instanceof SafeActionError ? 400 : 500 }
+      { status: safeErrorStatus(error) }
     );
   }
 }

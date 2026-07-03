@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { reportMaterialNeedAction } from "@/lib/actions/material-alert-actions";
 import { createReportAction, updateReportAction } from "@/lib/actions/report-actions";
 import { createTimeEntryAction, updateTimeEntryAction } from "@/lib/actions/time-tracking-actions";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { getClientIp } from "@/lib/security/origin";
 import { getOptionalAppContext } from "@/lib/auth";
 
 type OfflineAction = (formData: FormData) => Promise<void>;
@@ -134,6 +136,18 @@ export async function POST(request: NextRequest, { params }: OfflineRouteContext
   const context = await getOptionalAppContext();
   if (!context) {
     return NextResponse.json({ ok: false, error: "Nicht angemeldet." }, { status: 401 });
+  }
+
+  try {
+    await checkRateLimit(`offline-action:${context.companyId}:${context.userId}:${getClientIp(request.headers)}`, 80, 60_000);
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : "Zu viele Offline-Anfragen.",
+      },
+      { status: 429 }
+    );
   }
 
   const resolvedParams = await params;

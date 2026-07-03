@@ -1192,9 +1192,19 @@ as $$
 declare
   target_company_id uuid;
   requested_role text;
+  app_company_id text;
+  app_server_created boolean;
 begin
-  target_company_id := nullif(new.raw_user_meta_data->>'company_id', '')::uuid;
-  requested_role := coalesce(nullif(new.raw_user_meta_data->>'role', ''), 'chef');
+  app_server_created := coalesce((new.raw_app_meta_data->>'baupro_server_created')::boolean, false);
+  app_company_id := nullif(new.raw_app_meta_data->>'baupro_company_id', '');
+
+  if app_server_created and app_company_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    target_company_id := app_company_id::uuid;
+    requested_role := coalesce(nullif(new.raw_app_meta_data->>'baupro_role', ''), 'mitarbeiter');
+  else
+    target_company_id := null;
+    requested_role := 'chef';
+  end if;
 
   if requested_role not in ('admin', 'chef', 'vorarbeiter', 'mitarbeiter', 'kunde') then
     requested_role := 'mitarbeiter';

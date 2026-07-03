@@ -2,7 +2,9 @@ import { revalidatePath } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 import { getOptionalAppContext } from "@/lib/auth";
 import { contentHash } from "@/lib/customer-portal/tokens";
-import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { getClientIp } from "@/lib/security/origin";
+import { SafeActionError, safeErrorMessage, safeErrorStatus } from "@/lib/security/errors";
 import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -31,6 +33,8 @@ export async function POST(request: NextRequest) {
     if (!context.canManage) {
       return NextResponse.json({ error: "Keine Berechtigung." }, { status: 403 });
     }
+
+    await checkRateLimit(`work-order-create:${context.companyId}:${context.userId}:${getClientIp(request.headers)}`, 12, 60_000);
 
     const payload = (await request.json()) as Record<string, unknown>;
     const orderId = requiredString(payload.orderId, "Auftrag", 80);
@@ -103,7 +107,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: safeErrorMessage(error, "Arbeitsauftrag konnte nicht erstellt werden.") },
-      { status: error instanceof SafeActionError ? 400 : 500 }
+      { status: safeErrorStatus(error) }
     );
   }
 }

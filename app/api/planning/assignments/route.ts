@@ -1,7 +1,9 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 import { getOptionalAppContext } from "@/lib/auth";
-import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
+import { SafeActionError, safeErrorMessage, safeErrorStatus } from "@/lib/security/errors";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { getClientIp } from "@/lib/security/origin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { PlanningAssignmentStatus, PlanningResourceType } from "@/types/app";
 
@@ -96,6 +98,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Keine Berechtigung." }, { status: 403 });
     }
 
+    await checkRateLimit(`planning-assignments:${context.companyId}:${context.userId}:${getClientIp(request.headers)}`, 30, 60_000);
+
     const payload = (await request.json()) as Record<string, unknown>;
     const supabase = await createSupabaseServerClient();
     const { resourceType, resourceId } = resourceTarget(payload.resourceKey);
@@ -133,7 +137,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: safeErrorMessage(error, "Planung konnte nicht gespeichert werden.") },
-      { status: error instanceof SafeActionError ? 400 : 500 }
+      { status: safeErrorStatus(error) }
     );
   }
 }

@@ -66,9 +66,6 @@ const previewItems = [
   }
 ];
 
-const demoHeroImageUrl =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuCE4K46tm04j6MI2aY6nTCFWhN4RsIZZwu4Fyb-4VYfPFY5kXaJF4tVxePN8YM7gyJ8HE8N5i-bXXQKJnbDfb3uJqCb2W5CUGOoF07zl6bMybZcEQAVuq3hVi8TwXtesuPYEG4aZw-Qo8Y8qeCdC1_UyU5aBuhXc11jrllq84QITiz5avXT34KY75ZyD9HIAHXvIf3pNkymQS96zM6ixkqKDRr6z1BNk5nNo5lYRwUMPFeXBxlkp73Sg1gzqpflamRC4j7QbeRYufg";
-
 const demoValueCards = [
   "Papierzettel werden zu digitalen Abläufen.",
   "Chef sieht sofort, was heute fehlt.",
@@ -121,9 +118,9 @@ export default async function DemoPage({
 
   return (
     <MarketingShell isLoggedIn={isLoggedIn}>
-      <section className="relative overflow-hidden border-b border-line bg-coal">
-        <div className="absolute inset-0 opacity-55" aria-hidden="true">
-          <div className="h-full w-full bg-cover bg-center grayscale-[0.25]" style={{ backgroundImage: `url(${demoHeroImageUrl})` }} />
+    <section className="relative overflow-hidden border-b border-line bg-coal">
+      <div className="absolute inset-0 opacity-55" aria-hidden="true">
+          <div className="bp-demo-hero-bg h-full w-full bg-cover bg-center grayscale-[0.25]" />
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(19,19,19,0.98)_0%,rgba(19,19,19,0.86)_48%,rgba(19,19,19,0.55)_100%)]" />
         </div>
 

@@ -3,7 +3,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getOptionalAppContext } from "@/lib/auth";
 import { resourceKinds, resourceStatuses } from "@/lib/resources";
 import { hasAppPermission } from "@/lib/permissions";
-import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { getClientIp } from "@/lib/security/origin";
+import { SafeActionError, safeErrorMessage, safeErrorStatus } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { PlanningResourceKind, PlanningResourceStatus } from "@/types/app";
 
@@ -26,6 +28,8 @@ export async function POST(request: NextRequest) {
     if (!hasAppPermission(context.profile.role, context.permissions, "vehicles.manage")) {
       return NextResponse.json({ error: "Keine Berechtigung." }, { status: 403 });
     }
+
+    await checkRateLimit(`planning-resources:${context.companyId}:${context.userId}:${getClientIp(request.headers)}`, 30, 60_000);
 
     const payload = (await request.json()) as Record<string, unknown>;
     const name = requiredString(payload.name, "Name");
@@ -55,7 +59,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: safeErrorMessage(error, "Ressource konnte nicht angelegt werden.") },
-      { status: error instanceof SafeActionError ? 400 : 500 }
+      { status: safeErrorStatus(error) }
     );
   }
 }

@@ -2,7 +2,9 @@ import { revalidatePath } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 import { getOptionalAppContext } from "@/lib/auth";
 import { revalidateDashboardCache } from "@/lib/data/dashboard";
-import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { SafeActionError, safeErrorMessage, safeErrorStatus } from "@/lib/security/errors";
+import { getClientIp } from "@/lib/security/origin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function decisionValue(value: unknown) {
@@ -22,6 +24,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (!context.canOperate) throw new SafeActionError("Keine Berechtigung für Materialbestätigungen.");
+
+    await checkRateLimit(`material-usage-confirm:${context.companyId}:${context.userId}:${getClientIp(request.headers)}`, 20, 60_000);
 
     const payload = (await request.json()) as Record<string, unknown>;
     const reportId = requiredString(payload.reportId, "Materialmeldung");
@@ -55,7 +59,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: safeErrorMessage(error, "Materialmeldung konnte nicht verarbeitet werden.") },
-      { status: error instanceof SafeActionError ? 400 : 500 }
+      { status: safeErrorStatus(error) }
     );
   }
 }

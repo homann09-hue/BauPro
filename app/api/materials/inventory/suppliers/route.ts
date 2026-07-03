@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { getOptionalAppContext } from "@/lib/auth";
 import { safeQueryErrorMessage } from "@/lib/security/errors";
+import { getClientIp } from "@/lib/security/origin";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function GET() {
+export async function GET(request: Request) {
   const context = await getOptionalAppContext();
 
   if (!context) {
@@ -13,6 +15,8 @@ export async function GET() {
   if (!context.canManage) {
     return NextResponse.json({ error: "Keine Berechtigung." }, { status: 403 });
   }
+
+  await checkRateLimit(`materials-suppliers:${context.companyId}:${context.userId}:${getClientIp(request.headers)}`, 60, 60_000);
 
   const supabase = await createSupabaseServerClient();
   const result = await supabase

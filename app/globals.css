@@ -300,6 +300,84 @@ select {
     will-change: transform;
   }
 
+  .bp-marketing-hero-bg,
+  .bp-marketing-roof-worker-bg,
+  .bp-demo-hero-bg,
+  .bp-story-card-hero,
+  .bp-story-card-left,
+  .bp-story-card-right {
+    background-size: cover;
+    background-position: center;
+  }
+
+  .bp-marketing-hero-bg {
+    background-image: url("https://images.unsplash.com/photo-1518604666860-9ed391f6a9b2?auto=format&fit=crop&w=1800&q=80");
+  }
+
+  .bp-marketing-roof-worker-bg {
+    background-image: url("https://images.unsplash.com/photo-1523419409543-7d4f4c2c6f8b?auto=format&fit=crop&w=1400&q=80");
+  }
+
+  .bp-demo-hero-bg {
+    background-image: url("https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1900&q=80");
+  }
+
+  .bp-story-card-hero {
+    --bp-card-image: url("https://images.unsplash.com/photo-1518005020951-eccb727c2a0b?auto=format&fit=crop&w=1500&q=80");
+    --bp-card-position: center;
+  }
+
+  .bp-story-card-left {
+    --bp-card-image: url("https://images.unsplash.com/photo-1482192594337-0d4f2c53f0f0?auto=format&fit=crop&w=1500&q=80");
+    --bp-card-position: left center;
+  }
+
+  .bp-story-card-right {
+    --bp-card-image: url("https://images.unsplash.com/photo-1590490360180-5f6e6bb8a4e5?auto=format&fit=crop&w=1500&q=80");
+    --bp-card-position: right center;
+  }
+
+  .planning-grid-week {
+    grid-template-columns: 17rem repeat(7, minmax(9rem, 1fr));
+  }
+
+  .planning-grid-month-28 {
+    grid-template-columns: 17rem repeat(28, minmax(7.8rem, 1fr));
+  }
+
+  .planning-grid-month-29 {
+    grid-template-columns: 17rem repeat(29, minmax(7.5rem, 1fr));
+  }
+
+  .planning-grid-month-30 {
+    grid-template-columns: 17rem repeat(30, minmax(7.2rem, 1fr));
+  }
+
+  .planning-grid-month-31 {
+    grid-template-columns: 17rem repeat(31, minmax(7rem, 1fr));
+  }
+
+  .bp-progress-inline {
+    appearance: none;
+    border: 0;
+    border-radius: 999px;
+  }
+
+  .bp-progress-inline::-webkit-progress-bar {
+    border-radius: 999px;
+    background-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .bp-progress-inline::-webkit-progress-value {
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgb(var(--color-moss)), rgb(var(--color-ocher)));
+  }
+
+  .bp-progress-inline::-moz-progress-bar {
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgb(var(--color-moss)), rgb(var(--color-ocher)));
+  }
+
   .bp-hero-shine {
     position: relative;
     overflow: hidden;

@@ -70,7 +70,12 @@ function boundedEmail(value: string | null) {
 
 async function requestOrigin() {
   const headerStore = await headers();
-  return publicAppOrigin(headerStore.get("origin"));
+  const origin = publicAppOrigin(headerStore.get("origin"));
+  if (!origin) {
+    throw new SafeActionError("Kundenportal-Link konnte nicht erstellt werden: App-URL fehlt.");
+  }
+
+  return origin;
 }
 
 async function audit({

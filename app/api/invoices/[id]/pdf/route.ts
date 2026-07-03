@@ -1,15 +1,20 @@
+import { getClientIp } from "@/lib/security/origin";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { getOptionalAppContext } from "@/lib/auth";
 import { loadInvoiceDetail } from "@/lib/data/invoices";
 import { buildInvoicePdf, invoicePdfFilename, type InvoicePdfData } from "@/lib/invoices/invoice-pdf";
 import { downloadHeaders } from "@/lib/security/downloads";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Company } from "@/types/app";
+import { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const context = await getOptionalAppContext();
   if (!context || !context.canManage) return new Response("Keine Berechtigung", { status: 403 });
+
+  await checkRateLimit(`invoice-pdf:${context.companyId}:${context.userId}:${getClientIp(request.headers)}`, 40, 60_000);
 
   const { id } = await params;
   const supabase = await createSupabaseServerClient();

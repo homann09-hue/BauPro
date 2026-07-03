@@ -42,8 +42,8 @@ describe("security headers", () => {
     expect(proxy).toContain("export async function middleware");
     expect(proxy).toContain("await updateSession(request, requestHeaders)");
     expect(proxy).toContain("isUnsafeMethod(request.method)");
-    expect(proxy).toContain('request.headers.get("origin")');
-    expect(proxy).toContain("origin !== expectedOrigin");
+    expect(proxy).toContain('originOf(request.headers.get("origin"))');
+    expect(proxy).toContain("requestOrigin && requestOrigin !== expectedOrigin");
     expect(proxy).toContain('new NextResponse("Anfrage abgelehnt.", { status: 403 })');
   });
 });

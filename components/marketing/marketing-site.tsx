@@ -34,30 +34,24 @@ import {
 } from "@/lib/marketing";
 import { cn } from "@/lib/utils";
 
-const heroImageUrl =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuBt2LF4I9x1eaaYVmh3hkFNc4UPY9otMry5tgXhuixGAOrajFTBeGEPztuDlR1cZuNu9gTB5DrRTOSMaDU0jD_nmcCNZXDc1ZsCIrZfQMNb6CSBjlzMHr_YI2OY8TR2QojYsewdRLU7Gq-CS0u_kFQzRVVNZiHXvkJZtKrR-gfhfTl8H4KUjLHE2L1RB40Y-HuOWxCaEgu-XPAq6GS-mQLPaTRUEVlAR3-ijo74qNwS-N4C2StVA1aXiwMs1ugeoMSfPykKHJKm0YA";
-
-const roofWorkerImageUrl =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuCE4K46tm04j6MI2aY6nTCFWhN4RsIZZwu4Fyb-4VYfPFY5kXaJF4tVxePN8YM7gyJ8HE8N5i-bXXQKJnbDfb3uJqCb2W5CUGOoF07zl6bMybZcEQAVuq3hVi8TwXtesuPYEG4aZw-Qo8Y8qeCdC1_UyU5aBuhXc11jrllq84QITiz5avXT34KY75ZyD9HIAHXvIf3pNkymQS96zM6ixkqKDRr6z1BNk5nNo5lYRwUMPFeXBxlkp73Sg1gzqpflamRC4j7QbeRYufg";
-
 const roofStoryCards = [
   {
     title: "Neues Dach sauber dokumentieren",
     text: "Fotos, Wetter, Zeiten und Bericht landen direkt am Auftrag, statt später aus Chats zusammengesucht zu werden.",
     label: "Dokumentation",
-    position: "center top"
+    variant: "hero"
   },
   {
     title: "Ziegel runter, Material im Blick",
     text: "Materialbedarf, Mitbringliste und Lagerwarnungen helfen morgens, bevor etwas auf der Baustelle fehlt.",
     label: "Baustelle",
-    position: "58% center"
+    variant: "left"
   },
   {
     title: "Chef sieht Fortschritt ohne Nachtelefonieren",
     text: "Status, offene Punkte und Kundenfreigaben bleiben in BauPro nachvollziehbar und rollenbasiert geschützt.",
     label: "Überblick",
-    position: "right center"
+    variant: "right"
   }
 ];
 
@@ -116,7 +110,7 @@ export function MarketingHero({ isLoggedIn = false }: { isLoggedIn?: boolean }) 
   return (
     <section className="relative overflow-hidden border-b border-line bg-coal">
       <div className="absolute inset-0 z-0" aria-hidden="true">
-        <div className="bp-parallax-image h-full w-full bg-cover bg-center opacity-70 grayscale-[0.35]" style={{ backgroundImage: `url(${heroImageUrl})` }} />
+        <div className="bp-parallax-image bp-marketing-hero-bg h-full w-full bg-cover bg-center opacity-70 grayscale-[0.35]" />
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(19,19,19,0.98)_0%,rgba(19,19,19,0.86)_42%,rgba(19,19,19,0.42)_100%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(19,19,19,0)_0%,rgba(19,19,19,0.42)_42%,rgba(19,19,19,0.94)_100%)]" />
       </div>
@@ -168,7 +162,7 @@ export function MarketingHero({ isLoggedIn = false }: { isLoggedIn?: boolean }) 
 function HeroOperationsPanel() {
   return (
     <aside className="bp-soft-pop bp-reveal-delay-2 overflow-hidden border border-white/12 bg-surface/92 shadow-lift backdrop-blur-md">
-      <div className="relative min-h-64 border-b border-line bg-cover bg-center" style={{ backgroundImage: `url(${roofWorkerImageUrl})` }}>
+      <div className="bp-marketing-roof-worker-bg relative min-h-64 border-b border-line bg-cover bg-center">
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(19,19,19,0.08)_0%,rgba(19,19,19,0.82)_100%)]" />
         <div className="absolute left-4 top-4 border border-moss/35 bg-coal/75 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-moss backdrop-blur">
           Dachsanierung live
@@ -320,12 +314,16 @@ export function RoofStorySection() {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-3">
           {roofStoryCards.map((card, index) => (
             <article
               key={card.title}
-              className={cn("bp-image-card bp-reveal min-h-[23rem] sm:min-h-[28rem]", index === 1 && "sm:translate-y-6", index === 2 && "sm:translate-y-12")}
-              style={roofImageStyle(card.position)}
+              className={cn(
+                "bp-image-card bp-reveal min-h-[23rem] sm:min-h-[28rem]",
+                index === 1 && "sm:translate-y-6",
+                index === 2 && "sm:translate-y-12",
+                card.variant === "hero" ? "bp-story-card-hero" : card.variant === "left" ? "bp-story-card-left" : "bp-story-card-right"
+              )}
             >
               <div className="bp-image-card-content">
                 <p className="mb-3 w-fit border border-ocher/40 bg-ocher/15 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-ocher">
@@ -628,13 +626,6 @@ export function MarketingCta() {
       </div>
     </section>
   );
-}
-
-function roofImageStyle(position: string) {
-  return {
-    "--bp-card-image": `url(${heroImageUrl})`,
-    "--bp-card-position": position
-  } as React.CSSProperties;
 }
 
 function StoryMetric({ value, label }: { value: string; label: string }) {

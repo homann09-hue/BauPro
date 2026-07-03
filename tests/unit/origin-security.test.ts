@@ -28,6 +28,6 @@ describe("public app origin security", () => {
   it("rejects untrusted production request origins when no public URL is configured", () => {
     delete process.env.NEXT_PUBLIC_APP_URL;
     process.env.NODE_ENV = "production";
-    expect(publicAppOrigin("https://evil.example")).toBe("http://localhost:3000");
+    expect(publicAppOrigin("https://evil.example")).toBeNull();
   });
 });

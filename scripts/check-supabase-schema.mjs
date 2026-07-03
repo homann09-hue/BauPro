@@ -33,6 +33,10 @@ const atomicOrderCreation = fs.readFileSync(
   path.join(root, "supabase/migrations/20260716_atomic_order_creation.sql"),
   "utf8"
 );
+const authSignupMetadataHardening = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260717_auth_signup_metadata_hardening.sql"),
+  "utf8"
+);
 
 const failures = [];
 
@@ -139,6 +143,15 @@ for (const source of [schema, atomicOrderCreation]) {
   check(source.includes("pg_advisory_xact_lock"), "order number generation must use an advisory transaction lock.");
   check(source.includes("public.has_employee_permission('orders.create')"), "atomic order creation must enforce orders.create permission in SQL.");
   check(source.includes("p_created_by is distinct from auth.uid()"), "atomic order creation must bind created_by to auth.uid().");
+}
+
+for (const source of [schema, authSignupMetadataHardening]) {
+  const handleNewUser = block(source, "create or replace function public.handle_new_user()", "notify pgrst");
+  check(handleNewUser.includes("raw_app_meta_data->>'baupro_server_created'"), "handle_new_user must trust only server app_metadata for existing company assignment.");
+  check(handleNewUser.includes("raw_app_meta_data->>'baupro_company_id'"), "handle_new_user must read server company id from app_metadata.");
+  check(handleNewUser.includes("raw_app_meta_data->>'baupro_role'"), "handle_new_user must read server role from app_metadata.");
+  check(!handleNewUser.includes("raw_user_meta_data->>'company_id'"), "handle_new_user must not trust client user_metadata company_id.");
+  check(!handleNewUser.includes("raw_user_meta_data->>'role'"), "handle_new_user must not trust client user_metadata role.");
 }
 
 check(inventoryPublicView.includes("where i.company_id = public.current_company_id()"), "inventory_items_public must filter by current company.");

@@ -127,9 +127,12 @@ export default async function CustomerPortalPage({
                   {portal.jobsite?.status ?? "in Bearbeitung"}
                 </span>
               </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/15">
-                <div className="h-full rounded-full bg-mint" style={{ width: `${portal.progressPercent}%` }} />
-              </div>
+              <progress
+                className="bp-progress-inline mt-3 h-2 w-full"
+                aria-label="Fortschritt des Auftrags"
+                value={portal.progressPercent}
+                max={100}
+              />
               <p className="mt-3 flex gap-2 text-sm font-semibold text-white/80">
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-mint" aria-hidden="true" />
                 {portal.jobsite?.address ?? "Adresse wird vom Betrieb gepflegt"}

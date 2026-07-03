@@ -183,8 +183,12 @@ export async function importOnboardingEmployeesAction(formData: FormData) {
       email: employee.email,
       password: startPassword,
       email_confirm: true,
+      app_metadata: {
+        baupro_server_created: true,
+        baupro_company_id: context.companyId,
+        baupro_role: employee.role
+      },
       user_metadata: {
-        company_id: context.companyId,
         full_name: employee.fullName,
         role: employee.role
       }
@@ -209,8 +213,12 @@ export async function importOnboardingEmployeesAction(formData: FormData) {
       finalRole = "mitarbeiter";
       roleFallbacks += 1;
       await admin.auth.admin.updateUserById(data.user.id, {
+        app_metadata: {
+          baupro_server_created: true,
+          baupro_company_id: context.companyId,
+          baupro_role: finalRole
+        },
         user_metadata: {
-          company_id: context.companyId,
           full_name: employee.fullName,
           role: finalRole
         }

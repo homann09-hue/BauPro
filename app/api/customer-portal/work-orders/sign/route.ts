@@ -6,6 +6,7 @@ import {
 } from "@/lib/customer-portal/tokens";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { checkRateLimit } from "@/lib/security/rate-limit";
+import { getClientIp } from "@/lib/security/origin";
 import { validateSignatureDataUrl } from "@/lib/signatures/signature";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
 import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -33,10 +34,6 @@ function optionalString(value: unknown, maxLength = 5000) {
 function decisionValue(value: string) {
   if (value === "sign" || value === "reject") return value;
   throw new SafeActionError("Ungültige Entscheidung.");
-}
-
-function clientIp(request: NextRequest) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? request.headers.get("x-real-ip") ?? null;
 }
 
 function bestEffortError(result: PromiseSettledResult<{ error: unknown }>) {
@@ -67,7 +64,11 @@ export async function POST(request: NextRequest) {
     }
 
     const tokenHash = hashCustomerPortalToken(token);
-    await checkRateLimit(`portal-sign:${tokenHash}`, 8, 60_000);
+    const clientIp = getClientIp(request.headers);
+
+    // 2-stufiges Limit: Erst IP-basiert (Abwehr von Token-Scans), anschließend tokenbezogen.
+    await checkRateLimit(`portal-sign:ip:${clientIp}`, 25, 60_000);
+    await checkRateLimit(`portal-sign:token:${tokenHash}`, 5, 60_000);
 
     const supabase = createScopedSupabaseAdminClient({
       caller: "api.customer-portal.work-orders.sign",
@@ -101,12 +102,11 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString();
     const status = decision === "reject" ? "rejected" : "signed";
-    const signerIp = clientIp(request);
     const signerUserAgent = request.headers.get("user-agent");
     const updates: Partial<WorkOrder> = {
       status,
       signer_name: signerName,
-      signer_ip: signerIp,
+      signer_ip: clientIp,
       signer_user_agent: signerUserAgent,
       signature_data_url: signatureDataUrl,
       rejection_reason: status === "rejected" ? rejectionReason : null,
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
         signer_name: signerName,
         signer_role: "kunde",
         signer_user_id: null,
-        signer_ip: signerIp,
+        signer_ip: clientIp,
         signer_user_agent: signerUserAgent,
         signature_data_url: signatureDataUrl,
         signed_at: status === "signed" ? now : null,

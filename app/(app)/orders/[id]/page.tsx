@@ -875,11 +875,11 @@ export default async function OrderDetailPage({
   let portalMessages: CustomerPortalMessage[] = [];
   let customerDocuments: CustomerDocument[] = [];
   let workOrders: WorkOrderListItem[] = [];
-  let portalOrigin = "http://localhost:3000";
+  let portalOrigin = "";
 
   if (context.canManage) {
     const headerStore = await headers();
-    portalOrigin = publicAppOrigin(headerStore.get("origin"));
+    portalOrigin = publicAppOrigin(headerStore.get("origin")) || "";
     let tokenQuery = supabase
       .from("customer_portal_tokens")
       .select("id, company_id, customer_id, jobsite_id, label, expires_at, revoked_at, created_by, created_at, last_used_at")

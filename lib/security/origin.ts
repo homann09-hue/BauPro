@@ -1,4 +1,4 @@
-function originOf(value?: string | null) {
+export function originOf(value?: string | null) {
   if (!value) return null;
 
   try {
@@ -28,7 +28,7 @@ export function publicAppOrigin(requestOrigin?: string | null) {
     return safeRequestOrigin;
   }
 
-  return "http://localhost:3000";
+  return process.env.NODE_ENV === "production" ? null : "http://localhost:3000";
 }
 
 export function getClientIp(headers: Headers) {

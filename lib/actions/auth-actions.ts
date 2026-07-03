@@ -208,6 +208,9 @@ export async function startDemoModeAction(formData: FormData) {
 export async function signUpCompanyAction(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const origin = publicAppOrigin((await headers()).get("origin"));
+  if (!origin) {
+    redirect("/register?error=Registrierung nicht moeglich: App-URL fehlt.");
+  }
   const companyName = requiredString(formData, "company_name");
   const fullName = requiredString(formData, "full_name");
   const email = requiredString(formData, "email");
@@ -291,8 +294,12 @@ export async function createEmployeeAction(formData: FormData) {
     email,
     password,
     email_confirm: true,
+    app_metadata: {
+      baupro_server_created: true,
+      baupro_company_id: targetCompanyId,
+      baupro_role: role
+    },
     user_metadata: {
-      company_id: targetCompanyId,
       full_name: fullName,
       role
     }
@@ -315,8 +322,12 @@ export async function createEmployeeAction(formData: FormData) {
   if (profileResult.error && role === "vorarbeiter" && isUnsupportedVorarbeiterRoleError(profileResult.error)) {
     finalRole = "mitarbeiter";
     await admin.auth.admin.updateUserById(data.user.id, {
+      app_metadata: {
+        baupro_server_created: true,
+        baupro_company_id: targetCompanyId,
+        baupro_role: finalRole
+      },
       user_metadata: {
-        company_id: targetCompanyId,
         full_name: fullName,
         role: finalRole
       }

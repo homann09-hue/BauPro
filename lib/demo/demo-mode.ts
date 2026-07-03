@@ -186,15 +186,21 @@ async function ensureDemoUser(admin: AdminClient, seed: DemoUserSeed, companyId:
   const existing = existingUsers.find((user) => user.email?.toLowerCase() === seed.email.toLowerCase());
   let finalRole = seed.role;
   const metadata = (role: DemoRole) => ({
-    company_id: companyId,
     full_name: seed.fullName,
     role,
     demo_mode: true,
     demo_key: seed.key
   });
+  const appMetadata = (role: DemoRole) => ({
+    baupro_server_created: true,
+    baupro_company_id: companyId,
+    baupro_role: role,
+    baupro_demo_mode: true
+  });
   const authPayload = {
     password,
     email_confirm: true,
+    app_metadata: appMetadata(finalRole),
     user_metadata: metadata(finalRole)
   };
   let authResult = existing
@@ -204,8 +210,8 @@ async function ensureDemoUser(admin: AdminClient, seed: DemoUserSeed, companyId:
   if (authResult.error && seed.role === "vorarbeiter") {
     finalRole = "mitarbeiter";
     authResult = existing
-      ? await admin.auth.admin.updateUserById(existing.id, { ...authPayload, user_metadata: metadata(finalRole) })
-      : await admin.auth.admin.createUser({ email: seed.email, ...authPayload, user_metadata: metadata(finalRole) });
+      ? await admin.auth.admin.updateUserById(existing.id, { ...authPayload, app_metadata: appMetadata(finalRole), user_metadata: metadata(finalRole) })
+      : await admin.auth.admin.createUser({ email: seed.email, ...authPayload, app_metadata: appMetadata(finalRole), user_metadata: metadata(finalRole) });
   }
 
   if (authResult.error || !authResult.data.user) throw new Error("demo_user_auth_failed");

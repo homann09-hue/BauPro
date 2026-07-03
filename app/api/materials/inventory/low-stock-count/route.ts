@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getOptionalAppContext } from "@/lib/auth";
 import { formatQuantity, isLowStock } from "@/lib/inventory";
 import { safeQueryErrorMessage } from "@/lib/security/errors";
+import { getClientIp } from "@/lib/security/origin";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { InventoryItem, PublicInventoryItem } from "@/types/app";
 
@@ -19,6 +21,8 @@ export async function GET(request: NextRequest) {
   if (!context) {
     return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
   }
+
+  await checkRateLimit(`materials-low-stock:${context.companyId}:${context.userId}:${getClientIp(request.headers)}`, 100, 60_000);
 
   const supabase = await createSupabaseServerClient();
   const scanLimit = scanLimitFromRequest(request);
