@@ -76,7 +76,7 @@ async function SystemAdminDashboard({
   return (
     <div className="baupro-screen">
       <MessageBox error={error} success={success} />
-      <MfaRecommendationBanner canManage={context.isAdmin} mfaEnabled={context.mfaEnabled} />
+      <MfaRecommendationBanner show={context.isAdmin || context.isChef} mfaEnabled={context.mfaEnabled} />
 
       <section className="command-panel overflow-hidden">
         <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
@@ -182,7 +182,7 @@ export default async function DashboardPage({
   return (
     <div className="baupro-screen">
       <MessageBox error={dashboardError} success={success} />
-      <MfaRecommendationBanner canManage={context.isAdmin} mfaEnabled={context.mfaEnabled} />
+      <MfaRecommendationBanner show={context.isAdmin || context.isChef} mfaEnabled={context.mfaEnabled} />
 
       <section className="command-panel overflow-hidden">
         <div className="grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">

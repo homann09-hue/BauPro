@@ -246,6 +246,16 @@ export async function requirePlatformAdmin() {
   return requireAdmin();
 }
 
+export async function requirePrivilegedAccountSecurity() {
+  const context = await requireAppContext();
+
+  if (!context.isAdmin && !context.isChef) {
+    redirect("/dashboard?error=Keine+Berechtigung");
+  }
+
+  return context;
+}
+
 export async function requirePermission(permission: PermissionKey, redirectTo = "/dashboard") {
   const context = await requireAppContext();
 

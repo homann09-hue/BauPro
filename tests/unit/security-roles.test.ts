@@ -70,8 +70,7 @@ describe("role permissions", () => {
       "app/(app)/team/page.tsx",
       "app/(app)/suppliers/page.tsx",
       "app/(app)/settings/page.tsx",
-      "app/(app)/debug/system/page.tsx",
-      "app/(app)/settings/security/page.tsx"
+      "app/(app)/debug/system/page.tsx"
     ];
 
     for (const file of guardedAdminPages) {
@@ -92,6 +91,10 @@ describe("role permissions", () => {
       expect(source(file), file).toContain("requireManager");
     }
 
+    expect(source("app/(app)/settings/security/page.tsx")).toContain("requirePrivilegedAccountSecurity");
+    expect(source("lib/actions/mfa-actions.ts")).toContain("requirePrivilegedAccountSecurity");
+    expect(source("lib/auth.ts")).toContain("export async function requirePrivilegedAccountSecurity()");
+    expect(source("lib/auth.ts")).toContain("!context.isAdmin && !context.isChef");
     expect(source("lib/actions/auth-actions.ts")).toContain("role: \"chef\"");
     expect(hasAppPermission("mitarbeiter", ["settings.edit"], "settings.edit")).toBe(false);
     expect(hasAppPermission("vorarbeiter", ["settings.edit"], "settings.edit")).toBe(false);

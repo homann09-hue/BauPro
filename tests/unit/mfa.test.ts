@@ -42,11 +42,12 @@ describe("MFA security flow", () => {
 
     expect(auth).toContain("mfaEnabled: boolean");
     expect(auth).toContain("supabase.auth.mfa.listFactors");
-    expect(dashboard).toContain("<MfaRecommendationBanner canManage={context.isAdmin} mfaEnabled={context.mfaEnabled} />");
+    expect(dashboard).toContain("<MfaRecommendationBanner show={context.isAdmin || context.isChef} mfaEnabled={context.mfaEnabled} />");
     expect(settings).toContain('href="/settings/security"');
     expect(securityPage).toContain("MfaSettingsPanel");
+    expect(securityPage).toContain("requirePrivilegedAccountSecurity");
     expect(banner).toContain("Schütze deinen Account zusätzlich");
-    expect(banner).toContain("!canManage || mfaEnabled");
-    expect(banner).toContain("Systemadmin-Zugänge");
+    expect(banner).toContain("!show || mfaEnabled");
+    expect(banner).toContain("Systemadmin- und Chef-Zugänge");
   });
 });
