@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { downloadHeaders } from "@/lib/security/downloads";
+import { downloadHeaders, inlineDownloadHeaders } from "@/lib/security/downloads";
 
 const root = process.cwd();
 
@@ -24,6 +24,15 @@ describe("download security", () => {
     expect(headers["Content-Disposition"]).toContain("filename*=UTF-8''stundenzettel_M%C3%BCller_Gr%C3%B6%C3%9Fe.csv");
   });
 
+  it("sanitizes inline content-disposition filenames as strictly as attachments", () => {
+    const headers = inlineDownloadHeaders("application/pdf", 'angebot"\r\nX-Bad: 1.pdf');
+    expect(headers["Content-Disposition"]).toContain("inline;");
+    expect(headers["Content-Disposition"]).toContain('filename="angebot_X-Bad_1.pdf"');
+    expect(headers["Content-Disposition"]).not.toContain("\r");
+    expect(headers["Content-Disposition"]).not.toContain("\n");
+    expect(headers["Content-Disposition"]).not.toContain('filename="angebot"');
+  });
+
   it("uses shared download headers for privacy, time and portal exports", () => {
     for (const file of [
       "lib/privacy/export.ts",
@@ -34,10 +43,22 @@ describe("download security", () => {
       "app/(app)/angebote-rechnungen/[id]/datev/route.ts",
       "app/(app)/angebote-rechnungen/[id]/xrechnung/route.ts",
       "app/(app)/baustellen/[id]/documents/[documentId]/route.ts",
+      "app/(app)/fahrzeuge/documents/[documentId]/route.ts",
       "app/portal/[token]/work-orders/[id]/pdf/route.ts"
     ]) {
       const source = fs.readFileSync(path.join(root, file), "utf8");
       expect(source, file).toContain("downloadHeaders(");
+    }
+  });
+
+  it("uses the shared safe inline headers for app document preview routes", () => {
+    for (const file of [
+      "app/(app)/baustellen/[id]/documents/[documentId]/route.ts",
+      "app/(app)/fahrzeuge/documents/[documentId]/route.ts"
+    ]) {
+      const source = fs.readFileSync(path.join(root, file), "utf8");
+      expect(source, file).toContain("inlineDownloadHeaders(");
+      expect(source, file).not.toContain("inline; filename=");
     }
   });
 });

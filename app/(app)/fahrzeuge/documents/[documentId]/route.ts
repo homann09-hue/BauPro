@@ -1,19 +1,16 @@
 import { getOptionalAppContext } from "@/lib/auth";
 import { resourceDocumentSelect } from "@/lib/data/selects";
-import { downloadHeaders } from "@/lib/security/downloads";
+import { downloadHeaders, inlineDownloadHeaders } from "@/lib/security/downloads";
+import { hasAppPermission } from "@/lib/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { ResourceDocument } from "@/types/app";
-
-function inlineHeaders(headers: Record<string, string>, filename: string) {
-  return {
-    ...headers,
-    "Content-Disposition": `inline; filename="${filename}"`
-  };
-}
 
 export async function GET(request: Request, { params }: { params: Promise<{ documentId: string }> }) {
   const context = await getOptionalAppContext();
   if (!context) return new Response("Nicht angemeldet", { status: 401 });
+  if (!hasAppPermission(context.profile.role, context.permissions, "vehicles.manage")) {
+    return new Response("Keine Berechtigung.", { status: 403 });
+  }
 
   const { documentId } = await params;
   const supabase = await createSupabaseServerClient();
@@ -35,7 +32,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ docu
   const contentType = document.content_type ?? "application/octet-stream";
   const headers = downloadHeaders(contentType, document.file_name);
   const url = new URL(request.url);
-  const finalHeaders = url.searchParams.get("download") === "1" ? headers : inlineHeaders(headers, document.file_name);
+  const finalHeaders = url.searchParams.get("download") === "1" ? headers : inlineDownloadHeaders(contentType, document.file_name);
 
   return new Response(new Uint8Array(await data.arrayBuffer()), {
     headers: finalHeaders

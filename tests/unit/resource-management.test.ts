@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import { detectPlanningConflicts } from "@/lib/planning";
 import { maintenanceDueState, resourceKindLabels, resourceStatusLabels } from "@/lib/resources";
 import { PROTECTED_TABLES } from "@/lib/data/soft-delete-guard";
@@ -79,5 +81,13 @@ describe("Geräte- und Fahrzeugverwaltung", () => {
 
   it("schuetzt Ressourcen-Dokumente vor Hard-Delete-Regressionen", () => {
     expect(PROTECTED_TABLES).toContain("resource_documents");
+  });
+
+  it("schuetzt Ressourcen-Dokument-Downloads serverseitig ueber Fahrzeuge-Rechte", () => {
+    const route = fs.readFileSync(path.join(process.cwd(), "app/(app)/fahrzeuge/documents/[documentId]/route.ts"), "utf8");
+
+    expect(route).toContain("hasAppPermission");
+    expect(route).toContain('"vehicles.manage"');
+    expect(route).toContain("Keine Berechtigung.");
   });
 });

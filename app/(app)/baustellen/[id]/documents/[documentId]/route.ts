@@ -1,17 +1,10 @@
 import { getOptionalAppContext } from "@/lib/auth";
 import { jobsiteDocumentSelect } from "@/lib/data/selects";
-import { downloadHeaders } from "@/lib/security/downloads";
+import { downloadHeaders, inlineDownloadHeaders } from "@/lib/security/downloads";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Jobsite, JobsiteDocument } from "@/types/app";
 
 type JobsiteAccess = Pick<Jobsite, "id" | "assigned_employee_ids">;
-
-function inlineHeaders(headers: Record<string, string>, filename: string) {
-  return {
-    ...headers,
-    "Content-Disposition": `inline; filename="${filename}"`
-  };
-}
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string; documentId: string }> }) {
   const context = await getOptionalAppContext();
@@ -52,7 +45,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const contentType = document.content_type ?? "application/octet-stream";
   const headers = downloadHeaders(contentType, document.file_name);
   const url = new URL(request.url);
-  const finalHeaders = url.searchParams.get("download") === "1" ? headers : inlineHeaders(headers, document.file_name);
+  const finalHeaders = url.searchParams.get("download") === "1" ? headers : inlineDownloadHeaders(contentType, document.file_name);
 
   return new Response(new Uint8Array(await data.arrayBuffer()), {
     headers: finalHeaders
