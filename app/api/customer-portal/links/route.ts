@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
-import { requireManager } from "@/lib/auth";
+import { getOptionalAppContext } from "@/lib/auth";
 import { createCustomerPortalToken, customerPortalExpiresAt, hashCustomerPortalToken } from "@/lib/customer-portal/tokens";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { checkRateLimit } from "@/lib/security/rate-limit";
@@ -30,7 +30,15 @@ function positiveDays(value: unknown) {
 
 export async function POST(request: NextRequest) {
   try {
-    const context = await requireManager();
+    const context = await getOptionalAppContext();
+    if (!context) {
+      return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
+    }
+
+    if (!context.canManage) {
+      return NextResponse.json({ error: "Keine Berechtigung." }, { status: 403 });
+    }
+
     await checkRateLimit(`customer-portal-link:${context.companyId}:${context.userId}`, 10, 60_000);
 
     const payload = (await request.json()) as Record<string, unknown>;

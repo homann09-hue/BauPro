@@ -11,8 +11,8 @@ async function loadMiddleware() {
 
   vi.doMock("@/lib/supabase/middleware", () => ({ updateSession }));
 
-  const mod = await import("@/proxy");
-  return { proxy: mod.proxy, config: mod.config, updateSession };
+  const mod = await import("@/middleware");
+  return { middleware: mod.middleware, config: mod.config, updateSession };
 }
 
 afterEach(() => {
@@ -22,7 +22,7 @@ afterEach(() => {
 
 describe("production middleware", () => {
   it("blockiert Cross-Origin POST mit Security Headers", async () => {
-    const { proxy, updateSession } = await loadMiddleware();
+  const { middleware, updateSession } = await loadMiddleware();
     const request = new NextRequest("https://baupro.example/demo", {
       method: "POST",
       headers: {
@@ -30,7 +30,7 @@ describe("production middleware", () => {
       }
     });
 
-    const response = await proxy(request);
+    const response = await middleware(request);
 
     expect(response.status).toBe(403);
     expect(await response.text()).toBe("Anfrage abgelehnt.");
@@ -40,11 +40,11 @@ describe("production middleware", () => {
   });
 
   it("laesst oeffentliche GET-Seiten durch und refreshed die Supabase Session", async () => {
-    const { proxy, updateSession } = await loadMiddleware();
+  const { middleware, updateSession } = await loadMiddleware();
 
     for (const route of ["/", "/login", "/demo", "/features", "/use-cases", "/security", "/pricing", "/about"]) {
       const request = new NextRequest(`https://baupro.example${route}`, { method: "GET" });
-      const response = await proxy(request);
+      const response = await middleware(request);
 
       expect(response.status, route).toBe(200);
       expect(response.headers.get("x-session-refreshed"), route).toBe("true");

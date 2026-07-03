@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
-import { requireManager } from "@/lib/auth";
+import { getOptionalAppContext } from "@/lib/auth";
 import { contentHash } from "@/lib/customer-portal/tokens";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -23,7 +23,15 @@ function optionalString(value: unknown, maxLength = 5000) {
 
 export async function POST(request: NextRequest) {
   try {
-    const context = await requireManager();
+    const context = await getOptionalAppContext();
+    if (!context) {
+      return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
+    }
+
+    if (!context.canManage) {
+      return NextResponse.json({ error: "Keine Berechtigung." }, { status: 403 });
+    }
+
     const payload = (await request.json()) as Record<string, unknown>;
     const orderId = requiredString(payload.orderId, "Auftrag", 80);
     const title = requiredString(payload.title, "Titel", 160);

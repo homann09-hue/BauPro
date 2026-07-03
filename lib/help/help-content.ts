@@ -158,9 +158,12 @@ export const helpTips: HelpTipDefinition[] = [
 ];
 
 export function canSeeHelpTip(role: Role, audience: HelpAudience) {
-  const isManager = role === "admin" || role === "chef";
-  if (audience === "manager") return isManager;
-  if (audience === "worker") return !isManager;
+  const isAdminRole = role === "admin";
+  const isChefRole = role === "chef";
+  const isChefOrAdmin = isAdminRole || isChefRole;
+
+  if (audience === "manager") return isChefOrAdmin;
+  if (audience === "worker") return !isChefOrAdmin;
   return true;
 }
 

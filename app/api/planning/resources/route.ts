@@ -1,7 +1,8 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
-import { requirePermission } from "@/lib/auth";
+import { getOptionalAppContext } from "@/lib/auth";
 import { resourceKinds, resourceStatuses } from "@/lib/resources";
+import { hasAppPermission } from "@/lib/permissions";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { PlanningResourceKind, PlanningResourceStatus } from "@/types/app";
@@ -17,7 +18,15 @@ function enumValue<T extends readonly string[]>(value: unknown, values: T, fallb
 
 export async function POST(request: NextRequest) {
   try {
-    const context = await requirePermission("vehicles.manage", "/fahrzeuge");
+    const context = await getOptionalAppContext();
+    if (!context) {
+      return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
+    }
+
+    if (!hasAppPermission(context.profile.role, context.permissions, "vehicles.manage")) {
+      return NextResponse.json({ error: "Keine Berechtigung." }, { status: 403 });
+    }
+
     const payload = (await request.json()) as Record<string, unknown>;
     const name = requiredString(payload.name, "Name");
     const resourceKind = enumValue(payload.resourceKind, resourceKinds, "geraet") as PlanningResourceKind;

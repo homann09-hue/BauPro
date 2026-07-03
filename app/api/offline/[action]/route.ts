@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { reportMaterialNeedAction } from "@/lib/actions/material-alert-actions";
 import { createReportAction, updateReportAction } from "@/lib/actions/report-actions";
 import { createTimeEntryAction, updateTimeEntryAction } from "@/lib/actions/time-tracking-actions";
+import { getOptionalAppContext } from "@/lib/auth";
 
 type OfflineAction = (formData: FormData) => Promise<void>;
 
@@ -82,7 +83,7 @@ function actionForToken(token: string): OfflineAction | null {
   return null;
 }
 
-function actionResponseFromRedirect(error: unknown, request: NextRequest) {
+function redirectResponseToJson(error: unknown) {
   if (typeof error !== "object" || error === null || !("digest" in error)) {
     return null;
   }
@@ -108,13 +109,33 @@ function actionResponseFromRedirect(error: unknown, request: NextRequest) {
   }
 
   const location = parts.slice(2, -1).join(";") || "/dashboard";
+  const isAuthRedirect = location.includes("/login") || location.includes("/mfa-challenge") || status === 303;
+  const isPermissionError = location.includes("error=Keine%20Berechtigung") || location.includes("error=Keine+Berechtigung");
 
-  return NextResponse.redirect(new URL(location, request.url), {
-    status
-  });
+  const code = isAuthRedirect ? 401 : isPermissionError ? 403 : 500;
+  const message = isAuthRedirect
+    ? "Nicht angemeldet. Bitte melde dich erneut an."
+    : isPermissionError
+      ? "Keine Berechtigung für diese Offline-Aktion."
+      : "Offline Aktion konnte nicht verarbeitet werden.";
+
+  return NextResponse.json(
+    {
+      ok: false,
+      error: message,
+      code,
+      location
+    },
+    { status: code }
+  );
 }
 
 export async function POST(request: NextRequest, { params }: OfflineRouteContext) {
+  const context = await getOptionalAppContext();
+  if (!context) {
+    return NextResponse.json({ ok: false, error: "Nicht angemeldet." }, { status: 401 });
+  }
+
   const resolvedParams = await params;
   let actionName = resolvedParams.action || "";
 
@@ -152,7 +173,7 @@ export async function POST(request: NextRequest, { params }: OfflineRouteContext
   try {
     await action(formData);
   } catch (error) {
-    const redirectResponse = actionResponseFromRedirect(error, request);
+    const redirectResponse = redirectResponseToJson(error);
     if (redirectResponse) {
       return redirectResponse;
     }

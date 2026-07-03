@@ -26,7 +26,9 @@ function buildContentSecurityPolicy(nonce: string) {
     "manifest-src 'self'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
-    "style-src 'self' 'unsafe-inline'",
+    "style-src 'self'",
+    "style-src-attr 'unsafe-inline'",
+    "style-src-elem 'self'",
     `script-src ${scriptSources.join(" ")}`,
     "connect-src 'self' https://*.supabase.co https://*.sentry.io https://api.openai.com https://api.open-meteo.com https://geocoding-api.open-meteo.com https://nominatim.openstreetmap.org https://vitals.vercel-insights.com",
     "worker-src 'self' blob:"
@@ -39,7 +41,7 @@ function applySecurityHeaders(response: NextResponse, csp: string, nonce: string
   return response;
 }
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const nonce = createNonce();
   const csp = buildContentSecurityPolicy(nonce);
 
