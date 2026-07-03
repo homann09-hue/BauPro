@@ -9380,6 +9380,10 @@ for each row execute function public.recalculate_invoice_totals_trigger();
 
 revoke all on function public.generate_invoice_number(uuid, text) from public;
 revoke all on function public.recalculate_invoice_totals(uuid) from public;
+revoke all on function public.generate_invoice_number(uuid, text) from anon;
+revoke all on function public.generate_invoice_number(uuid, text) from authenticated;
+revoke all on function public.recalculate_invoice_totals(uuid) from anon;
+revoke all on function public.recalculate_invoice_totals(uuid) from authenticated;
 
 create or replace function public.insert_invoice_items_from_json(p_invoice_id uuid, p_items jsonb)
 returns void

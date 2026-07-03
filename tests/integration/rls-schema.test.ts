@@ -62,6 +62,10 @@ const internalInvoiceRpcHardeningMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260721_internal_invoice_rpc_hardening.sql"),
   "utf8"
 );
+const internalInvoiceRpcExplicitRoleRevokeMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260722_internal_invoice_rpc_explicit_role_revoke.sql"),
+  "utf8"
+);
 const aiRoofMaterialCalculationMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260703_ai_roof_material_calculation.sql"),
   "utf8"
@@ -547,6 +551,11 @@ describe("Supabase RLS and security schema", () => {
       expect(schema).toContain(`revoke all on function public.${signature} from public`);
       expect(schema).not.toContain(`grant execute on function public.${signature} to authenticated`);
       expect(internalInvoiceRpcHardeningMigration).toContain(`revoke all on function public.${signature} from public`);
+
+      for (const roleName of ["anon", "authenticated"]) {
+        expect(schema).toContain(`revoke all on function public.${signature} from ${roleName}`);
+        expect(internalInvoiceRpcExplicitRoleRevokeMigration).toContain(`revoke all on function public.${signature} from ${roleName}`);
+      }
     }
 
     expect(schema).toContain("grant execute on function public.create_invoice_with_items");

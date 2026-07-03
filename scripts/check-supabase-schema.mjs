@@ -45,6 +45,10 @@ const internalInvoiceRpcHardening = fs.readFileSync(
   path.join(root, "supabase/migrations/20260721_internal_invoice_rpc_hardening.sql"),
   "utf8"
 );
+const internalInvoiceRpcExplicitRoleRevoke = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260722_internal_invoice_rpc_explicit_role_revoke.sql"),
+  "utf8"
+);
 
 const failures = [];
 
@@ -236,6 +240,13 @@ for (const signature of ["generate_invoice_number(uuid, text)", "recalculate_inv
     internalInvoiceRpcHardening.includes(`revoke all on function public.${signature} from public`),
     `invoice RPC hardening migration must revoke PUBLIC execute on ${signature}.`
   );
+  for (const roleName of ["anon", "authenticated"]) {
+    check(schema.includes(`revoke all on function public.${signature} from ${roleName}`), `${signature} must not be directly executable by ${roleName}.`);
+    check(
+      internalInvoiceRpcExplicitRoleRevoke.includes(`revoke all on function public.${signature} from ${roleName}`),
+      `invoice RPC explicit role revoke migration must revoke ${roleName} execute on ${signature}.`
+    );
+  }
   check(!schema.includes(`grant execute on function public.${signature} to authenticated`), `${signature} must not be granted directly to authenticated.`);
 }
 
