@@ -74,6 +74,10 @@ const invoiceItemsRpcExplicitRoleRevokeMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260724_invoice_items_rpc_explicit_role_revoke.sql"),
   "utf8"
 );
+const triggerFunctionExecuteHardeningMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260725_trigger_function_execute_hardening.sql"),
+  "utf8"
+);
 const aiRoofMaterialCalculationMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260703_ai_roof_material_calculation.sql"),
   "utf8"
@@ -593,5 +597,33 @@ describe("Supabase RLS and security schema", () => {
 
     expect(schema).not.toContain("grant execute on function public.recalculate_commercial_document_totals(uuid) to authenticated");
     expect(schema).toContain("create trigger recalculate_commercial_document_totals_on_items");
+  });
+
+  it("does not expose SECURITY DEFINER trigger helpers as direct RPC endpoints", () => {
+    const triggerOnlyFunctions = [
+      "assert_employee_permission_change_allowed",
+      "assert_role_change_allowed",
+      "create_defect_due_notification",
+      "create_defect_from_checklist_problem",
+      "create_task_for_checklist_problem",
+      "handle_new_user",
+      "recalculate_commercial_document_totals_trigger",
+      "recalculate_invoice_totals_trigger",
+      "validate_checklist_tenant",
+      "validate_defect_tenant",
+      "validate_resource_document_tenant"
+    ];
+
+    for (const functionName of triggerOnlyFunctions) {
+      expect(schema).toContain(`create or replace function public.${functionName}()`);
+      expect(schema).toContain(`execute function public.${functionName}()`);
+      expect(schema).not.toContain(`grant execute on function public.${functionName}() to authenticated`);
+
+      for (const roleName of ["public", "anon", "authenticated"]) {
+        const expected = `revoke all on function public.${functionName}() from ${roleName}`;
+        expect(schema).toContain(expected);
+        expect(triggerFunctionExecuteHardeningMigration).toContain(expected);
+      }
+    }
   });
 });

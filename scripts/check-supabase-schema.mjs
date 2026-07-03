@@ -57,6 +57,10 @@ const invoiceItemsRpcExplicitRoleRevoke = fs.readFileSync(
   path.join(root, "supabase/migrations/20260724_invoice_items_rpc_explicit_role_revoke.sql"),
   "utf8"
 );
+const triggerFunctionExecuteHardening = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260725_trigger_function_execute_hardening.sql"),
+  "utf8"
+);
 
 const failures = [];
 
@@ -80,6 +84,19 @@ const publicViewNames = [
   "inventory_items_public",
   "job_material_calculation_items_public",
   "job_material_requirements_public"
+];
+const triggerOnlySecurityDefinerFunctions = [
+  "assert_employee_permission_change_allowed",
+  "assert_role_change_allowed",
+  "create_defect_due_notification",
+  "create_defect_from_checklist_problem",
+  "create_task_for_checklist_problem",
+  "handle_new_user",
+  "recalculate_commercial_document_totals_trigger",
+  "recalculate_invoice_totals_trigger",
+  "validate_checklist_tenant",
+  "validate_defect_tenant",
+  "validate_resource_document_tenant"
 ];
 
 check(schema.includes("force row level security"), "schema.sql must force RLS on public tables.");
@@ -284,6 +301,26 @@ check(
   !schema.includes("grant execute on function public.insert_invoice_items_from_json(uuid, jsonb) to authenticated"),
   "insert_invoice_items_from_json must not be granted directly to authenticated."
 );
+
+for (const functionName of triggerOnlySecurityDefinerFunctions) {
+  check(schema.includes(`create or replace function public.${functionName}()`), `${functionName} must exist in schema.sql.`);
+  check(
+    schema.includes(`returns trigger`) &&
+      schema.includes(`execute function public.${functionName}()`),
+    `${functionName} must remain trigger-backed, not a standalone RPC path.`
+  );
+
+  for (const roleName of ["public", "anon", "authenticated"]) {
+    const expected = `revoke all on function public.${functionName}() from ${roleName}`;
+    check(schema.includes(expected), `${functionName} must not be directly executable by ${roleName}.`);
+    check(triggerFunctionExecuteHardening.includes(expected), `trigger function hardening migration must revoke ${roleName} execute on ${functionName}.`);
+  }
+
+  check(
+    !schema.includes(`grant execute on function public.${functionName}() to authenticated`),
+    `${functionName} must not be granted directly to authenticated.`
+  );
+}
 
 check(schema.includes("archived_at timestamptz"), "reports must support archived_at for soft deletion.");
 check(reportArchiveHardening.includes("alter table public.reports add column if not exists archived_at timestamptz"), "report archive migration must add archived_at.");

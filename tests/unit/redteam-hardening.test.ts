@@ -70,6 +70,34 @@ describe("RedTeam hardening guards", () => {
     }
   });
 
+  it("revokes direct execute grants from SECURITY DEFINER trigger helpers", () => {
+    const schema = source("supabase/schema.sql");
+    const migration = source("supabase/migrations/20260725_trigger_function_execute_hardening.sql");
+    const triggerOnlyFunctions = [
+      "assert_employee_permission_change_allowed",
+      "assert_role_change_allowed",
+      "create_defect_due_notification",
+      "create_defect_from_checklist_problem",
+      "create_task_for_checklist_problem",
+      "handle_new_user",
+      "recalculate_commercial_document_totals_trigger",
+      "recalculate_invoice_totals_trigger",
+      "validate_checklist_tenant",
+      "validate_defect_tenant",
+      "validate_resource_document_tenant"
+    ];
+
+    for (const functionName of triggerOnlyFunctions) {
+      expect(schema).not.toContain(`grant execute on function public.${functionName}() to authenticated`);
+      expect(schema).toContain(`execute function public.${functionName}()`);
+      for (const roleName of ["public", "anon", "authenticated"]) {
+        const expected = `revoke all on function public.${functionName}() from ${roleName}`;
+        expect(schema).toContain(expected);
+        expect(migration).toContain(expected);
+      }
+    }
+  });
+
   it("limits CSV imports and sanitizes PostgREST ilike search patterns", () => {
     const supplierActions = source("lib/actions/supplier-actions.ts");
     const germanText = source("lib/text/german.ts");
