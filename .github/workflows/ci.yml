@@ -44,6 +44,9 @@ jobs:
       - name: Supabase schema hardening check
         run: npm run db:schema-check
 
+      - name: SECURITY DEFINER RPC hardening audit
+        run: npm run audit:rpc-hardening
+
       - name: Load test configuration check
         run: npm run test:load:check
 

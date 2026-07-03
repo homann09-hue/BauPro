@@ -17,7 +17,8 @@
     "test:load:check": "node scripts/run-k6-load-test.mjs --validate-config",
     "test:load": "node scripts/run-k6-load-test.mjs --profile load",
     "test:stress": "node scripts/run-k6-load-test.mjs --profile stress",
-    "test:all": "npm run lint && npm run test && npm run db:schema-check && npm run build && npm run test:e2e",
+    "test:all": "npm run lint && npm run test && npm run db:schema-check && npm run audit:rpc-hardening && npm run build && npm run test:e2e",
+    "audit:rpc-hardening": "node scripts/audit-security-definer-functions.mjs --fail-on-trigger-grants",
     "test:chaos": "node scripts/chaos-test.mjs",
     "test:e2e:demo": "npm run seed:demo && playwright test",
     "seed:demo": "node scripts/seed-demo-company.mjs"

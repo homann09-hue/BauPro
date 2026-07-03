@@ -10193,6 +10193,10 @@ revoke all on function public.handle_new_user() from public;
 revoke all on function public.handle_new_user() from anon;
 revoke all on function public.handle_new_user() from authenticated;
 
+revoke all on function public.record_material_movement_from_audit() from public;
+revoke all on function public.record_material_movement_from_audit() from anon;
+revoke all on function public.record_material_movement_from_audit() from authenticated;
+
 revoke all on function public.recalculate_commercial_document_totals_trigger() from public;
 revoke all on function public.recalculate_commercial_document_totals_trigger() from anon;
 revoke all on function public.recalculate_commercial_document_totals_trigger() from authenticated;

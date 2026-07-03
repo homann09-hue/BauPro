@@ -61,6 +61,11 @@ const triggerFunctionExecuteHardening = fs.readFileSync(
   path.join(root, "supabase/migrations/20260725_trigger_function_execute_hardening.sql"),
   "utf8"
 );
+const materialMovementAuditTriggerRevoke = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260726_material_movement_audit_trigger_revoke.sql"),
+  "utf8"
+);
+const triggerFunctionHardeningMigrations = `${triggerFunctionExecuteHardening}\n${materialMovementAuditTriggerRevoke}`;
 
 const failures = [];
 
@@ -92,6 +97,7 @@ const triggerOnlySecurityDefinerFunctions = [
   "create_defect_from_checklist_problem",
   "create_task_for_checklist_problem",
   "handle_new_user",
+  "record_material_movement_from_audit",
   "recalculate_commercial_document_totals_trigger",
   "recalculate_invoice_totals_trigger",
   "validate_checklist_tenant",
@@ -313,7 +319,7 @@ for (const functionName of triggerOnlySecurityDefinerFunctions) {
   for (const roleName of ["public", "anon", "authenticated"]) {
     const expected = `revoke all on function public.${functionName}() from ${roleName}`;
     check(schema.includes(expected), `${functionName} must not be directly executable by ${roleName}.`);
-    check(triggerFunctionExecuteHardening.includes(expected), `trigger function hardening migration must revoke ${roleName} execute on ${functionName}.`);
+    check(triggerFunctionHardeningMigrations.includes(expected), `trigger function hardening migrations must revoke ${roleName} execute on ${functionName}.`);
   }
 
   check(

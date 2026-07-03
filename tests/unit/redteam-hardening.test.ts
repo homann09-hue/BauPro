@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { collectTriggerHelperGrantIssues } from "../helpers/supabase-rpc-hardening";
 
 const root = path.resolve(__dirname, "../..");
 
@@ -72,30 +73,12 @@ describe("RedTeam hardening guards", () => {
 
   it("revokes direct execute grants from SECURITY DEFINER trigger helpers", () => {
     const schema = source("supabase/schema.sql");
-    const migration = source("supabase/migrations/20260725_trigger_function_execute_hardening.sql");
-    const triggerOnlyFunctions = [
-      "assert_employee_permission_change_allowed",
-      "assert_role_change_allowed",
-      "create_defect_due_notification",
-      "create_defect_from_checklist_problem",
-      "create_task_for_checklist_problem",
-      "handle_new_user",
-      "recalculate_commercial_document_totals_trigger",
-      "recalculate_invoice_totals_trigger",
-      "validate_checklist_tenant",
-      "validate_defect_tenant",
-      "validate_resource_document_tenant"
-    ];
+    const migration = [
+      source("supabase/migrations/20260725_trigger_function_execute_hardening.sql"),
+      source("supabase/migrations/20260726_material_movement_audit_trigger_revoke.sql")
+    ].join("\n");
 
-    for (const functionName of triggerOnlyFunctions) {
-      expect(schema).not.toContain(`grant execute on function public.${functionName}() to authenticated`);
-      expect(schema).toContain(`execute function public.${functionName}()`);
-      for (const roleName of ["public", "anon", "authenticated"]) {
-        const expected = `revoke all on function public.${functionName}() from ${roleName}`;
-        expect(schema).toContain(expected);
-        expect(migration).toContain(expected);
-      }
-    }
+    expect(collectTriggerHelperGrantIssues({ schema, migration })).toEqual([]);
   });
 
   it("limits CSV imports and sanitizes PostgREST ilike search patterns", () => {

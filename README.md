@@ -135,6 +135,7 @@ supabase/migrations/20260722_internal_invoice_rpc_explicit_role_revoke.sql
 supabase/migrations/20260723_commercial_document_rpc_hardening.sql
 supabase/migrations/20260724_invoice_items_rpc_explicit_role_revoke.sql
 supabase/migrations/20260725_trigger_function_execute_hardening.sql
+supabase/migrations/20260726_material_movement_audit_trigger_revoke.sql
 ```
 
 `20260615_material_alerts_repair.sql` bleibt idempotent, damit aeltere Testdatenbanken mit fehlender Mitbringlisten-Kette repariert werden koennen. Fuer neue Projekte ist der vollstaendige Stand bereits in `supabase/schema.sql` enthalten.
@@ -259,6 +260,7 @@ npm run build
 ```
 
 Der Schema-Check prueft statisch FORCE RLS, preisbereinigte Views, Manager-only Preis-Policies, Storage-Pfade und atomare Lager-RPCs.
+Zusaetzlich kann `npm run audit:rpc-hardening` alle `SECURITY DEFINER`-Funktionen im Schema tabellarisch auswerten und blockiert direkte Execute-Grants auf reine Trigger-Helfer.
 
 ### Rate Limiting in Production
 
@@ -565,6 +567,7 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 - `supabase/migrations/20260723_commercial_document_rpc_hardening.sql`: Delta entzieht direkte RPC-Ausfuehrung fuer interne Angebot-/Rechnung-Summenberechnung; die Berechnung laeuft ueber Trigger
 - `supabase/migrations/20260724_invoice_items_rpc_explicit_role_revoke.sql`: Delta entzieht direkte RPC-Ausfuehrung fuer rohe Invoice-Positionsanlage; erlaubt bleiben nur die geprueften Invoice-Wrapper
 - `supabase/migrations/20260725_trigger_function_execute_hardening.sql`: Delta entzieht direkte RPC-Ausfuehrung fuer reine SECURITY-DEFINER-Trigger-Helfer; Trigger selbst bleiben funktionsfaehig
+- `supabase/migrations/20260726_material_movement_audit_trigger_revoke.sql`: Delta entzieht direkte RPC-Ausfuehrung fuer den Materialbewegungs-Audit-Trigger-Helfer
 - `supabase/material-catalog-seed.sql`: praxisnaher Dachdecker-Materialkatalog
 - `scripts/seed-demo-company.mjs`: realistische Demo-Firma fuer Verkauf, QA und Produktdemos
 - `tests/`: Unit-, Integration- und E2E-Smoke-Tests
@@ -576,6 +579,7 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 npm run lint
 npm run test
 npm run db:schema-check
+npm run audit:rpc-hardening
 npm run build
 ```
 
