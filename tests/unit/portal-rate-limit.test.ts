@@ -79,6 +79,14 @@ describe("portal IP rate limiting", () => {
     expect(getClientIp(new Headers())).toBe("unknown");
   });
 
+  it("ignoriert manipulierte oder ungueltige IP-Header fuer Rate-Limit-Keys", () => {
+    expect(getClientIp(new Headers({ "x-forwarded-for": "evil-user-input, 203.0.113.10" }))).toBe("203.0.113.10");
+    expect(getClientIp(new Headers({ "x-forwarded-for": "999.999.999.999", "x-real-ip": "198.51.100.2" }))).toBe("198.51.100.2");
+    expect(getClientIp(new Headers({ "x-forwarded-for": "a".repeat(200), "cf-connecting-ip": "2001:db8::1" }))).toBe("2001:db8::1");
+    expect(getClientIp(new Headers({ "x-vercel-forwarded-for": "203.0.113.99", "x-forwarded-for": "203.0.113.10" }))).toBe("203.0.113.99");
+    expect(getClientIp(new Headers({ "x-forwarded-for": "::::" }))).toBe("unknown");
+  });
+
   it("blockiert die 31. Portal-Anfrage innerhalb einer Minute pro IP", async () => {
     mockUpstash();
     process.env.UPSTASH_REDIS_REST_URL = "https://redis.example.test";

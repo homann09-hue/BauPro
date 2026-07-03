@@ -19,6 +19,7 @@ import {
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { optionalFormString, requiredFormString, requiredFormUuid } from "@/lib/security/form-data";
 import { logServerWarning } from "@/lib/security/logging";
+import { getClientIp } from "@/lib/security/origin";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { sanitizeUploadFileName, validateCustomerDocument } from "@/lib/security/uploads";
 import { validateSignatureDataUrl } from "@/lib/signatures/signature";
@@ -526,7 +527,8 @@ export async function signWorkOrderFromPortalAction(formData: FormData) {
 
     const headerStore = await headers();
     const now = new Date().toISOString();
-    const signerIp = headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+    const clientIp = getClientIp(headerStore);
+    const signerIp = clientIp === "unknown" ? null : clientIp;
     const signerUserAgent = headerStore.get("user-agent") ?? null;
     const status = decisionValue === "reject" ? "rejected" : "signed";
     const updates: Partial<WorkOrder> = {

@@ -9,6 +9,7 @@ import { contentHash } from "@/lib/customer-portal/tokens";
 import { jobsiteDocumentSelect } from "@/lib/data/selects";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { optionalFormString, requiredFormString, requiredFormUuid } from "@/lib/security/form-data";
+import { getClientIp } from "@/lib/security/origin";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { sanitizeUploadFileName, validateCustomerDocument } from "@/lib/security/uploads";
 import { signerRole, validateSignatureDataUrl } from "@/lib/signatures/signature";
@@ -301,7 +302,8 @@ export async function signJobsiteDocumentAction(formData: FormData) {
       signature_data_hash: contentHash(signatureDataUrl)
     };
     const hash = contentHash(snapshot);
-    const signerIp = headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+    const clientIp = getClientIp(headerStore);
+    const signerIp = clientIp === "unknown" ? null : clientIp;
     const signerUserAgent = headerStore.get("user-agent") ?? null;
     const documentType = document.category === "abnahmeprotokoll" ? "acceptance" : "jobsite_document";
     const { data, error } = await supabase
