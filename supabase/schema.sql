@@ -1278,7 +1278,7 @@ begin
   returning id into target_company_id;
 
   insert into public.profiles (id, company_id, email, full_name, role, active)
-  values (auth.uid(), target_company_id, user_email, user_full_name, 'admin', true)
+  values (auth.uid(), target_company_id, user_email, user_full_name, 'chef', true)
   returning * into existing_profile;
 
   return existing_profile;

@@ -49,4 +49,17 @@ describe("auth signup metadata hardening", () => {
       expect(file).not.toMatch(/user_metadata:\s*\{[^}]*company_id:/s);
     }
   });
+
+  it("erstellt im Bootstrap-Fallback keinen Systemadmin", () => {
+    const migration = source("supabase/migrations/20260718_bootstrap_profile_role_hardening.sql");
+    const schema = source("supabase/schema.sql");
+
+    for (const sql of [migration, schema]) {
+      const bootstrap = block(sql, "create or replace function public.bootstrap_my_profile()", "grant execute on function public.bootstrap_my_profile()");
+
+      expect(bootstrap).toContain("'chef', true");
+      expect(bootstrap).not.toContain("'admin', true");
+      expect(bootstrap).not.toContain("raw_user_meta_data->>'role'");
+    }
+  });
 });

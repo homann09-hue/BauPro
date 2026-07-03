@@ -154,6 +154,10 @@ for (const source of [schema, authSignupMetadataHardening]) {
   check(!handleNewUser.includes("raw_user_meta_data->>'role'"), "handle_new_user must not trust client user_metadata role.");
 }
 
+const bootstrapProfile = block(schema, "create or replace function public.bootstrap_my_profile()", "grant execute on function public.bootstrap_my_profile()");
+check(bootstrapProfile.includes("'chef', true"), "bootstrap_my_profile fallback must create a company chef, not a system admin.");
+check(!bootstrapProfile.includes("'admin', true"), "bootstrap_my_profile must not auto-create system admins.");
+
 check(inventoryPublicView.includes("where i.company_id = public.current_company_id()"), "inventory_items_public must filter by current company.");
 check(
   !/\b(purchase_price|sales_price|markup_percent|price_per_unit|price_net|price_gross|total_price_gross)\b/.test(inventoryPublicView),
