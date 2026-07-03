@@ -9630,6 +9630,8 @@ as $$
 $$;
 
 revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from public;
+revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from anon;
+revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from authenticated;
 grant execute on function public.create_invoice_with_items(uuid, uuid, uuid, text, date, date, numeric, text, uuid, jsonb) to authenticated;
 grant execute on function public.update_invoice_with_items(uuid, uuid, uuid, uuid, text, date, date, numeric, text, jsonb) to authenticated;
 grant execute on function public.get_invoice_stats(uuid) to authenticated;

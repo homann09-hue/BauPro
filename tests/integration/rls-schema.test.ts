@@ -70,6 +70,10 @@ const commercialDocumentRpcHardeningMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260723_commercial_document_rpc_hardening.sql"),
   "utf8"
 );
+const invoiceItemsRpcExplicitRoleRevokeMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260724_invoice_items_rpc_explicit_role_revoke.sql"),
+  "utf8"
+);
 const aiRoofMaterialCalculationMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260703_ai_roof_material_calculation.sql"),
   "utf8"
@@ -564,6 +568,19 @@ describe("Supabase RLS and security schema", () => {
 
     expect(schema).toContain("grant execute on function public.create_invoice_with_items");
     expect(schema).toContain("grant execute on function public.update_invoice_with_items");
+  });
+
+  it("keeps raw invoice item insertion behind checked invoice wrappers", () => {
+    for (const roleName of ["public", "anon", "authenticated"]) {
+      expect(schema).toContain(`revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from ${roleName}`);
+      expect(invoiceItemsRpcExplicitRoleRevokeMigration).toContain(
+        `revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from ${roleName}`
+      );
+    }
+
+    expect(schema).not.toContain("grant execute on function public.insert_invoice_items_from_json(uuid, jsonb) to authenticated");
+    expect(schema).toContain("perform public.insert_invoice_items_from_json(created_invoice_id, p_items)");
+    expect(schema).toContain("perform public.insert_invoice_items_from_json(p_invoice_id, p_items)");
   });
 
   it("keeps commercial document total recalculation behind table triggers", () => {

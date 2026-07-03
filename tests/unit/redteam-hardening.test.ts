@@ -59,6 +59,17 @@ describe("RedTeam hardening guards", () => {
     expect(schema).toContain("create trigger recalculate_commercial_document_totals_on_items");
   });
 
+  it("does not expose raw invoice item insertion as direct RPC", () => {
+    const schema = source("supabase/schema.sql");
+    const migration = source("supabase/migrations/20260724_invoice_items_rpc_explicit_role_revoke.sql");
+
+    expect(schema).not.toContain("grant execute on function public.insert_invoice_items_from_json(uuid, jsonb) to authenticated");
+    for (const roleName of ["public", "anon", "authenticated"]) {
+      expect(schema).toContain(`revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from ${roleName}`);
+      expect(migration).toContain(`revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from ${roleName}`);
+    }
+  });
+
   it("limits CSV imports and sanitizes PostgREST ilike search patterns", () => {
     const supplierActions = source("lib/actions/supplier-actions.ts");
     const germanText = source("lib/text/german.ts");

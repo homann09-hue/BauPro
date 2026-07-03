@@ -53,6 +53,10 @@ const commercialDocumentRpcHardening = fs.readFileSync(
   path.join(root, "supabase/migrations/20260723_commercial_document_rpc_hardening.sql"),
   "utf8"
 );
+const invoiceItemsRpcExplicitRoleRevoke = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260724_invoice_items_rpc_explicit_role_revoke.sql"),
+  "utf8"
+);
 
 const failures = [];
 
@@ -256,6 +260,14 @@ for (const signature of ["generate_invoice_number(uuid, text)", "recalculate_inv
 
 for (const roleName of ["public", "anon", "authenticated"]) {
   check(
+    schema.includes(`revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from ${roleName}`),
+    `insert_invoice_items_from_json must not be directly executable by ${roleName}.`
+  );
+  check(
+    invoiceItemsRpcExplicitRoleRevoke.includes(`revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from ${roleName}`),
+    `invoice item helper RPC hardening migration must revoke ${roleName} execute on insert_invoice_items_from_json.`
+  );
+  check(
     schema.includes(`revoke all on function public.recalculate_commercial_document_totals(uuid) from ${roleName}`),
     `recalculate_commercial_document_totals must not be directly executable by ${roleName}.`
   );
@@ -267,6 +279,10 @@ for (const roleName of ["public", "anon", "authenticated"]) {
 check(
   !schema.includes("grant execute on function public.recalculate_commercial_document_totals(uuid) to authenticated"),
   "recalculate_commercial_document_totals must not be granted directly to authenticated."
+);
+check(
+  !schema.includes("grant execute on function public.insert_invoice_items_from_json(uuid, jsonb) to authenticated"),
+  "insert_invoice_items_from_json must not be granted directly to authenticated."
 );
 
 check(schema.includes("archived_at timestamptz"), "reports must support archived_at for soft deletion.");
