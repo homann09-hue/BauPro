@@ -27,6 +27,9 @@ type LoginProfile = {
   active: boolean;
 };
 
+const LOGIN_EMAIL_RATE_LIMIT = 10;
+const LOGIN_IP_RATE_LIMIT = 60;
+
 function toQuery(value: string) {
   return encodeURIComponent(value);
 }
@@ -95,9 +98,11 @@ export async function signInAction(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const email = requiredString(formData, "email");
   const password = requiredString(formData, "password");
+  const requestHeaders = await headers();
 
   try {
-    await checkRateLimit(`login:${email.toLowerCase()}`, 10, 60_000);
+    await checkRateLimit(`login:${email.toLowerCase()}`, LOGIN_EMAIL_RATE_LIMIT, 60_000);
+    await checkRateLimit(`login-ip:${getClientIp(requestHeaders)}`, LOGIN_IP_RATE_LIMIT, 60_000);
   } catch {
     redirect(`/login?error=${toQuery("Zu viele Login-Versuche. Bitte kurz warten.")}`);
   }

@@ -6,6 +6,7 @@ import { isQueryTimeoutError, withQueryTimeout, withRouteTiming } from "@/lib/pe
 import { logServerWarning } from "@/lib/security/logging";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/env";
+import { getClientIp } from "@/lib/security/origin";
 import type { Role } from "@/types/app";
 
 type LoginProfile = {
@@ -26,6 +27,8 @@ const LOGIN_BOOTSTRAP_TIMEOUT_MS = 4_000;
 const LOGIN_AAL_TIMEOUT_MS = 2_000;
 const LOGIN_PROFILE_TIMEOUT_MS = 2_500;
 const LOGIN_COMPANY_TIMEOUT_MS = 2_000;
+const LOGIN_EMAIL_RATE_LIMIT = 10;
+const LOGIN_IP_RATE_LIMIT = 60;
 
 function encodeMessage(message: string) {
   return encodeURIComponent(message);
@@ -95,7 +98,8 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      await checkRateLimit(`login:${email}`, 10, 60_000);
+      await checkRateLimit(`login:${email}`, LOGIN_EMAIL_RATE_LIMIT, 60_000);
+      await checkRateLimit(`login-ip:${getClientIp(request.headers)}`, LOGIN_IP_RATE_LIMIT, 60_000);
     } catch {
       return loginError(request, "Zu viele Login-Versuche. Bitte kurz warten.");
     }
