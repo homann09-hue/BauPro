@@ -1,0 +1,20 @@
+[
+  {
+    "role": "chef",
+    "email": "chef@mueller-dachtechnik.example",
+    "passwordEnv": "LOAD_CHEF_PASSWORD",
+    "defaultPassword": "BauProDemo!2026"
+  },
+  {
+    "role": "vorarbeiter",
+    "email": "niklas@mueller-dachtechnik.example",
+    "passwordEnv": "LOAD_FOREMAN_PASSWORD",
+    "defaultPassword": "BauProDemo!2026"
+  },
+  {
+    "role": "mitarbeiter",
+    "email": "max@mueller-dachtechnik.example",
+    "passwordEnv": "LOAD_EMPLOYEE_PASSWORD",
+    "defaultPassword": "BauProDemo!2026"
+  }
+]

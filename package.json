@@ -13,7 +13,11 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test tests/e2e/smoke.spec.ts --project=mobile-chromium",
-    "test:load": "node scripts/load-test.mjs",
+    "test:load:http": "node scripts/load-test.mjs",
+    "test:load:check": "node scripts/run-k6-load-test.mjs --validate-config",
+    "test:load": "node scripts/run-k6-load-test.mjs --profile load",
+    "test:stress": "node scripts/run-k6-load-test.mjs --profile stress",
+    "test:all": "npm run lint && npm run test && npm run db:schema-check && npm run build && npm run test:e2e",
     "test:chaos": "node scripts/chaos-test.mjs",
     "test:e2e:demo": "npm run seed:demo && playwright test",
     "seed:demo": "node scripts/seed-demo-company.mjs"

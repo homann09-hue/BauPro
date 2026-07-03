@@ -561,7 +561,14 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 ```bash
 npm run lint
 npm run test
+npm run db:schema-check
 npm run build
+```
+
+Vollstaendiges lokales Quality Gate:
+
+```bash
+npm run test:all
 ```
 
 Optionaler Mobile-E2E-Smoke-Test:
@@ -577,7 +584,30 @@ Vollstaendiger Demo-QA-Lauf mit frischer Demo-Firma:
 npm run test:e2e:demo
 ```
 
+Last-/Stresstest-Konfiguration pruefen:
+
+```bash
+npm run test:load:check
+```
+
+Optionaler lokaler Load-Test mit k6:
+
+```bash
+LOAD_TEST_ENVIRONMENT=local npm run test:load
+```
+
+Optionaler 2.000-User-Stresstest nur gegen dedizierte Test-/Staging-Systeme:
+
+```bash
+LOAD_TEST_ENVIRONMENT=test \
+LOAD_ALLOW_REMOTE_TARGET=1 \
+LOAD_TEST_ACKNOWLEDGE_2000_USERS=1 \
+LOAD_TARGET_VUS=2000 \
+npm run test:stress
+```
+
 Details zu Demo-Daten, Testlogins, Hauptablaeufen und Fehlerfaellen stehen in `docs/QA_TESTING.md`.
+Der komplette Lasttest-Runbook inklusive ENV-Variablen, k6-Installation und Ergebnisbericht steht in `docs/LOAD_AND_E2E_TESTING.md`.
 
 Wenn Supabase-Umgebungsvariablen fehlen, kann die App nicht vollstaendig starten. Die erwarteten Variablen stehen in `.env.example`.
 

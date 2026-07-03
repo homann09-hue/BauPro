@@ -44,5 +44,8 @@ jobs:
       - name: Supabase schema hardening check
         run: npm run db:schema-check
 
+      - name: Load test configuration check
+        run: npm run test:load:check
+
       - name: Build
         run: npm run build
