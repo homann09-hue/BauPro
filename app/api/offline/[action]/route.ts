@@ -3,6 +3,7 @@ import { reportMaterialNeedAction } from "@/lib/actions/material-alert-actions";
 import { createReportAction, updateReportAction } from "@/lib/actions/report-actions";
 import { createTimeEntryAction, updateTimeEntryAction } from "@/lib/actions/time-tracking-actions";
 import { checkRateLimit } from "@/lib/security/rate-limit";
+import { safeErrorMessage, safeErrorStatus } from "@/lib/security/errors";
 import { getClientIp } from "@/lib/security/origin";
 import { getOptionalAppContext } from "@/lib/auth";
 
@@ -144,9 +145,9 @@ export async function POST(request: NextRequest, { params }: OfflineRouteContext
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Zu viele Offline-Anfragen.",
+        error: safeErrorMessage(error, "Zu viele Offline-Anfragen. Bitte versuche es gleich erneut."),
       },
-      { status: 429 }
+      { status: safeErrorStatus(error) }
     );
   }
 

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getOptionalAppContext } from "@/lib/auth";
 import { formatQuantity, isLowStock } from "@/lib/inventory";
-import { safeQueryErrorMessage } from "@/lib/security/errors";
+import { safeErrorMessage, safeErrorStatus, safeQueryErrorMessage } from "@/lib/security/errors";
 import { getClientIp } from "@/lib/security/origin";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -16,39 +16,46 @@ function scanLimitFromRequest(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const context = await getOptionalAppContext();
+  try {
+    const context = await getOptionalAppContext();
 
-  if (!context) {
-    return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
-  }
-
-  await checkRateLimit(`materials-low-stock:${context.companyId}:${context.userId}:${getClientIp(request.headers)}`, 100, 60_000);
-
-  const supabase = await createSupabaseServerClient();
-  const scanLimit = scanLimitFromRequest(request);
-  const result = await (context.canManage ? supabase.from("inventory_items") : supabase.from("inventory_items_public"))
-    .select("id, name, unit, stock, minimum_stock, location_id")
-    .eq("company_id", context.companyId)
-    .limit(scanLimit);
-
-  const queryError = safeQueryErrorMessage(result.error);
-
-  if (queryError) {
-    return NextResponse.json({ error: queryError }, { status: 500 });
-  }
-
-  const stockItems = (result.data ?? []) as StockItem[];
-  const lowStockCount = stockItems.filter(isLowStock).length;
-
-  return NextResponse.json(
-    {
-      count: lowStockCount,
-      label: stockItems.length >= scanLimit ? `${formatQuantity(lowStockCount)}+` : formatQuantity(lowStockCount)
-    },
-    {
-      headers: {
-        "Cache-Control": "private, max-age=30"
-      }
+    if (!context) {
+      return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });
     }
-  );
+
+    await checkRateLimit(`materials-low-stock:${context.companyId}:${context.userId}:${getClientIp(request.headers)}`, 100, 60_000);
+
+    const supabase = await createSupabaseServerClient();
+    const scanLimit = scanLimitFromRequest(request);
+    const result = await (context.canManage ? supabase.from("inventory_items") : supabase.from("inventory_items_public"))
+      .select("id, name, unit, stock, minimum_stock, location_id")
+      .eq("company_id", context.companyId)
+      .limit(scanLimit);
+
+    const queryError = safeQueryErrorMessage(result.error);
+
+    if (queryError) {
+      return NextResponse.json({ error: queryError }, { status: 500 });
+    }
+
+    const stockItems = (result.data ?? []) as StockItem[];
+    const lowStockCount = stockItems.filter(isLowStock).length;
+
+    return NextResponse.json(
+      {
+        count: lowStockCount,
+        label: stockItems.length >= scanLimit ? `${formatQuantity(lowStockCount)}+` : formatQuantity(lowStockCount)
+      },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=30"
+        }
+      }
+    );
+  } catch (error) {
+    return NextResponse.json(
+      { error: safeErrorMessage(error, "Fehlmengen konnten nicht geladen werden.") },
+      { status: safeErrorStatus(error) }
+    );
+  }
 }
