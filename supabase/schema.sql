@@ -9378,8 +9378,8 @@ create trigger recalculate_invoice_totals_on_items
 after insert or update or delete on public.invoice_items
 for each row execute function public.recalculate_invoice_totals_trigger();
 
-grant execute on function public.generate_invoice_number(uuid, text) to authenticated;
-grant execute on function public.recalculate_invoice_totals(uuid) to authenticated;
+revoke all on function public.generate_invoice_number(uuid, text) from public;
+revoke all on function public.recalculate_invoice_totals(uuid) from public;
 
 create or replace function public.insert_invoice_items_from_json(p_invoice_id uuid, p_items jsonb)
 returns void

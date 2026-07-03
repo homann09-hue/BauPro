@@ -41,6 +41,18 @@ const reportDraftRequestSchema = z.object({
   existingPhotoIds: z.array(z.string().uuid()).max(4).optional()
 });
 
+type AiReportPhoto = {
+  id: string;
+  report_id: string;
+  storage_path: string;
+};
+
+type AiReportAccess = {
+  id: string;
+  created_by: string | null;
+  employee_ids: string[] | null;
+};
+
 function json(payload: Record<string, unknown>, init?: ResponseInit) {
   return NextResponse.json(payload, {
     ...init,
@@ -56,25 +68,41 @@ async function signedReportPhotoUrls(photoIds: string[], companyId: string, user
   if (photoIds.length === 0) return [];
 
   const supabase = await createSupabaseServerClient();
-  let query = supabase
+  const { data: photoRows, error: photosError } = await supabase
     .from("report_photos")
-    .select("id, storage_path, created_by")
+    .select("id, report_id, storage_path")
     .eq("company_id", companyId)
     .is("archived_at", null)
     .in("id", photoIds);
 
-  if (!canManage) {
-    query = query.eq("created_by", userId);
-  }
-
-  const { data, error } = await query;
-
-  if (error || !data) {
+  if (photosError || !photoRows) {
     throw new SafeActionError("Foto-Kontext konnte nicht geladen werden.");
   }
 
+  const photos = photoRows as AiReportPhoto[];
+  const reportIds = [...new Set(photos.map((photo) => photo.report_id))];
+  if (reportIds.length === 0) return [];
+
+  const { data: reportRows, error: reportsError } = await supabase
+    .from("reports")
+    .select("id, created_by, employee_ids")
+    .eq("company_id", companyId)
+    .is("archived_at", null)
+    .in("id", reportIds);
+
+  if (reportsError || !reportRows) {
+    throw new SafeActionError("Foto-Kontext konnte nicht geprüft werden.");
+  }
+
+  const accessibleReportIds = new Set(
+    (reportRows as AiReportAccess[])
+      .filter((report) => canManage || report.created_by === userId || (report.employee_ids ?? []).includes(userId))
+      .map((report) => report.id)
+  );
+  const allowedPhotos = photos.filter((photo) => accessibleReportIds.has(photo.report_id));
+
   const urls = await Promise.all(
-    data.slice(0, 4).map(async (photo) => {
+    allowedPhotos.slice(0, 4).map(async (photo) => {
       const { data: signed } = await supabase.storage.from("report-photos").createSignedUrl(photo.storage_path as string, 60 * 5);
       return signed?.signedUrl ?? null;
     })

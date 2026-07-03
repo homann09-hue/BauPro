@@ -41,6 +41,10 @@ const publicViewSecurityInvoker = fs.readFileSync(
   path.join(root, "supabase/migrations/20260720_public_view_security_invoker.sql"),
   "utf8"
 );
+const internalInvoiceRpcHardening = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260721_internal_invoice_rpc_hardening.sql"),
+  "utf8"
+);
 
 const failures = [];
 
@@ -225,6 +229,15 @@ check(schema.includes("function public.assert_role_change_allowed"), "role chang
 check(schema.includes("guard_profile_role_change_before_audit"), "profiles must have a role escalation guard trigger.");
 check(schema.includes("before update of role on public.profiles"), "role escalation guard must run before profile role updates.");
 check(schema.includes("Keine Berechtigung fuer diese Rollenaenderung."), "role escalation guard must raise a safe German error.");
+
+for (const signature of ["generate_invoice_number(uuid, text)", "recalculate_invoice_totals(uuid)"]) {
+  check(schema.includes(`revoke all on function public.${signature} from public`), `${signature} must not be directly executable by PUBLIC.`);
+  check(
+    internalInvoiceRpcHardening.includes(`revoke all on function public.${signature} from public`),
+    `invoice RPC hardening migration must revoke PUBLIC execute on ${signature}.`
+  );
+  check(!schema.includes(`grant execute on function public.${signature} to authenticated`), `${signature} must not be granted directly to authenticated.`);
+}
 
 check(schema.includes("archived_at timestamptz"), "reports must support archived_at for soft deletion.");
 check(reportArchiveHardening.includes("alter table public.reports add column if not exists archived_at timestamptz"), "report archive migration must add archived_at.");

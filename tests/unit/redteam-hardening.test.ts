@@ -35,6 +35,20 @@ describe("RedTeam hardening guards", () => {
     expect(plans).toContain("KI-Token-Limit fuer diesen Monat erreicht");
   });
 
+  it("limits AI report photo context to currently accessible non-archived reports", () => {
+    const route = source("app/api/ai/report-draft/route.ts");
+
+    expect(route).toContain(".from(\"report_photos\")");
+    expect(route).toContain(".select(\"id, report_id, storage_path\")");
+    expect(route).toContain(".is(\"archived_at\", null)");
+    expect(route).toContain(".from(\"reports\")");
+    expect(route).toContain(".select(\"id, created_by, employee_ids\")");
+    expect(route).toContain("accessibleReportIds");
+    expect(route).toContain("canManage || report.created_by === userId || (report.employee_ids ?? []).includes(userId)");
+    expect(route).toContain("allowedPhotos.slice(0, 4)");
+    expect(route).not.toContain('query = query.eq("created_by", userId)');
+  });
+
   it("limits CSV imports and sanitizes PostgREST ilike search patterns", () => {
     const supplierActions = source("lib/actions/supplier-actions.ts");
     const germanText = source("lib/text/german.ts");

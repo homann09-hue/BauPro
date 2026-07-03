@@ -58,6 +58,10 @@ const publicViewSecurityInvokerMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260720_public_view_security_invoker.sql"),
   "utf8"
 );
+const internalInvoiceRpcHardeningMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260721_internal_invoice_rpc_hardening.sql"),
+  "utf8"
+);
 const aiRoofMaterialCalculationMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260703_ai_roof_material_calculation.sql"),
   "utf8"
@@ -536,5 +540,16 @@ describe("Supabase RLS and security schema", () => {
       expect(publicView).toContain("with (security_invoker = true)");
       expect(publicViewSecurityInvokerMigration).toContain(`alter view if exists public.${viewName} set (security_invoker = true)`);
     }
+  });
+
+  it("keeps internal invoice helper RPCs away from direct authenticated calls", () => {
+    for (const signature of ["generate_invoice_number(uuid, text)", "recalculate_invoice_totals(uuid)"]) {
+      expect(schema).toContain(`revoke all on function public.${signature} from public`);
+      expect(schema).not.toContain(`grant execute on function public.${signature} to authenticated`);
+      expect(internalInvoiceRpcHardeningMigration).toContain(`revoke all on function public.${signature} from public`);
+    }
+
+    expect(schema).toContain("grant execute on function public.create_invoice_with_items");
+    expect(schema).toContain("grant execute on function public.update_invoice_with_items");
   });
 });
