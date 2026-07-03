@@ -52,10 +52,17 @@ describe("Demo-Modus", () => {
     expect(demoStartRoute).toContain("await checkRateLimit(demoStartRateLimitKey");
     expect(demoStartRoute).toContain("Demo wurde zu oft gestartet");
     expect(demoStartRoute).toContain('message.includes("Zu viele Anfragen")');
-    expect(demoStartRoute).toContain("demo-route-rate-limit-fallback");
+    expect(demoStartRoute).toContain("Demo-Schutz konnte nicht geprüft werden. Bitte später erneut versuchen.");
+    expect(demoStartRoute).toContain("demo-route-rate-limit-blocked");
+    expect(demoStartRoute).not.toContain("demo-route-rate-limit-fallback");
     expect(demoStartRoute).toContain("signInDemoUser");
     expect(demoStartRoute).toContain("forceUserSync: true");
     expect(demoStartRoute).toContain("redirectWithCookies");
+
+    const authActions = source("lib/actions/auth-actions.ts");
+    expect(authActions).toContain("Demo-Schutz konnte nicht geprüft werden. Bitte später erneut versuchen.");
+    expect(authActions).toContain("demo-rate-limit-blocked");
+    expect(authActions).not.toContain("demo-rate-limit-fallback");
 
     const demoSeed = source("lib/demo/demo-mode.ts");
     expect(demoSeed).toContain("DEMO_CUSTOMER_PORTAL_TOKEN");

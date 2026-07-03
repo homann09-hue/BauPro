@@ -90,6 +90,22 @@ function demoStartRateLimitKey(requestHeaders: Headers) {
   return `demo:start:${rateLimitKeyPart(clientIp)}:${rateLimitKeyPart(userAgent)}`;
 }
 
+function demoRateLimitPublicMessage(error: unknown) {
+  const message = safeErrorMessage(error, "Demo-Schutz konnte nicht geprüft werden.");
+
+  if (message.includes("Zu viele Anfragen")) {
+    return {
+      message: "Demo wurde zu oft gestartet. Bitte warte kurz und versuche es erneut.",
+      shouldLog: false
+    };
+  }
+
+  return {
+    message: "Demo-Schutz konnte nicht geprüft werden. Bitte später erneut versuchen.",
+    shouldLog: true
+  };
+}
+
 function targetCompanyIdFromForm(formData: FormData, fallbackCompanyId: string) {
   return optionalFormUuid(formData, "company_id", "Firma") ?? fallbackCompanyId;
 }
@@ -173,12 +189,11 @@ export async function startDemoModeAction(formData: FormData) {
     try {
       await checkRateLimit(demoStartRateLimitKey(requestHeaders), 30, 60_000);
     } catch (error) {
-      const message = safeErrorMessage(error, "Demo-Schutz konnte nicht geprüft werden.");
-      if (message.includes("Zu viele Anfragen")) {
-        redirect(`${errorPath}?error=${toQuery("Demo wurde zu oft gestartet. Bitte warte kurz und versuche es erneut.")}`);
+      const publicMessage = demoRateLimitPublicMessage(error);
+      if (publicMessage.shouldLog) {
+        logServerWarning("demo-rate-limit-blocked", error, { message: publicMessage.message });
       }
-
-      logServerWarning("demo-rate-limit-fallback", error, { message });
+      redirect(`${errorPath}?error=${toQuery(publicMessage.message)}`);
     }
   }
 

@@ -31,6 +31,13 @@ function isObjectError(error: unknown): error is { message?: string } {
   return typeof error === "object" && error !== null && "message" in error;
 }
 
+function isNextControlFlowError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+
+  const digest = "digest" in error && typeof error.digest === "string" ? error.digest : "";
+  return error.message === "NEXT_REDIRECT" || error.message === "NEXT_NOT_FOUND" || digest.startsWith("NEXT_REDIRECT;");
+}
+
 function resolveFallback<T>(fallback?: FallbackValue<T>): T | undefined {
   if (typeof fallback === "undefined") return undefined;
   if (typeof fallback === "function") return (fallback as () => T)();
@@ -180,6 +187,10 @@ export async function withRouteTiming<T>(
     return result;
   } catch (error) {
     const durationMs = Date.now() - startedAt;
+
+    if (isNextControlFlowError(error)) {
+      throw error;
+    }
 
     if (isDev) {
       logServerError("perf.route-error", error, {

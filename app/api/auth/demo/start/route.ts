@@ -45,6 +45,22 @@ function demoStartRateLimitKey(request: NextRequest) {
   return `demo:start:${rateLimitKeyPart(clientIp)}:${rateLimitKeyPart(userAgent)}`;
 }
 
+function demoRateLimitPublicMessage(error: unknown) {
+  const message = safeErrorMessage(error, "Demo-Schutz konnte nicht geprüft werden.");
+
+  if (message.includes("Zu viele Anfragen")) {
+    return {
+      message: "Demo wurde zu oft gestartet. Bitte warte kurz und versuche es erneut.",
+      shouldLog: false
+    };
+  }
+
+  return {
+    message: "Demo-Schutz konnte nicht geprüft werden. Bitte später erneut versuchen.",
+    shouldLog: true
+  };
+}
+
 const DEMO_PREP_TIMEOUT_MS = 15_000;
 const DEMO_AUTH_TIMEOUT_MS = 10_000;
 const DEMO_BOOTSTRAP_TIMEOUT_MS = 4_000;
@@ -102,16 +118,16 @@ export async function POST(request: NextRequest) {
       try {
         await checkRateLimit(demoStartRateLimitKey(request), 30, 60_000);
       } catch (error) {
-        const message = safeErrorMessage(error, "Demo-Schutz konnte nicht geprüft werden.");
-        if (message.includes("Zu viele Anfragen")) {
-          return redirectWithCookies(
-            request,
-            `${returnTo}?error=${encodeMessage("Demo wurde zu oft gestartet. Bitte warte kurz und versuche es erneut.")}`,
-            cookiesToSet
-          );
+        const publicMessage = demoRateLimitPublicMessage(error);
+        if (publicMessage.shouldLog) {
+          logServerWarning("demo-route-rate-limit-blocked", error, { message: publicMessage.message });
         }
 
-        logServerWarning("demo-route-rate-limit-fallback", error, { message });
+        return redirectWithCookies(
+          request,
+          `${returnTo}?error=${encodeMessage(publicMessage.message)}`,
+          cookiesToSet
+        );
       }
     }
 

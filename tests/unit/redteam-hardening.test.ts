@@ -78,4 +78,18 @@ describe("RedTeam hardening guards", () => {
     expect(deliveryNoteActions).toContain("if (insertError)");
     expect(supplierActions).toContain("if (insertError)");
   });
+
+  it("does not report expected Next.js redirects as route errors", () => {
+    const observability = source("lib/performance/observability.ts");
+
+    expect(observability).toContain("function isNextControlFlowError");
+    expect(observability).toContain('error.message === "NEXT_REDIRECT"');
+    expect(observability).toContain('error.message === "NEXT_NOT_FOUND"');
+    expect(observability).toContain('digest.startsWith("NEXT_REDIRECT;")');
+
+    const guardIndex = observability.indexOf("if (isNextControlFlowError(error))");
+    const errorLogIndex = observability.indexOf('logServerError("perf.route-error"');
+    expect(guardIndex).toBeGreaterThan(-1);
+    expect(errorLogIndex).toBeGreaterThan(guardIndex);
+  });
 });
