@@ -189,8 +189,7 @@ export async function importOnboardingEmployeesAction(formData: FormData) {
         baupro_role: employee.role
       },
       user_metadata: {
-        full_name: employee.fullName,
-        role: employee.role
+        full_name: employee.fullName
       }
     });
 
@@ -219,8 +218,7 @@ export async function importOnboardingEmployeesAction(formData: FormData) {
           baupro_role: finalRole
         },
         user_metadata: {
-          full_name: employee.fullName,
-          role: finalRole
+          full_name: employee.fullName
         }
       });
       profileResult = await admin.from("profiles").upsert({

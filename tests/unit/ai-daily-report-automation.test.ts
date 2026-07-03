@@ -18,6 +18,8 @@ describe("AI daily report automation", () => {
     expect(route).toContain("z.literal(true");
     expect(route).toContain("getOptionalAppContext");
     expect(route).toContain("signedReportPhotoUrls");
+    expect(route).toContain("if (!canManage)");
+    expect(route).toContain('query = query.eq("created_by", userId)');
     expect(route).toContain("generateDailyReportDraftFromPayload");
     expect(component).toContain('fetch("/api/ai/report-draft"');
     expect(component).toContain("KI-Verarbeitung erlauben");

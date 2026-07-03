@@ -52,16 +52,22 @@ function json(payload: Record<string, unknown>, init?: ResponseInit) {
   });
 }
 
-async function signedReportPhotoUrls(photoIds: string[], companyId: string) {
+async function signedReportPhotoUrls(photoIds: string[], companyId: string, userId: string, canManage: boolean) {
   if (photoIds.length === 0) return [];
 
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("report_photos")
-    .select("id, storage_path")
+    .select("id, storage_path, created_by")
     .eq("company_id", companyId)
     .is("archived_at", null)
     .in("id", photoIds);
+
+  if (!canManage) {
+    query = query.eq("created_by", userId);
+  }
+
+  const { data, error } = await query;
 
   if (error || !data) {
     throw new SafeActionError("Foto-Kontext konnte nicht geladen werden.");
@@ -96,7 +102,7 @@ export async function POST(request: Request) {
       return json({ ok: false, configured: true, message: parsed.error.issues[0]?.message ?? "KI-Eingabe konnte nicht gelesen werden." }, { status: 400 });
     }
 
-    const imageUrls = await signedReportPhotoUrls(parsed.data.existingPhotoIds ?? [], context.companyId);
+    const imageUrls = await signedReportPhotoUrls(parsed.data.existingPhotoIds ?? [], context.companyId, context.userId, context.canManage);
     const reportContext: DailyReportAutomationContext = {
       ...(parsed.data.context ?? {}),
       photo_context_note:

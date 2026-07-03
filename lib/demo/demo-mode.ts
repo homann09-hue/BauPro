@@ -185,9 +185,8 @@ async function markDemoCompanyReady(admin: AdminClient, companyId: string, chefI
 async function ensureDemoUser(admin: AdminClient, seed: DemoUserSeed, companyId: string, password: string, existingUsers: Awaited<ReturnType<typeof listAllUsers>>) {
   const existing = existingUsers.find((user) => user.email?.toLowerCase() === seed.email.toLowerCase());
   let finalRole = seed.role;
-  const metadata = (role: DemoRole) => ({
+  const metadata = () => ({
     full_name: seed.fullName,
-    role,
     demo_mode: true,
     demo_key: seed.key
   });
@@ -201,7 +200,7 @@ async function ensureDemoUser(admin: AdminClient, seed: DemoUserSeed, companyId:
     password,
     email_confirm: true,
     app_metadata: appMetadata(finalRole),
-    user_metadata: metadata(finalRole)
+    user_metadata: metadata()
   };
   let authResult = existing
     ? await admin.auth.admin.updateUserById(existing.id, authPayload)
@@ -210,8 +209,8 @@ async function ensureDemoUser(admin: AdminClient, seed: DemoUserSeed, companyId:
   if (authResult.error && seed.role === "vorarbeiter") {
     finalRole = "mitarbeiter";
     authResult = existing
-      ? await admin.auth.admin.updateUserById(existing.id, { ...authPayload, app_metadata: appMetadata(finalRole), user_metadata: metadata(finalRole) })
-      : await admin.auth.admin.createUser({ email: seed.email, ...authPayload, app_metadata: appMetadata(finalRole), user_metadata: metadata(finalRole) });
+      ? await admin.auth.admin.updateUserById(existing.id, { ...authPayload, app_metadata: appMetadata(finalRole), user_metadata: metadata() })
+      : await admin.auth.admin.createUser({ email: seed.email, ...authPayload, app_metadata: appMetadata(finalRole), user_metadata: metadata() });
   }
 
   if (authResult.error || !authResult.data.user) throw new Error("demo_user_auth_failed");
@@ -231,7 +230,7 @@ async function ensureDemoUser(admin: AdminClient, seed: DemoUserSeed, companyId:
 
   if (profileResult.error && finalRole === "vorarbeiter" && isUnsupportedVorarbeiterRoleError(profileResult.error)) {
     finalRole = "mitarbeiter";
-    await admin.auth.admin.updateUserById(user.id, { user_metadata: metadata(finalRole) });
+    await admin.auth.admin.updateUserById(user.id, { app_metadata: appMetadata(finalRole), user_metadata: metadata() });
     profileResult = await admin.from("profiles").upsert(
       {
         id: user.id,

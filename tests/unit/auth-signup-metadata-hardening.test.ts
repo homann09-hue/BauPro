@@ -47,6 +47,7 @@ describe("auth signup metadata hardening", () => {
       expect(file).toContain("app_metadata");
       expect(file).toContain("baupro_server_created: true");
       expect(file).not.toMatch(/user_metadata:\s*\{[^}]*company_id:/s);
+      expect(file).not.toMatch(/user_metadata:\s*\{[^}]*role:/s);
     }
   });
 

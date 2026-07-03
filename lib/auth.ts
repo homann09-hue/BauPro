@@ -4,6 +4,7 @@ import { isMissingSchemaError } from "@/lib/supabase/errors";
 import { effectivePermissionKeys, hasAppPermission, type PermissionKey } from "@/lib/permissions";
 import { canOperate, isAdmin, isChef, isManager } from "@/lib/utils";
 import { logServerWarning } from "@/lib/security/logging";
+import { hasVerifiedTotpFactor, type MfaFactorListLike } from "@/lib/security/mfa";
 import { isQueryTimeoutError, withQueryTimeout } from "@/lib/performance/observability";
 import type { Company, Profile } from "@/types/app";
 
@@ -174,8 +175,8 @@ export async function getOptionalAppContext(): Promise<AppContext | null> {
 
   let mfaEnabled = false;
   if (factorsResult.status === "fulfilled" && !factorsResult.value.error) {
-    const factors = factorsResult.value as unknown as { data?: { totp?: unknown[] } };
-    mfaEnabled = Array.isArray(factors.data?.totp) && factors.data.totp.length > 0;
+    const factors = factorsResult.value as unknown as { data?: MfaFactorListLike };
+    mfaEnabled = hasVerifiedTotpFactor(factors.data);
   } else if (shouldLoadMfa) {
     logServerWarning("auth-context-mfa-timeout", {
       route: "auth",

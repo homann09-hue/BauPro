@@ -6,6 +6,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { logServerWarning } from "@/lib/security/logging";
 import { verifyLoginMfaChallengeAction } from "@/lib/actions/mfa-actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isVerifiedTotpFactor } from "@/lib/security/mfa";
 import { searchParamMessage } from "@/lib/utils";
 import { withQueryTimeout } from "@/lib/performance/observability";
 
@@ -97,7 +98,7 @@ export default async function MfaChallengePage({
       fallback: () => ({ data: null, error: authTimeout("MFA listFactors timeout") })
     }
   );
-  const factor = factors?.totp?.[0];
+  const factor = factors?.totp?.find(isVerifiedTotpFactor);
 
   if (!factor) {
     redirect("/login?error=Kein+aktiver+2FA-Faktor+gefunden.");

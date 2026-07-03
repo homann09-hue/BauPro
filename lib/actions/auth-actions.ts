@@ -306,8 +306,7 @@ export async function createEmployeeAction(formData: FormData) {
       baupro_role: role
     },
     user_metadata: {
-      full_name: fullName,
-      role
+      full_name: fullName
     }
   });
 
@@ -334,8 +333,7 @@ export async function createEmployeeAction(formData: FormData) {
         baupro_role: finalRole
       },
       user_metadata: {
-        full_name: fullName,
-        role: finalRole
+        full_name: fullName
       }
     });
     profileResult = await admin.from("profiles").upsert({

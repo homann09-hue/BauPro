@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requirePrivilegedAccountSecurity } from "@/lib/auth";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
+import { hasVerifiedTotpFactor, isVerifiedTotpFactor } from "@/lib/security/mfa";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requiredString } from "@/lib/utils";
@@ -91,7 +92,7 @@ export async function enrollMfaAction(): Promise<MfaEnrollmentResult> {
   const supabase = await createSupabaseServerClient();
   const factors = await supabase.auth.mfa.listFactors();
 
-  if (factors.data?.totp?.length) {
+  if (hasVerifiedTotpFactor(factors.data)) {
     return { ok: false, error: "2FA ist für diesen Account bereits aktiv." };
   }
 
@@ -175,7 +176,7 @@ export async function verifyLoginMfaChallengeAction(formData: FormData) {
     const factorId = requiredString(formData, "factor_id");
     const code = normalizeTotpCode(formData);
     const factors = await supabase.auth.mfa.listFactors();
-    const factor = factors.data?.totp?.find((entry) => entry.id === factorId);
+    const factor = factors.data?.totp?.find((entry) => entry.id === factorId && isVerifiedTotpFactor(entry));
     if (factors.error || !factor) {
       throw new SafeActionError("2FA-Faktor wurde nicht gefunden.");
     }
