@@ -169,6 +169,26 @@ describe("role permissions", () => {
     expect(teamPage).toContain('supabase.from("companies").select("id, name")');
     expect(teamPage).toContain('name="company_id"');
     expect(authActions).toContain("targetCompanyIdFromForm");
+    expect(authActions).toContain("async function assertTargetCompanyExists");
     expect(authActions).toContain("await checkUserLimit(supabase, targetCompanyId)");
+  });
+
+  it("validates cross-company team targets before privileged auth writes", () => {
+    const authActions = source("lib/actions/auth-actions.ts");
+    const createEmployeeIndex = authActions.indexOf("export async function createEmployeeAction");
+    const companyCheckIndex = authActions.indexOf("await assertTargetCompanyExists(supabase, targetCompanyId)", createEmployeeIndex);
+    const userLimitIndex = authActions.indexOf("await checkUserLimit(supabase, targetCompanyId)", createEmployeeIndex);
+    const authCreateIndex = authActions.indexOf("admin.auth.admin.createUser", createEmployeeIndex);
+    const updateEmployeeIndex = authActions.indexOf("export async function updateEmployeeAction");
+    const updateCompanyCheckIndex = authActions.indexOf("await assertTargetCompanyExists(supabase, targetCompanyId)", updateEmployeeIndex);
+
+    expect(createEmployeeIndex).toBeGreaterThan(-1);
+    expect(companyCheckIndex).toBeGreaterThan(createEmployeeIndex);
+    expect(companyCheckIndex).toBeLessThan(userLimitIndex);
+    expect(userLimitIndex).toBeLessThan(authCreateIndex);
+    expect(updateCompanyCheckIndex).toBeGreaterThan(updateEmployeeIndex);
+    expect(authActions).toContain('.update({ full_name: fullName, role: finalRole, active })');
+    expect(authActions).toContain('.select("id")');
+    expect(authActions).toContain("if (error || !updatedProfile)");
   });
 });

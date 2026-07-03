@@ -110,6 +110,21 @@ function targetCompanyIdFromForm(formData: FormData, fallbackCompanyId: string) 
   return optionalFormUuid(formData, "company_id", "Firma") ?? fallbackCompanyId;
 }
 
+async function assertTargetCompanyExists(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  companyId: string
+) {
+  const { data, error } = await supabase
+    .from("companies")
+    .select("id")
+    .eq("id", companyId)
+    .maybeSingle();
+
+  if (error || !data) {
+    throw new SafeActionError("Zielfirma wurde nicht gefunden.");
+  }
+}
+
 export async function signInAction(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const email = requiredString(formData, "email");
@@ -311,9 +326,10 @@ export async function createEmployeeAction(formData: FormData) {
   }
 
   try {
+    await assertTargetCompanyExists(supabase, targetCompanyId);
     await checkUserLimit(supabase, targetCompanyId);
   } catch (error) {
-    redirectWithMessage(returnTo, "error", safeErrorMessage(error, "Nutzerlimit konnte nicht geprüft werden."));
+    redirectWithMessage(returnTo, "error", safeErrorMessage(error, "Zielfirma oder Nutzerlimit konnte nicht geprüft werden."));
   }
 
   const { data, error } = await admin.auth.admin.createUser({
@@ -392,24 +408,37 @@ export async function updateEmployeeAction(formData: FormData) {
     redirect(`/team?error=${toQuery("Du kannst deinen eigenen Zugang nicht deaktivieren.")}`);
   }
 
+  try {
+    await assertTargetCompanyExists(supabase, targetCompanyId);
+  } catch (error) {
+    redirect(`/team?error=${toQuery(safeErrorMessage(error, "Zielfirma wurde nicht gefunden."))}`);
+  }
+
   let finalRole = role;
-  let { error } = await supabase
+  let updateResult = await supabase
     .from("profiles")
     .update({ full_name: fullName, role: finalRole, active })
     .eq("id", id)
-    .eq("company_id", targetCompanyId);
+    .eq("company_id", targetCompanyId)
+    .select("id")
+    .maybeSingle();
+  let error = updateResult.error;
+  let updatedProfile = updateResult.data;
 
   if (error && role === "vorarbeiter" && isUnsupportedVorarbeiterRoleError(error)) {
     finalRole = "mitarbeiter";
-    const fallback = await supabase
+    updateResult = await supabase
       .from("profiles")
       .update({ full_name: fullName, role: finalRole, active })
       .eq("id", id)
-      .eq("company_id", targetCompanyId);
-    error = fallback.error;
+      .eq("company_id", targetCompanyId)
+      .select("id")
+      .maybeSingle();
+    error = updateResult.error;
+    updatedProfile = updateResult.data;
   }
 
-  if (error) {
+  if (error || !updatedProfile) {
     redirect(`/team?error=${toQuery("Mitarbeiter konnte nicht aktualisiert werden.")}`);
   }
 
