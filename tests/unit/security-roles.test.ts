@@ -181,13 +181,19 @@ describe("role permissions", () => {
     const authCreateIndex = authActions.indexOf("admin.auth.admin.createUser", createEmployeeIndex);
     const updateEmployeeIndex = authActions.indexOf("export async function updateEmployeeAction");
     const updateCompanyCheckIndex = authActions.indexOf("await assertTargetCompanyExists(supabase, targetCompanyId)", updateEmployeeIndex);
+    const profileUpdateIndex = authActions.indexOf(".update({ full_name: fullName, role: finalRole, active })", updateEmployeeIndex);
+    const authMetadataSyncIndex = authActions.indexOf("admin.auth.admin.updateUserById(id", updateEmployeeIndex);
 
     expect(createEmployeeIndex).toBeGreaterThan(-1);
     expect(companyCheckIndex).toBeGreaterThan(createEmployeeIndex);
     expect(companyCheckIndex).toBeLessThan(userLimitIndex);
     expect(userLimitIndex).toBeLessThan(authCreateIndex);
     expect(updateCompanyCheckIndex).toBeGreaterThan(updateEmployeeIndex);
-    expect(authActions).toContain('.update({ full_name: fullName, role: finalRole, active })');
+    expect(profileUpdateIndex).toBeGreaterThan(updateEmployeeIndex);
+    expect(authMetadataSyncIndex).toBeGreaterThan(profileUpdateIndex);
+    expect(authActions).toContain('caller: "actions.auth.updateEmployeeAction"');
+    expect(authActions).toContain("baupro_company_id: targetCompanyId");
+    expect(authActions).toContain("baupro_role: finalRole");
     expect(authActions).toContain('.select("id")');
     expect(authActions).toContain("if (error || !updatedProfile)");
   });

@@ -442,6 +442,33 @@ export async function updateEmployeeAction(formData: FormData) {
     redirect(`/team?error=${toQuery("Mitarbeiter konnte nicht aktualisiert werden.")}`);
   }
 
+  try {
+    const admin = createScopedSupabaseAdminClient({
+      caller: "actions.auth.updateEmployeeAction",
+      reason: "Systemadmin synchronisiert Supabase Auth app_metadata nach Rollen- oder Firmenaenderung."
+    });
+    const { error: authMetadataError } = await admin.auth.admin.updateUserById(id, {
+      app_metadata: {
+        baupro_server_created: true,
+        baupro_company_id: targetCompanyId,
+        baupro_role: finalRole
+      },
+      user_metadata: {
+        full_name: fullName ?? ""
+      }
+    });
+
+    if (authMetadataError) throw authMetadataError;
+  } catch (authMetadataSyncError) {
+    logServerWarning("employee-auth-metadata-sync-failed", authMetadataSyncError, {
+      targetProfileId: id,
+      targetCompanyId
+    });
+    redirect(
+      `/team?error=${toQuery("Mitarbeiter wurde aktualisiert, aber Auth-Metadaten konnten nicht synchronisiert werden.")}`
+    );
+  }
+
   revalidatePath("/team");
   const success =
     finalRole === role

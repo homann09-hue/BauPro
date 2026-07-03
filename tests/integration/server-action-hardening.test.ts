@@ -246,6 +246,21 @@ describe("server action hardening", () => {
     expect(orderActions).toContain('requiredFormUuid(formData, "order_id", "Auftrag")');
   });
 
+  it("validates optional customer ids for time entries against the current company", () => {
+    const tenantGuards = source("lib/security/tenant-guards.ts");
+    const timeActions = source("lib/actions/time-tracking-actions.ts");
+
+    expect(tenantGuards).toContain("export async function assertCustomerInCompany");
+    expect(tenantGuards).toContain('.from("customers")');
+    expect(tenantGuards).toContain('.eq("company_id", companyId)');
+    expect(tenantGuards).toContain('.is("archived_at", null)');
+
+    expect(timeActions).toContain('optionalFormUuid(formData, "customer_id", "Kunde")');
+    expect(timeActions).toContain("assertCustomerInCompany({ supabase, companyId, customerId })");
+    expect(timeActions).toContain("customer_id: customerId");
+    expect(timeActions).not.toContain('customer_id: optionalString(formData, "customer_id")');
+  });
+
   it("checks affected rows for customer updates and status changes", () => {
     const customerActions = source("lib/actions/customer-actions.ts");
     const updateCustomer = actionBlock(customerActions, "updateCustomerAction", "updateCustomerStatusAction");
@@ -439,5 +454,17 @@ describe("server action hardening", () => {
     expect(weatherWarningAction).toContain('.select("id")');
     expect(weatherWarningAction).toContain(".maybeSingle()");
     expect(weatherWarningAction).toContain("if (error || !data)");
+  });
+
+  it("keeps planning assignment API aligned with server-side tenant guards", () => {
+    const planningApi = source("app/api/planning/assignments/route.ts");
+
+    expect(planningApi).toContain("assertProfilesInCompany");
+    expect(planningApi).toContain("assertVehicleInCompany");
+    expect(planningApi).toContain('allowedRoles: ["vorarbeiter", "mitarbeiter"]');
+    expect(planningApi).toContain(".eq(\"active\", true)");
+    expect(planningApi).toContain('.is("archived_at", null)');
+    expect(planningApi).toContain("uuidPattern.test(id)");
+    expect(planningApi).not.toContain('const table = resourceType === "employee"');
   });
 });

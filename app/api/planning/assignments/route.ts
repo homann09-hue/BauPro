@@ -4,11 +4,13 @@ import { getOptionalAppContext } from "@/lib/auth";
 import { SafeActionError, safeErrorMessage, safeErrorStatus } from "@/lib/security/errors";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { getClientIp } from "@/lib/security/origin";
+import { assertProfilesInCompany, assertVehicleInCompany } from "@/lib/security/tenant-guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { PlanningAssignmentStatus, PlanningResourceType } from "@/types/app";
 
 const assignmentStatuses = ["geplant", "aktiv", "erledigt", "verschoben", "krank", "urlaub", "werkstatt", "defekt", "weiterbildung"] as const;
 const resourceTypes = ["employee", "vehicle", "equipment"] as const;
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function requiredString(value: unknown, label: string) {
   if (typeof value !== "string" || !value.trim()) throw new SafeActionError(`${label} fehlt.`);
@@ -54,8 +56,29 @@ async function assertTargetInCompany({
   resourceType: PlanningResourceType;
   resourceId: string;
 }) {
-  const table = resourceType === "employee" ? "profiles" : resourceType === "vehicle" ? "vehicles" : "planning_resources";
-  const { data, error } = await supabase.from(table).select("id").eq("id", resourceId).eq("company_id", companyId).maybeSingle();
+  if (resourceType === "employee") {
+    await assertProfilesInCompany({
+      supabase,
+      companyId,
+      profileIds: [resourceId],
+      allowedRoles: ["vorarbeiter", "mitarbeiter"]
+    });
+    return;
+  }
+
+  if (resourceType === "vehicle") {
+    await assertVehicleInCompany({ supabase, companyId, vehicleId: resourceId });
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("planning_resources")
+    .select("id")
+    .eq("id", resourceId)
+    .eq("company_id", companyId)
+    .eq("active", true)
+    .is("archived_at", null)
+    .maybeSingle();
   if (error || !data) throw new SafeActionError("Ressource wurde nicht gefunden.");
 }
 
@@ -83,7 +106,9 @@ async function loadJobsiteName({
 function resourceTarget(value: unknown) {
   const resourceKey = requiredString(value, "Ressource");
   const [type, id] = resourceKey.split(":");
-  if (!(resourceTypes as readonly string[]).includes(type) || !id) throw new SafeActionError("Ungültige Ressource.");
+  if (!(resourceTypes as readonly string[]).includes(type) || !id || !uuidPattern.test(id)) {
+    throw new SafeActionError("Ungültige Ressource.");
+  }
   return { resourceType: type as PlanningResourceType, resourceId: id };
 }
 

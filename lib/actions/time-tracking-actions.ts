@@ -10,7 +10,9 @@ import {
 import { revalidateDashboardCache } from "@/lib/data/dashboard";
 import { hasAppPermission } from "@/lib/permissions";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
+import { optionalFormUuid } from "@/lib/security/form-data";
 import { safeReturnPath, withStatusMessage } from "@/lib/security/redirects";
+import { assertCustomerInCompany } from "@/lib/security/tenant-guards";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { calculateTimeMinutes, monthRange, timeEntryWarnings } from "@/lib/time-tracking";
 import { optionalNumber, optionalString, requiredString } from "@/lib/utils";
@@ -111,8 +113,10 @@ async function buildTimeEntryPayload({
   const supabase = await createSupabaseServerClient();
   const employeeId = canManage ? requiredString(formData, "employee_id") : currentEmployeeId ?? userId;
   const jobId = requiredString(formData, "job_id");
+  const customerId = optionalFormUuid(formData, "customer_id", "Kunde");
   const jobsite = await resolveJobsite(supabase, jobId, companyId);
   await assertEmployee(supabase, employeeId, companyId);
+  await assertCustomerInCompany({ supabase, companyId, customerId });
 
   const startTime = requiredString(formData, "start_time");
   const endTime = requiredString(formData, "end_time");
@@ -126,7 +130,7 @@ async function buildTimeEntryPayload({
     company_id: companyId,
     employee_id: employeeId,
     job_id: jobId,
-    customer_id: optionalString(formData, "customer_id"),
+    customer_id: customerId,
     date,
     work_location: optionalString(formData, "work_location") ?? jobsite.name,
     work_address: optionalString(formData, "work_address") ?? jobsite.address,
