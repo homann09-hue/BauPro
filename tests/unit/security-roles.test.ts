@@ -109,6 +109,27 @@ describe("role permissions", () => {
     expect(activeGuardIndex).toBeLessThan(contextReturnIndex);
   });
 
+  it("blocks deactivated profiles during login and MFA entrypoints", () => {
+    const apiLogin = source("app/api/auth/login/route.ts");
+    const actionLogin = source("lib/actions/auth-actions.ts");
+    const mfaPage = source("app/(auth)/login/mfa-challenge/page.tsx");
+    const mfaActions = source("lib/actions/mfa-actions.ts");
+
+    for (const file of [apiLogin, actionLogin]) {
+      expect(file).toContain("id, company_id, role, active");
+      expect(file).toContain("loginProfile.active === false");
+      expect(file).toContain("Dieses Benutzerkonto wurde deaktiviert.");
+      expect(file).toContain("supabase.auth.signOut()");
+    }
+
+    for (const file of [mfaPage, mfaActions]) {
+      expect(file).toContain("active");
+      expect(file).toContain("Dieses+Benutzerkonto+wurde+deaktiviert.");
+      expect(file).toContain("Benutzerprofil+konnte+nicht+geprueft+werden.");
+      expect(file).toContain("supabase.auth.signOut()");
+    }
+  });
+
   it("vermeidet alte Chef/Admin-Mischtexte in operativen App-Bereichen", () => {
     const checkedFiles = [
       "app/(app)/fahrzeuge/page.tsx",

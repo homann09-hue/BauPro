@@ -12,6 +12,7 @@ type LoginProfile = {
   id: string;
   company_id: string;
   role: Role;
+  active: boolean;
 };
 
 type CookieToSet = {
@@ -159,7 +160,7 @@ export async function POST(request: NextRequest) {
       () =>
         supabase
           .from("profiles")
-          .select("id, company_id, role")
+          .select("id, company_id, role, active")
           .eq("id", data.user.id)
           .maybeSingle(),
       {
@@ -179,6 +180,11 @@ export async function POST(request: NextRequest) {
     }
 
     const loginProfile = profile as unknown as LoginProfile;
+    if (loginProfile.active === false) {
+      await supabase.auth.signOut();
+      return loginError(request, "Dieses Benutzerkonto wurde deaktiviert.", cookiesToSet);
+    }
+
     if (loginProfile.role === "chef") {
       const { data: company, error: companyError } = await withQueryTimeout(
         () =>

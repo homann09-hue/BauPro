@@ -161,6 +161,16 @@ export async function verifyLoginMfaChallengeAction(formData: FormData) {
     redirect("/login?error=Bitte+melde+dich+erneut+an.");
   }
 
+  const { data: loginProfile, error: loginProfileError } = await supabase.from("profiles").select("active").eq("id", user.id).maybeSingle();
+  if (loginProfileError || !loginProfile) {
+    await supabase.auth.signOut();
+    redirect("/login?error=Benutzerprofil+konnte+nicht+geprueft+werden.");
+  }
+  if (loginProfile?.active === false) {
+    await supabase.auth.signOut();
+    redirect("/login?error=Dieses+Benutzerkonto+wurde+deaktiviert.");
+  }
+
   try {
     const factorId = requiredString(formData, "factor_id");
     const code = normalizeTotpCode(formData);
@@ -195,7 +205,21 @@ export async function verifyLoginMfaChallengeAction(formData: FormData) {
 
   if (!verifiedUser) redirect("/login");
 
-  const { data: profile } = await supabase.from("profiles").select("company_id, role").eq("id", verifiedUser.id).maybeSingle();
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("company_id, role, active")
+    .eq("id", verifiedUser.id)
+    .maybeSingle();
+  if (profileError || !profile) {
+    await supabase.auth.signOut();
+    redirect("/login?error=Benutzerprofil+konnte+nicht+geprueft+werden.");
+  }
+
+  if (profile?.active === false) {
+    await supabase.auth.signOut();
+    redirect("/login?error=Dieses+Benutzerkonto+wurde+deaktiviert.");
+  }
+
   if (profile?.role === "admin" || profile?.role === "chef") {
     const { data: company } = await supabase
       .from("companies")

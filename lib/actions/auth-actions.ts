@@ -24,6 +24,7 @@ type LoginProfile = {
   id: string;
   company_id: string;
   role: Role;
+  active: boolean;
 };
 
 function toQuery(value: string) {
@@ -121,7 +122,7 @@ export async function signInAction(formData: FormData) {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, company_id, role")
+    .select("id, company_id, role, active")
     .eq("id", data.user.id)
     .maybeSingle();
 
@@ -132,6 +133,11 @@ export async function signInAction(formData: FormData) {
   }
 
   const loginProfile = profile as unknown as LoginProfile;
+  if (loginProfile.active === false) {
+    await supabase.auth.signOut();
+    redirect(`/login?error=${toQuery("Dieses Benutzerkonto wurde deaktiviert.")}`);
+  }
+
   if (loginProfile.role === "chef") {
     const { data: company, error: companyError } = await supabase
       .from("companies")

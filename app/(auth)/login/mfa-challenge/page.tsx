@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
-import { AuthError } from "@supabase/supabase-js";
+import { AuthError, PostgrestError } from "@supabase/supabase-js";
 import { MessageBox } from "@/components/message-box";
 import { SubmitButton } from "@/components/submit-button";
 import { logServerWarning } from "@/lib/security/logging";
@@ -12,11 +12,23 @@ import { withQueryTimeout } from "@/lib/performance/observability";
 const MFA_USER_TIMEOUT_MS = 2_000;
 const MFA_AAL_TIMEOUT_MS = 1_500;
 const MFA_FACTORS_TIMEOUT_MS = 1_500;
+const MFA_PROFILE_TIMEOUT_MS = 1_500;
 
 export const dynamic = "force-dynamic";
 
 function authTimeout(message: string) {
   return new AuthError(message, 504, "timeout");
+}
+
+function postgrestTimeout(message: string) {
+  return {
+    data: null,
+    error: new PostgrestError({ message, details: "", hint: "", code: "timeout" }),
+    count: null,
+    status: 504,
+    statusText: "Timeout",
+    success: false as const
+  };
 }
 
 export default async function MfaChallengePage({
@@ -45,6 +57,25 @@ export default async function MfaChallengePage({
   }
 
   if (!user) redirect("/login");
+
+  const profileResult = await withQueryTimeout(
+    () => supabase.from("profiles").select("id, active").eq("id", user.id).maybeSingle(),
+    {
+      route: "auth",
+      action: "mfa.profile.fetch",
+      timeoutMs: MFA_PROFILE_TIMEOUT_MS,
+      fallback: () => postgrestTimeout("MFA profile timeout")
+    }
+  );
+  if (profileResult.error || !profileResult.data) {
+    await supabase.auth.signOut();
+    redirect("/login?error=Benutzerprofil+konnte+nicht+geprueft+werden.");
+  }
+  const profile = profileResult.data;
+  if (profile?.active === false) {
+    await supabase.auth.signOut();
+    redirect("/login?error=Dieses+Benutzerkonto+wurde+deaktiviert.");
+  }
 
   const aal = await withQueryTimeout(
     () => supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
