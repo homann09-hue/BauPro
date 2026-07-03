@@ -50,6 +50,10 @@ const deliveryNoteRecognitionMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260702_delivery_note_recognition.sql"),
   "utf8"
 );
+const deliveryNoteOriginalPriceHardeningMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260719_delivery_note_original_price_hardening.sql"),
+  "utf8"
+);
 const aiRoofMaterialCalculationMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260703_ai_roof_material_calculation.sql"),
   "utf8"
@@ -77,6 +81,14 @@ function block(start: string, end: string) {
   expect(startIndex).toBeGreaterThanOrEqual(0);
   expect(endIndex).toBeGreaterThan(startIndex);
   return schema.slice(startIndex, endIndex);
+}
+
+function sourceBlock(sourceCode: string, start: string, end: string) {
+  const startIndex = sourceCode.indexOf(start);
+  const endIndex = sourceCode.indexOf(end, startIndex);
+  expect(startIndex).toBeGreaterThanOrEqual(0);
+  expect(endIndex).toBeGreaterThan(startIndex);
+  return sourceCode.slice(startIndex, endIndex);
 }
 
 describe("Supabase RLS and security schema", () => {
@@ -456,6 +468,26 @@ describe("Supabase RLS and security schema", () => {
       expect(sql).not.toContain('create policy "operators read delivery note item prices"');
       expect(sql).not.toContain('create policy "operators delete delivery notes"');
     }
+  });
+
+  it("restricts delivery note original photos because they can contain prices", () => {
+    const migrationPolicy = sourceBlock(
+      deliveryNoteOriginalPriceHardeningMigration,
+      'create policy "managers read delivery note storage"',
+      ");"
+    );
+    const schemaPolicy = sourceBlock(schema, 'create policy "managers read delivery note storage"', ");");
+
+    for (const sql of [migrationPolicy, schemaPolicy]) {
+      expect(sql).toContain("bucket_id = 'delivery-notes'");
+      expect(sql).toContain("(storage.foldername(name))[1] = public.current_company_id()::text");
+      expect(sql).toContain("(storage.foldername(name))[2] = 'delivery-notes'");
+      expect(sql).toContain("public.current_role() in ('admin', 'chef')");
+      expect(sql).not.toContain("vorarbeiter");
+    }
+
+    expect(deliveryNoteOriginalPriceHardeningMigration).toContain('drop policy if exists "operators read delivery note storage"');
+    expect(deliveryNoteOriginalPriceHardeningMigration).toContain('drop policy if exists "managers read delivery note storage"');
   });
 
   it("adds AI-assisted roof material calculations without exposing prices in public views", () => {

@@ -469,13 +469,20 @@ export async function loadCustomerPortalData(token: string): Promise<CustomerPor
 
   const pendingViewedUpdates = workOrders
     .filter((workOrder) => workOrder.status === "sent")
-    .map((workOrder) =>
-      supabase
+    .map((workOrder) => {
+      let updateQuery = supabase
         .from("work_orders")
         .update({ status: "viewed", viewed_at: new Date().toISOString() })
         .eq("id", workOrder.id)
+        .eq("company_id", portalToken.company_id)
+        .eq("customer_id", portalToken.customer_id)
         .eq("status", "sent")
-    );
+        .neq("status", "draft");
+
+      if (portalToken.jobsite_id) updateQuery = updateQuery.eq("jobsite_id", portalToken.jobsite_id);
+
+      return updateQuery;
+    });
   await Promise.allSettled(pendingViewedUpdates);
 
   return {

@@ -109,6 +109,18 @@ describe("customer portal security", () => {
     expect(portalTokens).not.toContain("workOrdersResult.data ?? []) as unknown as PortalWorkOrder[]).filter");
   });
 
+  it("scopes customer portal service-role viewed updates to the token tenant", () => {
+    const portalTokens = fs.readFileSync(path.join(root, "lib/customer-portal/tokens.ts"), "utf8");
+
+    expect(portalTokens).toContain("const pendingViewedUpdates = workOrders");
+    expect(portalTokens).toContain(".from(\"work_orders\")");
+    expect(portalTokens).toContain(".update({ status: \"viewed\"");
+    expect(portalTokens).toContain(".eq(\"company_id\", portalToken.company_id)");
+    expect(portalTokens).toContain(".eq(\"customer_id\", portalToken.customer_id)");
+    expect(portalTokens).toContain(".neq(\"status\", \"draft\")");
+    expect(portalTokens).toContain("updateQuery = updateQuery.eq(\"jobsite_id\", portalToken.jobsite_id)");
+  });
+
   it("keeps customer portal tokens hashed, expiring and absent from logs", () => {
     const portalTokens = fs.readFileSync(path.join(root, "lib/customer-portal/tokens.ts"), "utf8");
     const portalPage = fs.readFileSync(path.join(root, "app/portal/[token]/page.tsx"), "utf8");

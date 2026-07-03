@@ -128,6 +128,7 @@ supabase/migrations/20260715_platform_system_admin.sql
 supabase/migrations/20260716_atomic_order_creation.sql
 supabase/migrations/20260717_auth_signup_metadata_hardening.sql
 supabase/migrations/20260718_bootstrap_profile_role_hardening.sql
+supabase/migrations/20260719_delivery_note_original_price_hardening.sql
 ```
 
 `20260615_material_alerts_repair.sql` bleibt idempotent, damit aeltere Testdatenbanken mit fehlender Mitbringlisten-Kette repariert werden koennen. Fuer neue Projekte ist der vollstaendige Stand bereits in `supabase/schema.sql` enthalten.
@@ -551,6 +552,7 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 - `supabase/migrations/20260716_atomic_order_creation.sql`: Delta erstellt Auftragsnummer, Baustelle und Auftrag atomar per Postgres-RPC und verhindert doppelte Auftragsnummern bei parallelen Klicks
 - `supabase/migrations/20260717_auth_signup_metadata_hardening.sql`: Delta verhindert, dass clientseitige Signup-Metadaten Firma oder Rolle setzen; vertrauenswuerdige Mitarbeiteranlage nutzt serverseitige `app_metadata`
 - `supabase/migrations/20260718_bootstrap_profile_role_hardening.sql`: Delta verhindert, dass der Profil-Bootstrap-Fallback normale Nutzer automatisch zu Systemadmins macht
+- `supabase/migrations/20260719_delivery_note_original_price_hardening.sql`: Delta beschraenkt Original-Lieferschein-Fotos auf Chef/Systemadmin, weil sie Lieferanten- oder EK/VK-Preise enthalten koennen
 - `supabase/material-catalog-seed.sql`: praxisnaher Dachdecker-Materialkatalog
 - `scripts/seed-demo-company.mjs`: realistische Demo-Firma fuer Verkauf, QA und Produktdemos
 - `tests/`: Unit-, Integration- und E2E-Smoke-Tests

@@ -7717,14 +7717,15 @@ using (company_id = public.current_company_id() and public.can_manage_company())
 with check (company_id = public.current_company_id() and public.can_manage_company());
 
 drop policy if exists "operators read delivery note storage" on storage.objects;
-create policy "operators read delivery note storage"
+drop policy if exists "managers read delivery note storage" on storage.objects;
+create policy "managers read delivery note storage"
 on storage.objects for select
 to authenticated
 using (
   bucket_id = 'delivery-notes'
   and (storage.foldername(name))[1] = public.current_company_id()::text
   and (storage.foldername(name))[2] = 'delivery-notes'
-  and public.current_role() in ('admin', 'chef', 'vorarbeiter')
+  and public.current_role() in ('admin', 'chef')
 );
 
 drop policy if exists "operators upload delivery note storage" on storage.objects;
