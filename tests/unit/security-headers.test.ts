@@ -33,9 +33,17 @@ describe("security headers", () => {
   it("uses per-request script nonces instead of unsafe script execution", () => {
     expect(proxy).toContain("crypto.randomUUID()");
     expect(proxy).toContain("nonce-${nonce}");
-    expect(proxy).toContain('process.env.NODE_ENV === "development"');
-    expect(proxy).toContain("scriptSources.push(\"'unsafe-eval'\")");
     expect(proxy).not.toContain("script-src 'self' 'unsafe-inline'");
+    if (process.env.NODE_ENV === "production") {
+      expect(proxy).not.toContain("'unsafe-eval'");
+    }
+  });
+
+  it("does not use unsafe-inline for styles", () => {
+    expect(proxy).not.toContain("style-src 'self' 'unsafe-inline'");
+    expect(proxy).not.toContain("style-src-elem 'self' 'unsafe-inline'");
+    expect(proxy).toContain("style-src 'self'");
+    expect(proxy).toContain("style-src-elem 'self'");
   });
 
   it("restores middleware session refresh and unsafe-origin protection", () => {

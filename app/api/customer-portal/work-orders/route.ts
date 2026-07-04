@@ -40,8 +40,10 @@ export async function POST(request: NextRequest) {
     const orderId = requiredString(payload.orderId, "Auftrag", 80);
     const title = requiredString(payload.title, "Titel", 160);
     const description = optionalString(payload.description, 500);
-    const scopeOfWork = requiredString(payload.scopeOfWork, "Leistungsbeschreibung", 8000);
-    const priceNote = optionalString(payload.priceNote, 500);
+    const scopeOfWorkRaw = payload.scopeOfWork ?? payload.scope_of_work;
+    const priceNoteRaw = payload.priceNote ?? payload.price_note;
+    const scopeOfWork = requiredString(scopeOfWorkRaw, "Leistungsbeschreibung", 8000);
+    const priceNote = optionalString(priceNoteRaw, 500);
     const supabase = await createSupabaseServerClient();
 
     const { data: order, error: orderError } = await supabase

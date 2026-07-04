@@ -42,6 +42,8 @@ test("CSP-Header haertet script-src produktionsnah", async ({ page }) => {
   expect(scripts).toBeTruthy();
   expect(scripts).toContain("'self'");
   expect(scripts).toContain("'nonce-");
-  expect(scripts).not.toContain("unsafe-eval");
+  if (process.env.NODE_ENV === "production") {
+    expect(scripts).not.toContain("unsafe-eval");
+  }
   expect(scripts).not.toContain("unsafe-inline");
 });

@@ -60,7 +60,7 @@ export default async function LoginPage({
             </div>
           </div>
           <form action="/api/auth/demo/start" method="post" className="mt-3">
-            <input type="hidden" name="return_to" value="/login" />
+            <input type="hidden" name="return_to" value="/dashboard" />
             <SubmitButton className="w-full justify-between" variant="secondary">
               Demo-Modus starten
               <ArrowRight className="h-4 w-4 text-primary" aria-hidden="true" />

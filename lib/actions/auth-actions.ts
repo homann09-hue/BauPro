@@ -294,9 +294,9 @@ export async function signOutAction(formData?: FormData) {
   const reason = formData?.get("reason") === "inactivity" ? "inactivity" : "manual";
   await supabase.auth.signOut();
   if (reason === "inactivity") {
-    redirect(`/?success=${toQuery("Du wurdest wegen Inaktivität abgemeldet.")}`);
+    redirect(`/login?success=${toQuery("Du wurdest wegen Inaktivität abgemeldet.")}`);
   }
-  redirect(`/?success=${toQuery("Du wurdest abgemeldet.")}`);
+  redirect(`/login?success=${toQuery("Du wurdest abgemeldet.")}`);
 }
 
 export async function createEmployeeAction(formData: FormData) {

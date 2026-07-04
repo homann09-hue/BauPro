@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useState, useSyncExternalStore } from "react";
+import { type FormEvent, useState } from "react";
 import { FileSignature, Loader2 } from "lucide-react";
 
 type ActionState = {
@@ -23,18 +23,15 @@ export function WorkOrderDraftForm({
 }) {
   const [state, setState] = useState<ActionState>({});
   const [pending, setPending] = useState(false);
-  const hydrated = useSyncExternalStore(
-    () => () => undefined,
-    () => true,
-    () => false
-  );
-  const disabled = pending || !hydrated || Boolean(state.success);
+  const disabled = pending || Boolean(state.success);
   const fallbackDescription = defaultDescription ?? "Bitte Leistung, Umfang und Besonderheiten für den Kunden eintragen.";
+  const [showRedirectHint, setShowRedirectHint] = useState(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
     setState({});
+    setShowRedirectHint(false);
 
     const formData = new FormData(event.currentTarget);
     const payload = {
@@ -61,12 +58,17 @@ export function WorkOrderDraftForm({
 
       const success = body.success ?? "Arbeitsauftrag wurde als Entwurf angelegt.";
       setState({ success });
-      setPending(false);
-      window.setTimeout(() => window.location.assign(statusUrl(`/orders/${orderId}`, "success", success)), 250);
+      window.setTimeout(() => setShowRedirectHint(true), 600);
     } catch {
       setState({ error: "Arbeitsauftrag konnte nicht erstellt werden." });
+    } finally {
       setPending(false);
     }
+  }
+
+  function goToOrderOverview() {
+    const success = state.success ?? "Arbeitsauftrag wurde als Entwurf angelegt.";
+    window.location.assign(statusUrl(`/orders/${orderId}`, "success", success));
   }
 
   return (
@@ -100,6 +102,11 @@ export function WorkOrderDraftForm({
         <p className="rounded-md border border-primary/30 bg-mint px-3 py-2 text-sm font-bold text-primary-dark" role="status">
           {state.success}
         </p>
+      ) : null}
+      {showRedirectHint ? (
+        <button className="btn-primary justify-self-start" type="button" onClick={goToOrderOverview}>
+          Zur Auftragansicht wechseln
+        </button>
       ) : null}
     </form>
   );

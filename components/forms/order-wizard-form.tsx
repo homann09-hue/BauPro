@@ -244,7 +244,7 @@ export function OrderWizardForm({
     : 0;
 
   return (
-    <form action={createOrderAction} className="space-y-5">
+    <form action={createOrderAction} className="space-y-5" data-testid="order-wizard-form">
       <section id="order-editing-area" className="form-step-card">
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-mint text-moss">

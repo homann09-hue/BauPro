@@ -9,8 +9,10 @@ test("Chef erstellt kompletten Auftrag mit Aufmass, Material- und Kostenkalkulat
   await login(page);
   await page.goto("/orders/new", { waitUntil: "domcontentloaded" });
 
-  const form = page.locator("form").filter({ hasText: "Angebotsvorschau" }).first();
+  const form = page.getByTestId("order-wizard-form");
+  await expect(form).toBeVisible();
   await form.locator('select[name="customer_id"]').selectOption("new");
+  await expect(form.locator('input[name="new_customer_company"]')).toBeVisible();
   await form.locator('input[name="new_customer_company"]').fill(customerCompany);
   await form.locator('input[name="new_customer_contact_person"]').fill("Erika E2E");
   await form.locator('input[name="new_customer_phone"]').fill("+49 221 123456");
