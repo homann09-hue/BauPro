@@ -295,9 +295,9 @@ export async function signOutAction(formData?: FormData) {
   const returnTo = safeReturnPath(formData?.get("return_to"), "/login");
   await supabase.auth.signOut();
   if (reason === "inactivity") {
-    redirect(`${returnTo}?success=${toQuery("Du wurdest wegen Inaktivität abgemeldet.")}`);
+    redirectWithMessage(returnTo, "success", "Du wurdest wegen Inaktivität abgemeldet.");
   }
-  redirect(`${returnTo}?success=${toQuery("Du wurdest abgemeldet.")}`);
+  redirectWithMessage(returnTo, "success", "Du wurdest abgemeldet.");
 }
 
 export async function createEmployeeAction(formData: FormData) {
@@ -576,12 +576,12 @@ export async function updateOwnProfileAction(formData: FormData) {
     .eq("company_id", context.companyId);
 
   if (error) {
-    redirect(`${returnTo}?error=${toQuery("Profil konnte nicht gespeichert werden.")}`);
+    redirectWithMessage(returnTo, "error", "Profil konnte nicht gespeichert werden.");
   }
 
   revalidatePath("/profile");
   revalidatePath("/dashboard");
-  redirect(`${returnTo}?success=${toQuery("Profil wurde gespeichert.")}`);
+  redirectWithMessage(returnTo, "success", "Profil wurde gespeichert.");
 }
 
 export async function updateCompanyProfileAction(formData: FormData) {
