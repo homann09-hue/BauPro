@@ -13,6 +13,7 @@ type AppTopBarProps = {
   roleLabel: string;
   companyName: string;
   canManage: boolean;
+  logoutReturnTo?: string;
 };
 
 const routeTitles: Array<{ prefix: string; title: string; fallback: string }> = [
@@ -79,7 +80,14 @@ function hasSameOriginReferrer() {
   }
 }
 
-export function AppTopBar({ userName, userEmail, roleLabel, companyName, canManage }: AppTopBarProps) {
+export function AppTopBar({
+  userName,
+  userEmail,
+  roleLabel,
+  companyName,
+  canManage,
+  logoutReturnTo
+}: AppTopBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const previousPathRef = useRef<string | null>(null);
@@ -152,6 +160,7 @@ export function AppTopBar({ userName, userEmail, roleLabel, companyName, canMana
           </div>
 
           <form action={signOutAction} onSubmit={confirmLogout}>
+            <input type="hidden" name="return_to" value={logoutReturnTo ?? "/login"} />
             <button
               type="submit"
               aria-label="Abmelden"

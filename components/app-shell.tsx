@@ -20,6 +20,7 @@ import { NavLink } from "@/components/nav-link";
 import { PredictivePrefetch } from "@/components/performance/PredictivePrefetch";
 import { VoiceDictation } from "@/components/voice-dictation";
 import { hasAppPermission, type PermissionKey } from "@/lib/permissions";
+import { DEMO_COMPANY_NAME } from "@/lib/demo/constants";
 
 type NavItem = Omit<React.ComponentProps<typeof NavLink>, "variant">;
 
@@ -218,6 +219,7 @@ export function AppShell({
 }) {
   const { primaryNav, mobileNav, quickLinks, mobileActions, notice } = getShellNavigation(context);
   const roleLabel = roleLabels[context.profile.role];
+  const isDemoContext = context.companyName === DEMO_COMPANY_NAME;
   const mobileNavGridClass = mobileNav.length === 6 ? "grid-cols-6" : "grid-cols-5";
 
   return (
@@ -310,6 +312,7 @@ export function AppShell({
           roleLabel={roleLabel}
           userEmail={context.email}
           userName={context.profile.full_name}
+          logoutReturnTo={isDemoContext ? "/demo" : "/login"}
         />
 
         <main className="pb-[calc(11.5rem+env(safe-area-inset-bottom))] lg:pb-0">

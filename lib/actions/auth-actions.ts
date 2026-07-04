@@ -292,11 +292,12 @@ export async function signUpCompanyAction(formData: FormData) {
 export async function signOutAction(formData?: FormData) {
   const supabase = await createSupabaseServerClient();
   const reason = formData?.get("reason") === "inactivity" ? "inactivity" : "manual";
+  const returnTo = safeReturnPath(formData?.get("return_to"), "/login");
   await supabase.auth.signOut();
   if (reason === "inactivity") {
-    redirect(`/login?success=${toQuery("Du wurdest wegen Inaktivität abgemeldet.")}`);
+    redirect(`${returnTo}?success=${toQuery("Du wurdest wegen Inaktivität abgemeldet.")}`);
   }
-  redirect(`/login?success=${toQuery("Du wurdest abgemeldet.")}`);
+  redirect(`${returnTo}?success=${toQuery("Du wurdest abgemeldet.")}`);
 }
 
 export async function createEmployeeAction(formData: FormData) {
