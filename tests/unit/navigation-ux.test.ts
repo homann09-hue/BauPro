@@ -37,6 +37,31 @@ describe("App-Navigation und Benutzerbereich", () => {
     expect(shell).not.toContain("form action={signOutAction}");
   });
 
+  it("supports keyboard users with a global skip link and main content target", () => {
+    const rootLayout = source("app/layout.tsx");
+    const skipLink = source("components/skip-to-content.tsx");
+    const shell = source("components/app-shell.tsx");
+    const marketingShell = source("components/marketing/marketing-site.tsx");
+    const authLayout = source("app/(auth)/layout.tsx");
+
+    expect(rootLayout).toContain("SkipToContent");
+    expect(skipLink).toContain("Zum Inhalt springen");
+    expect(skipLink).toContain('document.getElementById("main-content") ?? document.querySelector("main")');
+    expect(skipLink).toContain("focus({ preventScroll: true })");
+    expect(skipLink).toContain("scrollIntoView");
+    expect(shell).toContain('main id="main-content"');
+    expect(marketingShell).toContain('main id="main-content"');
+    expect(authLayout).toContain('main id="main-content"');
+  });
+
+  it("marks the active navigation item for assistive technology", () => {
+    const navLink = source("components/nav-link.tsx");
+
+    expect(navLink).toContain('aria-current={active ? "page" : undefined}');
+    expect(navLink).toContain("aktueller Bereich");
+    expect(navLink).toContain("accessibleLabel");
+  });
+
   it("knows the major overview fallback routes for direct deep links", () => {
     const topBar = source("components/app-top-bar.tsx");
 

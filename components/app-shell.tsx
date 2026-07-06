@@ -518,7 +518,7 @@ export function AppShell({
           logoutReturnTo={isDemoContext ? "/demo" : "/login"}
         />
 
-        <main className="pb-[calc(11.5rem+env(safe-area-inset-bottom))] lg:pb-0">
+        <main id="main-content" className="pb-[calc(11.5rem+env(safe-area-inset-bottom))] lg:pb-0">
           <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 lg:px-8 lg:py-8">
             {children}
           </div>

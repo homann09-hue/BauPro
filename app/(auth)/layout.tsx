@@ -6,7 +6,7 @@ const salesIcons: LucideIcon[] = [Clock3, Coins, ShieldCheck, Sparkles];
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="bp-auth-root min-h-dvh overflow-hidden bg-coal text-ink">
+    <main id="main-content" className="bp-auth-root min-h-dvh overflow-hidden bg-coal text-ink">
       <div className="pointer-events-none absolute inset-0 opacity-75" aria-hidden="true">
         <div className="absolute inset-0 bg-[repeating-linear-gradient(-8deg,rgba(240,235,224,0.045)_0_1px,transparent_1px_60px)]" />
         <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(212,88,10,0.14),transparent_42%),linear-gradient(90deg,transparent,rgba(212,88,10,0.06))]" />
