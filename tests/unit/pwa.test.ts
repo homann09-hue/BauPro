@@ -88,6 +88,23 @@ describe("installable PWA", () => {
     expect(offlinePage).toContain("Offline-Modus");
   });
 
+  it("offers a non-intrusive install prompt only when the browser allows installation", () => {
+    const layout = read("app/layout.tsx");
+    const prompt = read("components/pwa-install-prompt.tsx");
+
+    expect(layout).toContain("<PwaInstallPrompt />");
+    expect(prompt).toContain("beforeinstallprompt");
+    expect(prompt).toContain("event.preventDefault()");
+    expect(prompt).toContain("installPrompt.prompt()");
+    expect(prompt).toContain("installPrompt.userChoice");
+    expect(prompt).toContain("appinstalled");
+    expect(prompt).toContain("isStandaloneMode");
+    expect(prompt).toContain("display-mode: standalone");
+    expect(prompt).toContain("baupro:pwa-install-dismissed-until:v1");
+    expect(prompt).toContain("BauPro als App nutzen");
+    expect(prompt).toContain("Installationshinweis ausblenden");
+  });
+
   it("renders Vercel telemetry only on Vercel to avoid local 404 console noise", () => {
     const layout = read("app/layout.tsx");
     const telemetry = read("components/vercel-telemetry.tsx");
