@@ -21,6 +21,20 @@ describe("globaler Schnellzugriff", () => {
     expect(palette).toContain("Aktion, Baustelle, Material, Zeit suchen");
   });
 
+  it("merkt zuletzt geoeffnete Aktionen nur als erlaubte lokale Hrefs", () => {
+    const palette = source("components/command-palette.tsx");
+
+    expect(palette).toContain("RECENT_COMMANDS_STORAGE_KEY");
+    expect(palette).toContain("baupro:recent-command-hrefs:v1");
+    expect(palette).toContain("MAX_RECENT_COMMANDS = 5");
+    expect(palette).toContain("window.localStorage");
+    expect(palette).toContain("actionByHref.has(entry.href)");
+    expect(palette).toContain("Zuletzt geöffnet");
+    expect(palette).not.toContain("full_name");
+    expect(palette).not.toContain("company_id");
+    expect(palette).not.toContain("purchase_price");
+  });
+
   it("wird rollenbasiert aus der AppShell gefuettert", () => {
     const shell = source("components/app-shell.tsx");
 

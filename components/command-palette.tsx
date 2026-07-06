@@ -55,6 +55,9 @@ const commandIcons = {
   mehr: Menu
 };
 
+const RECENT_COMMANDS_STORAGE_KEY = "baupro:recent-command-hrefs:v1";
+const MAX_RECENT_COMMANDS = 5;
+
 export type CommandIconKey = keyof typeof commandIcons;
 
 export type CommandPaletteAction = {
@@ -66,6 +69,45 @@ export type CommandPaletteAction = {
   icon: CommandIconKey;
   primary?: boolean;
 };
+
+type RecentCommandEntry = {
+  href: string;
+  openedAt: number;
+};
+
+function readRecentCommandEntries(): RecentCommandEntry[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const raw = window.localStorage.getItem(RECENT_COMMANDS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .filter((entry): entry is RecentCommandEntry => {
+        return (
+          typeof entry === "object" &&
+          entry !== null &&
+          typeof entry.href === "string" &&
+          entry.href.startsWith("/") &&
+          typeof entry.openedAt === "number"
+        );
+      })
+      .sort((left, right) => right.openedAt - left.openedAt)
+      .slice(0, MAX_RECENT_COMMANDS);
+  } catch {
+    return [];
+  }
+}
+
+function writeRecentCommandEntries(entries: RecentCommandEntry[]) {
+  try {
+    window.localStorage.setItem(RECENT_COMMANDS_STORAGE_KEY, JSON.stringify(entries.slice(0, MAX_RECENT_COMMANDS)));
+  } catch {
+    // Lokaler Komfort darf nie die Navigation blockieren.
+  }
+}
 
 function normalize(value: string) {
   return value
@@ -98,11 +140,43 @@ export function CommandPalette({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [recentEntries, setRecentEntries] = useState<RecentCommandEntry[]>([]);
 
-  const filteredActions = useMemo(
-    () => actions.filter((action) => matches(action, query)).slice(0, 12),
-    [actions, query]
+  const actionByHref = useMemo(() => new Map(actions.map((action) => [action.href, action])), [actions]);
+  const recentActionHrefs = useMemo(() => new Set(recentEntries.map((entry) => entry.href)), [recentEntries]);
+  const recentActions = useMemo(
+    () =>
+      recentEntries.flatMap((entry) => {
+        const action = actionByHref.get(entry.href);
+        if (!action) return [];
+
+        return [
+          {
+            ...action,
+            group: "Zuletzt geöffnet",
+            keywords: [...action.keywords, "zuletzt", "verlauf", "schnell"]
+          }
+        ];
+      }),
+    [actionByHref, recentEntries]
   );
+
+  const filteredActions = useMemo(() => {
+    const orderedActions = query.trim()
+      ? actions
+      : [...recentActions, ...actions.filter((action) => !recentActionHrefs.has(action.href))];
+
+    return orderedActions.filter((action) => matches(action, query)).slice(0, 12);
+  }, [actions, query, recentActionHrefs, recentActions]);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      const entries = readRecentCommandEntries().filter((entry) => actionByHref.has(entry.href));
+      setRecentEntries(entries);
+    }, 0);
+
+    return () => window.clearTimeout(id);
+  }, [actionByHref]);
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
@@ -134,9 +208,20 @@ export function CommandPalette({
   }, [open]);
 
   function choose(action: CommandPaletteAction) {
+    rememberAction(action);
     setOpen(false);
     setQuery("");
     router.push(action.href);
+  }
+
+  function rememberAction(action: CommandPaletteAction) {
+    const nextEntries = [
+      { href: action.href, openedAt: Date.now() },
+      ...recentEntries.filter((entry) => entry.href !== action.href)
+    ].slice(0, MAX_RECENT_COMMANDS);
+
+    setRecentEntries(nextEntries);
+    writeRecentCommandEntries(nextEntries);
   }
 
   function openPalette() {
@@ -240,7 +325,11 @@ export function CommandPalette({
                           active ? "border-primary bg-mint text-ink" : "border-line bg-surface hover:border-primary/50 hover:bg-mint"
                         )}
                         onMouseEnter={() => setActiveIndex(index)}
-                        onClick={() => setOpen(false)}
+                        onClick={() => {
+                          rememberAction(action);
+                          setOpen(false);
+                          setQuery("");
+                        }}
                       >
                         <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center border", action.primary ? "border-primary bg-primary text-white" : "border-line bg-basalt text-primary")}>
                           <Icon className="h-5 w-5" aria-hidden="true" />
