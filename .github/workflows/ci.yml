@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - "codex/**"
+  workflow_dispatch:
 
 jobs:
   verify:
@@ -18,6 +19,7 @@ jobs:
       OPENAI_API_KEY: sk-ci-dummy
       UPSTASH_REDIS_REST_URL: ""
       UPSTASH_REDIS_REST_TOKEN: ""
+      CRON_SECRET: ci-cron-secret-dummy
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -31,24 +33,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Macht den Build bei neuen High/Critical-CVEs bewusst rot; kein continue-on-error.
-      - name: Security audit
-        run: npm audit --audit-level=high
+      - name: Pull request quality gate
+        if: github.event_name == 'pull_request'
+        run: npm run check:ci
 
-      - name: Lint
-        run: npm run lint
+      - name: Branch quality gate
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+        run: npm run check:ci
 
-      - name: Unit and integration tests
-        run: npm run test
+      - name: Main release gate
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: npm run check:release
 
-      - name: Supabase schema hardening check
-        run: npm run db:schema-check
-
-      - name: SECURITY DEFINER RPC hardening audit
-        run: npm run audit:rpc-hardening
-
-      - name: Load test configuration check
-        run: npm run test:load:check
-
-      - name: Build
-        run: npm run build
+      - name: Manual full gate
+        if: github.event_name == 'workflow_dispatch'
+        run: npm run check:all

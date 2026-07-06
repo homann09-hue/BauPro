@@ -13,7 +13,10 @@ test("Kundenportal-Link wird erzeugt, Kunde unterschreibt Arbeitsauftrag und ung
       .filter((href): href is string => typeof href === "string" && href.startsWith("/orders/") && href.length > 10)
   );
   const orderHref = orderCandidates.find((href) => /^\/orders\/[0-9a-f-]{36}$/i.test(href) || /^\/orders\/[^/]+$/.test(href));
-  test.skip(!orderHref, "Demo-Daten fehlen: Auftragslink ohne Ziel.");
+  if (!orderHref) {
+    test.skip(true, "Demo-Daten fehlen: Auftragslink ohne Ziel.");
+    return;
+  }
   await gotoAppPage(page, orderHref);
 
   await expect(page.getByTestId("work-order-form")).toBeVisible({ timeout: E2E_NAVIGATION_TIMEOUT });

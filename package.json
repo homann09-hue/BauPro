@@ -6,8 +6,10 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
+    "typecheck": "tsc --noEmit --pretty false",
     "lint": "eslint .",
     "test": "vitest run",
+    "coverage:gate": "node scripts/qa/coverage-gate.mjs",
     "db:schema-check": "node scripts/check-supabase-schema.mjs",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -21,7 +23,16 @@
     "audit:rpc-hardening": "node scripts/audit-security-definer-functions.mjs --fail-on-trigger-grants",
     "test:chaos": "node scripts/chaos-test.mjs",
     "test:e2e:demo": "npm run seed:demo && playwright test",
-    "seed:demo": "node scripts/seed-demo-company.mjs"
+    "seed:demo": "node scripts/seed-demo-company.mjs",
+    "check:fast": "node scripts/qa/run-check.mjs fast",
+    "check:security": "node scripts/qa/run-check.mjs security",
+    "check:quality": "node scripts/qa/run-check.mjs quality",
+    "check:performance": "node scripts/qa/run-check.mjs performance",
+    "check:ai": "node scripts/qa/run-check.mjs ai",
+    "check:trading": "node scripts/qa/run-check.mjs trading",
+    "check:release": "node scripts/qa/run-check.mjs release",
+    "check:all": "node scripts/qa/run-check.mjs all",
+    "check:ci": "node scripts/qa/run-check.mjs ci"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.21",

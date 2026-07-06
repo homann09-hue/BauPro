@@ -1,22 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
-import { Bebas_Neue, Inter } from "next/font/google";
 import { ConsentBanner } from "@/components/consent-banner";
 import { VercelTelemetry } from "@/components/vercel-telemetry";
 import "./globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap"
-});
-
-const bebasNeue = Bebas_Neue({
-  subsets: ["latin"],
-  weight: "400",
-  variable: "--font-display",
-  display: "swap"
-});
 
 export const metadata: Metadata = {
   applicationName: "BauPro",
@@ -67,7 +53,7 @@ export default async function RootLayout({
   const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
-    <html lang="de" className={`${inter.variable} ${bebasNeue.variable}`}>
+    <html lang="de">
       {/* Aktuell gibt es keine app-eigenen Inline-Skripte. Falls spaeter eines hinzukommt, muss es `nonce={nonce}` nutzen. */}
       <body data-nonce-present={nonce ? "true" : undefined}>
         {children}

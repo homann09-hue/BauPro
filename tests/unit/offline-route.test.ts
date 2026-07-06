@@ -14,7 +14,7 @@ async function loadRouteWithMocks(mockedContext: unknown, mockedReportAction: ()
     updateReportAction: mockedReportAction
   }));
 
-  const route = await import("@/app/api/offline/[action]/route.ts");
+  const route = await import("@/app/api/offline/[action]/route");
   return route;
 }
 

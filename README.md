@@ -250,14 +250,75 @@ Preisfelder wie `purchase_price`, `sales_price`, `markup_percent`, `price_net`, 
 
 ## Security und CI
 
+### Quality-, Security- und Release-Pipeline
+
+BauPro hat eine zentrale Check-Pipeline fuer lokale Entwicklung, Pull Requests und Releases. Die Befehle buendeln bestehende Tests, Schema-Hardening und neue statische QA-Gates unter `scripts/qa/`.
+
+| Befehl | Zweck | Blockiert bei |
+| --- | --- | --- |
+| `npm run check:fast` | schneller Entwicklercheck: TypeScript, ESLint, Unit-/Integrationstests | TypeScript-, Lint- oder Testfehler |
+| `npm run check:security` | Security-Gate: Dependency-Audit, Supabase-Schema, RPC-Hardening, statische OWASP-/RLS-/Header-/Rate-Limit-Pruefung | High/Critical-CVEs, unsichere RLS-/RPC-/Rate-Limit-/Header-Befunde |
+| `npm run check:quality` | tiefere Codequalitaet: Typecheck, Lint, Coverage, statische Qualitaetspruefung | Testfehler, Coverage unter Zielwert, harte TypeScript-Findings |
+| `npm run check:performance` | Performance-Gate: PWA-Cache, Prefetching, Load-Test-Konfiguration, Performance-E2E-Abdeckung | unsicherer Cache, fehlende Load-Test-Konfiguration, fehlende Performance-Abdeckung |
+| `npm run check:ai` | KI-Sicherheitsgate: serverseitige Keys, Rate Limits, Opt-in, Error-Sanitizing, Fallbacks | fehlende KI-Sicherheitsmechanismen |
+| `npm run check:trading` | Marktdaten-/Trading-Gate fuer kuenftige Module | harte Datenqualitaetsluecken, sobald Trading-/Marktdatenmodule existieren |
+| `npm run check:release` | Release-Gate: Qualitaet, Security, Performance, KI, Trading, Production-Build | jeder harte Release-Fund |
+| `npm run check:all` | vollstaendiger lokaler/manueler Gate-Lauf | jeder harte Fund |
+| `npm run check:ci` | Pull-Request-Gate fuer GitHub Actions | schnelle Checks, Security, Performance-Konfig und Build |
+
+Blockierende Checks sind: TypeScript-Fehler, Lint-Fehler, fehlschlagende Tests, High/Critical Dependency-Findings, unsichere Supabase-RLS-/RPC-Muster, unsicheres Rate Limiting, unsichere Security Header, unsicherer Service-Worker-Cache, nicht sanitisiertes Error Handling, fehlende KI-Opt-in-/Fallback-Mechanismen und ein fehlgeschlagener Production-Build.
+
+Warnende Checks sind bewusst nicht blockierend, wenn ein Bereich im Produkt noch nicht existiert oder optional ist, z. B. Trading-/Marktdatenmodule, lokale fehlende Coverage-Datei oder optionale externe Tools. Sobald solche Module eingefuehrt werden, werden die passenden Gates blockierend. Das Coverage-Gate nutzt standardmaessig mindestens 50 % Line-Coverage und kann ueber `COVERAGE_LINES_MIN`, `COVERAGE_BRANCHES_MIN`, `COVERAGE_FUNCTIONS_MIN` und `COVERAGE_STATEMENTS_MIN` verschaerft werden.
+Der lokale Dependency-Audit warnt bei gesperrtem Netzwerkzugriff. In GitHub Actions oder mit `REQUIRE_ONLINE_AUDIT=true` ist ein nicht erreichbarer npm-Audit-Endpunkt blockierend.
+
+### CI/CD-Regeln
+
+- Pull Requests fuehren `npm run check:ci` aus.
+- Pushes auf `main` fuehren `npm run check:release` aus.
+- Der manuelle Workflow `workflow_dispatch` fuehrt `npm run check:all` aus.
+- Es gibt keine automatischen Force-Fixes in CI.
+- Secrets duerfen nie in Logs erscheinen.
+- Mock-, Demo- oder Testdaten duerfen nicht als echte Marktdaten oder echte Kundendaten dargestellt werden.
+
+### Production-Pflichtvariablen
+
+Fuer Production muessen mindestens gesetzt sein:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+CRON_SECRET=
+NEXT_PUBLIC_APP_URL=
+```
+
+Optional, aber fuer aktivierte Module erforderlich:
+
+```env
+OPENAI_API_KEY=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+SUPPLIER_API_ENCRYPTION_KEY=
+SENTRY_DSN=
+```
+
+Redis/KV ist in Production Pflicht, weil Login, Demo, KI, Uploads, Wetter, Preisabfragen, Kundenportal und andere oeffentliche oder kostenrelevante Pfade global gedrosselt werden muessen. Ohne Redis/KV darf Production nicht still unlimitiert weiterlaufen.
+
+### Provider-, Kosten- und Incident-Regeln
+
+- KI-Provider duerfen nur serverseitig angesprochen werden.
+- KI-Antworten sind Entwuerfe und muessen durch Nutzer bestaetigt werden.
+- Kostenrelevante Provider brauchen Rate Limits und Kontingentpruefung.
+- Stripe- und Supabase-Service-Role-Keys duerfen nie mit `NEXT_PUBLIC_` beginnen.
+- Incident-Ablauf: siehe `docs/INCIDENT_RUNBOOK.md`.
+
 Der PR-Workflow `.github/workflows/ci.yml` fuehrt aus:
 
 ```bash
 npm ci
-npm run lint
-npm run test
-npm run db:schema-check
-npm run build
+npm run check:ci
 ```
 
 Der Schema-Check prueft statisch FORCE RLS, preisbereinigte Views, Manager-only Preis-Policies, Storage-Pfade und atomare Lager-RPCs.

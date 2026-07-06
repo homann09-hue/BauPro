@@ -4,6 +4,16 @@ import { publicAppOrigin } from "@/lib/security/origin";
 const previousAppUrl = process.env.NEXT_PUBLIC_APP_URL;
 const previousNodeEnv = process.env.NODE_ENV;
 
+function setNodeEnv(value: string | undefined) {
+  const mutableEnv = process.env as Record<string, string | undefined>;
+  if (value === undefined) {
+    delete mutableEnv.NODE_ENV;
+    return;
+  }
+
+  mutableEnv.NODE_ENV = value;
+}
+
 describe("public app origin security", () => {
   afterEach(() => {
     if (previousAppUrl === undefined) {
@@ -11,7 +21,7 @@ describe("public app origin security", () => {
     } else {
       process.env.NEXT_PUBLIC_APP_URL = previousAppUrl;
     }
-    process.env.NODE_ENV = previousNodeEnv;
+    setNodeEnv(previousNodeEnv);
   });
 
   it("prefers the configured public app URL over request headers", () => {
@@ -21,13 +31,13 @@ describe("public app origin security", () => {
 
   it("accepts localhost request origins for local development", () => {
     delete process.env.NEXT_PUBLIC_APP_URL;
-    process.env.NODE_ENV = "development";
+    setNodeEnv("development");
     expect(publicAppOrigin("http://localhost:3000")).toBe("http://localhost:3000");
   });
 
   it("rejects untrusted production request origins when no public URL is configured", () => {
     delete process.env.NEXT_PUBLIC_APP_URL;
-    process.env.NODE_ENV = "production";
+    setNodeEnv("production");
     expect(publicAppOrigin("https://evil.example")).toBeNull();
   });
 });

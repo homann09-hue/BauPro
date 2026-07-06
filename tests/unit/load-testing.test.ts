@@ -62,8 +62,11 @@ describe("Last- und Stresstest-Quality-Gate", () => {
 
   it("haengt den Load-Konfigurationscheck in CI ein", () => {
     const workflow = read(".github/workflows/ci.yml");
+    const packageJson = read("package.json");
+    const runner = read("scripts/qa/run-check.mjs");
 
-    expect(workflow).toContain("Load test configuration check");
-    expect(workflow).toContain("npm run test:load:check");
+    expect(workflow).toContain("npm run check:ci");
+    expect(packageJson).toContain('"check:ci"');
+    expect(runner).toContain('npmScript("test:load:check")');
   });
 });
