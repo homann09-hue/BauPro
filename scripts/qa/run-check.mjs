@@ -45,6 +45,7 @@ const profiles = {
     npmScript("db:schema-check");
     npmScript("audit:rpc-hardening");
     run("node", ["scripts/qa/static-gates.mjs", "security"]);
+    npmScript("redteam:release");
   },
   quality() {
     npmScript("typecheck");
