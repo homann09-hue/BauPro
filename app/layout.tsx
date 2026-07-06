@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { ConsentBanner } from "@/components/consent-banner";
+import { RouteProgress } from "@/components/route-progress";
 import { VercelTelemetry } from "@/components/vercel-telemetry";
 import "./globals.css";
 
@@ -56,6 +57,7 @@ export default async function RootLayout({
     <html lang="de">
       {/* Aktuell gibt es keine app-eigenen Inline-Skripte. Falls spaeter eines hinzukommt, muss es `nonce={nonce}` nutzen. */}
       <body data-nonce-present={nonce ? "true" : undefined}>
+        <RouteProgress />
         {children}
         <ConsentBanner />
         <VercelTelemetry />
