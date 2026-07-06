@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const config = fs.readFileSync(path.join(process.cwd(), "next.config.mjs"), "utf8");
-const proxy = fs.readFileSync(path.join(process.cwd(), "middleware.ts"), "utf8");
+const proxy = fs.readFileSync(path.join(process.cwd(), "proxy.ts"), "utf8");
 
 describe("security headers", () => {
   it("keeps production browser hardening headers enabled", () => {
@@ -46,8 +46,8 @@ describe("security headers", () => {
     expect(proxy).toContain("style-src-elem 'self'");
   });
 
-  it("restores middleware session refresh and unsafe-origin protection", () => {
-    expect(proxy).toContain("export async function middleware");
+  it("keeps proxy session refresh and unsafe-origin protection", () => {
+    expect(proxy).toContain("export async function proxy");
     expect(proxy).toContain("await updateSession(request, requestHeaders)");
     expect(proxy).toContain("isUnsafeMethod(request.method)");
     expect(proxy).toContain('originOf(request.headers.get("origin"))');

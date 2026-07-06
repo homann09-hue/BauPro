@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-async function loadMiddleware() {
+async function loadProxy() {
   vi.resetModules();
   const updateSession = vi.fn(async (_request: NextRequest, requestHeaders: Headers) => {
     const response = NextResponse.next({ request: { headers: requestHeaders } });
@@ -11,8 +11,8 @@ async function loadMiddleware() {
 
   vi.doMock("@/lib/supabase/middleware", () => ({ updateSession }));
 
-  const mod = await import("@/middleware");
-  return { middleware: mod.middleware, config: mod.config, updateSession };
+  const mod = await import("@/proxy");
+  return { proxy: mod.proxy, config: mod.config, updateSession };
 }
 
 afterEach(() => {
@@ -20,9 +20,9 @@ afterEach(() => {
   vi.resetModules();
 });
 
-describe("production middleware", () => {
+describe("production proxy", () => {
   it("blockiert Cross-Origin POST mit Security Headers", async () => {
-  const { middleware, updateSession } = await loadMiddleware();
+    const { proxy, updateSession } = await loadProxy();
     const request = new NextRequest("https://baupro.example/demo", {
       method: "POST",
       headers: {
@@ -30,7 +30,7 @@ describe("production middleware", () => {
       }
     });
 
-    const response = await middleware(request);
+    const response = await proxy(request);
 
     expect(response.status).toBe(403);
     expect(await response.text()).toBe("Anfrage abgelehnt.");
@@ -40,11 +40,11 @@ describe("production middleware", () => {
   });
 
   it("laesst oeffentliche GET-Seiten durch und refreshed die Supabase Session", async () => {
-  const { middleware, updateSession } = await loadMiddleware();
+    const { proxy, updateSession } = await loadProxy();
 
     for (const route of ["/", "/login", "/demo", "/features", "/use-cases", "/security", "/pricing", "/about"]) {
       const request = new NextRequest(`https://baupro.example${route}`, { method: "GET" });
-      const response = await middleware(request);
+      const response = await proxy(request);
 
       expect(response.status, route).toBe(200);
       expect(response.headers.get("x-session-refreshed"), route).toBe("true");
@@ -56,7 +56,7 @@ describe("production middleware", () => {
   });
 
   it("nimmt statische Assets aus dem Middleware-Matcher aus", async () => {
-    const { config } = await loadMiddleware();
+    const { config } = await loadProxy();
     const matcher = config.matcher[0];
 
     expect(matcher).toContain("_next/static");

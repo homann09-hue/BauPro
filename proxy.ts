@@ -48,7 +48,7 @@ function applySecurityHeaders(response: NextResponse, csp: string, nonce: string
   return response;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const nonce = createNonce();
   const csp = buildContentSecurityPolicy(nonce);
 
