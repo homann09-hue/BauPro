@@ -38,6 +38,21 @@ describe("globaler Schnellzugriff", () => {
     expect(palette).toContain('connection?.effectiveType === "2g"');
   });
 
+  it("verhaelt sich als echtes Modal mit Fokusfuehrung und Scroll-Lock", () => {
+    const palette = source("components/command-palette.tsx");
+
+    expect(palette).toContain("dialogRef");
+    expect(palette).toContain("restoreFocusRef");
+    expect(palette).toContain("FOCUSABLE_SELECTOR");
+    expect(palette).toContain('document.body.style.overflow = "hidden"');
+    expect(palette).toContain("restoreFocusRef.current?.focus({ preventScroll: true })");
+    expect(palette).toContain("handleDialogKeyDown");
+    expect(palette).toContain('event.key !== "Tab"');
+    expect(palette).toContain("event.shiftKey");
+    expect(palette).toContain("aria-modal=\"true\"");
+    expect(palette).toContain("aria-describedby={COMMAND_DIALOG_DESCRIPTION_ID}");
+  });
+
   it("merkt zuletzt geoeffnete Aktionen nur als erlaubte lokale Hrefs", () => {
     const palette = source("components/command-palette.tsx");
 

@@ -58,7 +58,16 @@ const commandIcons = {
 const RECENT_COMMANDS_STORAGE_KEY = "baupro:recent-command-hrefs:v1";
 const MAX_RECENT_COMMANDS = 5;
 const COMMAND_PALETTE_LIST_ID = "baupro-command-palette-results";
+const COMMAND_DIALOG_DESCRIPTION_ID = "baupro-command-palette-description";
 const COMMAND_PREFETCH_LIMIT = 5;
+const FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])"
+].join(",");
 
 export type CommandIconKey = keyof typeof commandIcons;
 
@@ -153,6 +162,8 @@ export function CommandPalette({
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -219,8 +230,16 @@ export function CommandPalette({
 
   useEffect(() => {
     if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    document.body.style.overflow = "hidden";
     const id = window.setTimeout(() => inputRef.current?.focus(), 30);
-    return () => window.clearTimeout(id);
+    return () => {
+      window.clearTimeout(id);
+      document.body.style.overflow = previousOverflow;
+      restoreFocusRef.current?.focus({ preventScroll: true });
+      restoreFocusRef.current = null;
+    };
   }, [open]);
 
   useEffect(() => {
@@ -280,6 +299,33 @@ export function CommandPalette({
     }
   }
 
+  function handleDialogKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
+    if (event.key !== "Tab") return;
+
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const focusableElements = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) => {
+      return !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true";
+    });
+    if (focusableElements.length === 0) return;
+
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+    if (!firstElement || !lastElement) return;
+
+    if (event.shiftKey && document.activeElement === firstElement) {
+      event.preventDefault();
+      lastElement.focus();
+      return;
+    }
+
+    if (!event.shiftKey && document.activeElement === lastElement) {
+      event.preventDefault();
+      firstElement.focus();
+    }
+  }
+
   return (
     <>
       <button
@@ -302,10 +348,13 @@ export function CommandPalette({
           onMouseDown={() => setOpen(false)}
         >
           <section
+            ref={dialogRef}
             className="mx-auto flex max-h-[min(82vh,720px)] w-full max-w-2xl flex-col overflow-hidden border border-line bg-surface shadow-lift"
             role="dialog"
             aria-modal="true"
             aria-label="BauPro Schnellzugriff"
+            aria-describedby={COMMAND_DIALOG_DESCRIPTION_ID}
+            onKeyDown={handleDialogKeyDown}
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="border-b border-line bg-basalt p-4 text-ink">
@@ -313,7 +362,7 @@ export function CommandPalette({
                 <div>
                   <p className="meta-label text-primary">BauPro Schnellzugriff</p>
                   <h2 className="mt-1 text-2xl font-black">Was möchtest du tun?</h2>
-                  <p className="mt-1 text-sm font-semibold text-ash">
+                  <p id={COMMAND_DIALOG_DESCRIPTION_ID} className="mt-1 text-sm font-semibold text-ash">
                     {companyName} · {roleLabel}
                   </p>
                 </div>
