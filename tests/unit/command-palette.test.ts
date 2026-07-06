@@ -19,6 +19,23 @@ describe("globaler Schnellzugriff", () => {
     expect(palette).toContain("Was möchtest du tun?");
     expect(palette).toContain("Schnellzugriff öffnen");
     expect(palette).toContain("Aktion, Baustelle, Material, Zeit suchen");
+    expect(palette).toContain("role=\"combobox\"");
+    expect(palette).toContain("aria-activedescendant");
+    expect(palette).toContain("role=\"listbox\"");
+    expect(palette).toContain("aria-selected={active}");
+  });
+
+  it("laedt sichtbare Schnellaktionen vorsichtig vor", () => {
+    const palette = source("components/command-palette.tsx");
+
+    expect(palette).toContain("COMMAND_PREFETCH_LIMIT = 5");
+    expect(palette).toContain("router.prefetch(action.href)");
+    expect(palette).toContain("isSafeCommandHref");
+    expect(palette).toContain('href.startsWith("/api/")');
+    expect(palette).toContain('href.startsWith("/_next")');
+    expect(palette).toContain("shouldSkipCommandPrefetch");
+    expect(palette).toContain("connection?.saveData");
+    expect(palette).toContain('connection?.effectiveType === "2g"');
   });
 
   it("merkt zuletzt geoeffnete Aktionen nur als erlaubte lokale Hrefs", () => {

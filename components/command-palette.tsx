@@ -57,6 +57,8 @@ const commandIcons = {
 
 const RECENT_COMMANDS_STORAGE_KEY = "baupro:recent-command-hrefs:v1";
 const MAX_RECENT_COMMANDS = 5;
+const COMMAND_PALETTE_LIST_ID = "baupro-command-palette-results";
+const COMMAND_PREFETCH_LIMIT = 5;
 
 export type CommandIconKey = keyof typeof commandIcons;
 
@@ -124,6 +126,20 @@ function matches(action: CommandPaletteAction, query: string) {
     .split(/\s+/)
     .filter(Boolean)
     .every((part) => haystack.includes(part));
+}
+
+function isSafeCommandHref(href: string) {
+  if (!href.startsWith("/")) return false;
+  if (href.startsWith("/api/")) return false;
+  if (href.startsWith("/_next")) return false;
+  if (href.length > 240) return false;
+  return true;
+}
+
+function shouldSkipCommandPrefetch() {
+  if (typeof navigator === "undefined") return false;
+  const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+  return Boolean(connection?.saveData || connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g");
 }
 
 export function CommandPalette({
@@ -206,6 +222,23 @@ export function CommandPalette({
     const id = window.setTimeout(() => inputRef.current?.focus(), 30);
     return () => window.clearTimeout(id);
   }, [open]);
+
+  useEffect(() => {
+    if (!open || shouldSkipCommandPrefetch()) return;
+
+    const id = window.setTimeout(() => {
+      const warmedHrefs = new Set<string>();
+
+      for (const action of filteredActions) {
+        if (!isSafeCommandHref(action.href) || warmedHrefs.has(action.href)) continue;
+        warmedHrefs.add(action.href);
+        router.prefetch(action.href);
+        if (warmedHrefs.size >= COMMAND_PREFETCH_LIMIT) break;
+      }
+    }, 120);
+
+    return () => window.clearTimeout(id);
+  }, [filteredActions, open, router]);
 
   function choose(action: CommandPaletteAction) {
     rememberAction(action);
@@ -297,6 +330,11 @@ export function CommandPalette({
                 <Search className="h-5 w-5 text-primary" aria-hidden="true" />
                 <input
                   ref={inputRef}
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-controls={COMMAND_PALETTE_LIST_ID}
+                  aria-expanded={open}
+                  aria-activedescendant={filteredActions[activeIndex] ? `command-palette-action-${activeIndex}` : undefined}
                   className="min-w-0 flex-1 bg-transparent text-base font-bold text-ink outline-none placeholder:text-ash"
                   value={query}
                   onChange={(event) => {
@@ -312,14 +350,17 @@ export function CommandPalette({
 
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
               {filteredActions.length > 0 ? (
-                <div className="space-y-2">
+                <div id={COMMAND_PALETTE_LIST_ID} className="space-y-2" role="listbox" aria-label="Schnellaktionen">
                   {filteredActions.map((action, index) => {
                     const Icon = commandIcons[action.icon] ?? Search;
                     const active = index === activeIndex;
                     return (
                       <Link
                         key={`${action.href}-${action.label}`}
+                        id={`command-palette-action-${index}`}
                         href={action.href}
+                        role="option"
+                        aria-selected={active}
                         className={cn(
                           "group flex min-h-16 items-center gap-3 border px-3 py-3 text-left transition focus:outline-none focus:ring-4 focus:ring-primary/15",
                           active ? "border-primary bg-mint text-ink" : "border-line bg-surface hover:border-primary/50 hover:bg-mint"
