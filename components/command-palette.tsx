@@ -86,6 +86,13 @@ type RecentCommandEntry = {
   openedAt: number;
 };
 
+type CommandActionSection = {
+  id: string;
+  group: string;
+  actions: CommandPaletteAction[];
+  startIndex: number;
+};
+
 function readRecentCommandEntries(): RecentCommandEntry[] {
   if (typeof window === "undefined") return [];
 
@@ -195,6 +202,26 @@ export function CommandPalette({
 
     return orderedActions.filter((action) => matches(action, query)).slice(0, 12);
   }, [actions, query, recentActionHrefs, recentActions]);
+  const actionSections = useMemo(() => {
+    const sections: CommandActionSection[] = [];
+
+    filteredActions.forEach((action, index) => {
+      const lastSection = sections[sections.length - 1];
+      if (!lastSection || lastSection.group !== action.group) {
+        sections.push({
+          id: `command-palette-group-${sections.length}`,
+          group: action.group,
+          actions: [action],
+          startIndex: index
+        });
+        return;
+      }
+
+      lastSection.actions.push(action);
+    });
+
+    return sections;
+  }, [filteredActions]);
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -400,40 +427,51 @@ export function CommandPalette({
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
               {filteredActions.length > 0 ? (
                 <div id={COMMAND_PALETTE_LIST_ID} className="space-y-2" role="listbox" aria-label="Schnellaktionen">
-                  {filteredActions.map((action, index) => {
-                    const Icon = commandIcons[action.icon] ?? Search;
-                    const active = index === activeIndex;
-                    return (
-                      <Link
-                        key={`${action.href}-${action.label}`}
-                        id={`command-palette-action-${index}`}
-                        href={action.href}
-                        role="option"
-                        aria-selected={active}
-                        className={cn(
-                          "group flex min-h-16 items-center gap-3 border px-3 py-3 text-left transition focus:outline-none focus:ring-4 focus:ring-primary/15",
-                          active ? "border-primary bg-mint text-ink" : "border-line bg-surface hover:border-primary/50 hover:bg-mint"
-                        )}
-                        onMouseEnter={() => setActiveIndex(index)}
-                        onClick={() => {
-                          rememberAction(action);
-                          setOpen(false);
-                          setQuery("");
-                        }}
-                      >
-                        <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center border", action.primary ? "border-primary bg-primary text-white" : "border-line bg-basalt text-primary")}>
-                          <Icon className="h-5 w-5" aria-hidden="true" />
+                  {actionSections.map((section) => (
+                    <div key={section.id} role="group" aria-labelledby={section.id} className="space-y-2">
+                      <div id={section.id} className="flex items-center justify-between gap-3 px-1 pt-1">
+                        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary">{section.group}</p>
+                        <span className="rounded border border-line bg-basalt px-2 py-0.5 text-[10px] font-black text-ash">
+                          {section.actions.length}
                         </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-black text-ink">{action.label}</span>
-                          <span className="mt-0.5 line-clamp-2 block text-xs font-semibold text-ash">{action.description}</span>
-                        </span>
-                        <span className="hidden rounded border border-line px-2 py-1 text-[10px] font-black uppercase tracking-wide text-ash sm:inline">
-                          {action.group}
-                        </span>
-                      </Link>
-                    );
-                  })}
+                      </div>
+                      {section.actions.map((action, localIndex) => {
+                        const index = section.startIndex + localIndex;
+                        const Icon = commandIcons[action.icon] ?? Search;
+                        const active = index === activeIndex;
+                        return (
+                          <Link
+                            key={`${action.href}-${action.label}`}
+                            id={`command-palette-action-${index}`}
+                            href={action.href}
+                            role="option"
+                            aria-selected={active}
+                            className={cn(
+                              "group flex min-h-16 items-center gap-3 border px-3 py-3 text-left transition focus:outline-none focus:ring-4 focus:ring-primary/15",
+                              active ? "border-primary bg-mint text-ink" : "border-line bg-surface hover:border-primary/50 hover:bg-mint"
+                            )}
+                            onMouseEnter={() => setActiveIndex(index)}
+                            onClick={() => {
+                              rememberAction(action);
+                              setOpen(false);
+                              setQuery("");
+                            }}
+                          >
+                            <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center border", action.primary ? "border-primary bg-primary text-white" : "border-line bg-basalt text-primary")}>
+                              <Icon className="h-5 w-5" aria-hidden="true" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-sm font-black text-ink">{action.label}</span>
+                              <span className="mt-0.5 line-clamp-2 block text-xs font-semibold text-ash">{action.description}</span>
+                            </span>
+                            <span className="hidden rounded border border-line px-2 py-1 text-[10px] font-black uppercase tracking-wide text-ash sm:inline">
+                              {action.group}
+                            </span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="surface-strong construction-rail p-5">

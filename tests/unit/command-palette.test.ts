@@ -22,7 +22,19 @@ describe("globaler Schnellzugriff", () => {
     expect(palette).toContain("role=\"combobox\"");
     expect(palette).toContain("aria-activedescendant");
     expect(palette).toContain("role=\"listbox\"");
+    expect(palette).toContain("role=\"group\"");
     expect(palette).toContain("aria-selected={active}");
+  });
+
+  it("gruppiert Schnellaktionen ohne die Tastaturreihenfolge zu zerstoeren", () => {
+    const palette = source("components/command-palette.tsx");
+
+    expect(palette).toContain("type CommandActionSection");
+    expect(palette).toContain("const actionSections = useMemo");
+    expect(palette).toContain("startIndex: index");
+    expect(palette).toContain("const index = section.startIndex + localIndex");
+    expect(palette).toContain("aria-labelledby={section.id}");
+    expect(palette).toContain("section.actions.length");
   });
 
   it("laedt sichtbare Schnellaktionen vorsichtig vor", () => {
