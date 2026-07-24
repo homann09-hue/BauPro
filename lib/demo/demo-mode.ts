@@ -4,7 +4,7 @@ import { contentHash, hashCustomerPortalToken } from "@/lib/customer-portal/toke
 import { SafeActionError } from "@/lib/security/errors";
 import { logServerError } from "@/lib/security/logging";
 import { isMissingSchemaError, isUnsupportedVorarbeiterRoleError } from "@/lib/supabase/errors";
-import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient, type SupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Role } from "@/types/app";
 
 type DemoRole = Extract<Role, "chef" | "vorarbeiter" | "mitarbeiter">;
@@ -15,8 +15,11 @@ type DemoUserSeed = {
   role: DemoRole;
 };
 type DemoUser = DemoUserSeed & { id: string; role: DemoRole };
-type AdminClient = ReturnType<typeof createSupabaseAdminClient>;
+type AdminClient = SupabaseAdminClient;
 type DemoRow = Record<string, unknown> & { id: string };
+type EnsureDemoModeOptions = {
+  forceUserSync?: boolean;
+};
 
 const demoUsers: DemoUserSeed[] = [
   { key: "chef", email: DEMO_CHEF_EMAIL, fullName: "Sabine Müller", role: "chef" },
@@ -57,6 +60,51 @@ function demoPassword() {
   }
 
   return password;
+}
+
+function shouldReseedDemoDataOnStart() {
+  return process.env.DEMO_RESEED_ON_START === "true";
+}
+
+function hasRows(result: { data: unknown[] | null; error: unknown }) {
+  if (result.error) {
+    if (isMissingSchemaError(result.error)) return false;
+    throw new Error("demo_ready_lookup_failed");
+  }
+
+  return (result.data ?? []).length > 0;
+}
+
+async function hasPreparedDemoData(admin: AdminClient, companyId: string) {
+  const [chefProfile, jobsite, order, inventoryItem] = await Promise.all([
+    admin
+      .from("profiles")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("email", DEMO_CHEF_EMAIL)
+      .eq("active", true)
+      .limit(1),
+    admin
+      .from("jobsites")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("name", "Demo: Steildach Schmidt")
+      .limit(1),
+    admin
+      .from("orders")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("order_number", `DEMO-${new Date().getFullYear()}-0001`)
+      .limit(1),
+    admin
+      .from("inventory_items")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("name", "Konterlatte 40/60 impr.")
+      .limit(1)
+  ]);
+
+  return [chefProfile, jobsite, order, inventoryItem].every(hasRows);
 }
 
 async function listAllUsers(admin: AdminClient) {
@@ -137,17 +185,22 @@ async function markDemoCompanyReady(admin: AdminClient, companyId: string, chefI
 async function ensureDemoUser(admin: AdminClient, seed: DemoUserSeed, companyId: string, password: string, existingUsers: Awaited<ReturnType<typeof listAllUsers>>) {
   const existing = existingUsers.find((user) => user.email?.toLowerCase() === seed.email.toLowerCase());
   let finalRole = seed.role;
-  const metadata = (role: DemoRole) => ({
-    company_id: companyId,
+  const metadata = () => ({
     full_name: seed.fullName,
-    role,
     demo_mode: true,
     demo_key: seed.key
+  });
+  const appMetadata = (role: DemoRole) => ({
+    baupro_server_created: true,
+    baupro_company_id: companyId,
+    baupro_role: role,
+    baupro_demo_mode: true
   });
   const authPayload = {
     password,
     email_confirm: true,
-    user_metadata: metadata(finalRole)
+    app_metadata: appMetadata(finalRole),
+    user_metadata: metadata()
   };
   let authResult = existing
     ? await admin.auth.admin.updateUserById(existing.id, authPayload)
@@ -156,8 +209,8 @@ async function ensureDemoUser(admin: AdminClient, seed: DemoUserSeed, companyId:
   if (authResult.error && seed.role === "vorarbeiter") {
     finalRole = "mitarbeiter";
     authResult = existing
-      ? await admin.auth.admin.updateUserById(existing.id, { ...authPayload, user_metadata: metadata(finalRole) })
-      : await admin.auth.admin.createUser({ email: seed.email, ...authPayload, user_metadata: metadata(finalRole) });
+      ? await admin.auth.admin.updateUserById(existing.id, { ...authPayload, app_metadata: appMetadata(finalRole), user_metadata: metadata() })
+      : await admin.auth.admin.createUser({ email: seed.email, ...authPayload, app_metadata: appMetadata(finalRole), user_metadata: metadata() });
   }
 
   if (authResult.error || !authResult.data.user) throw new Error("demo_user_auth_failed");
@@ -177,7 +230,7 @@ async function ensureDemoUser(admin: AdminClient, seed: DemoUserSeed, companyId:
 
   if (profileResult.error && finalRole === "vorarbeiter" && isUnsupportedVorarbeiterRoleError(profileResult.error)) {
     finalRole = "mitarbeiter";
-    await admin.auth.admin.updateUserById(user.id, { user_metadata: metadata(finalRole) });
+    await admin.auth.admin.updateUserById(user.id, { app_metadata: appMetadata(finalRole), user_metadata: metadata() });
     profileResult = await admin.from("profiles").upsert(
       {
         id: user.id,
@@ -389,6 +442,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
 
   if (existingError) throw new Error("demo_existing_lookup_failed");
   if ((existingJobsite ?? []).length > 0) {
+    if (!shouldReseedDemoDataOnStart()) return;
     await cleanupDemoData(admin, companyId);
   }
 
@@ -441,25 +495,25 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
       company_id: companyId,
       name: "Demo: Steildach Schmidt",
       customer: "Anna Schmidt",
-      address: "Hauptstrasse 12, 50667 Koeln",
+      address: "Hauptstraße 12, 50667 Köln",
       latitude: 50.9375,
       longitude: 6.9603,
       start_date: todayOffset(0),
       status: "aktiv",
-      notes: "Demo in 2 Minuten: Materialwarnung, Mitbringliste, Aufmass und Tagesstunden sind vorbereitet.",
+      notes: "Demo in 2 Minuten: Materialwarnung, Mitbringliste, Aufmaß und Tagesstunden sind vorbereitet.",
       assigned_employee_ids: [users.v1.id, users.m1.id, users.m2.id, users.m3.id],
       created_by: users.chef.id
     },
     {
       company_id: companyId,
-      name: "Demo: Flachdach Baeckerei Kranz",
-      customer: "Baeckerei Kranz GmbH",
-      address: "Marktallee 7, 40213 Duesseldorf",
+      name: "Demo: Flachdach Bäckerei Kranz",
+      customer: "Bäckerei Kranz GmbH",
+      address: "Marktallee 7, 40213 Düsseldorf",
       latitude: 51.2254,
       longitude: 6.7763,
       start_date: todayOffset(2),
       status: "geplant",
-      notes: "Demo: Angebot, Daemmung und Schweissbahn-Bedarf pruefen.",
+      notes: "Demo: Angebot, Dämmung und Schweißbahn-Bedarf prüfen.",
       assigned_employee_ids: [users.v2.id, users.m4.id, users.m5.id],
       created_by: users.chef.id
     },
@@ -493,7 +547,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
       start_date: todayOffset(0),
       end_date: todayOffset(4),
       description: "Unterspannbahn, Konterlattung, Dachlattung und Tonziegel erneuern.",
-      internal_notes: "Demo-Fokus: Aufmass pruefen, Materialliste uebernehmen, Mitbringliste erzeugen.",
+      internal_notes: "Demo-Fokus: Aufmaß prüfen, Materialliste übernehmen, Mitbringliste erzeugen.",
       assigned_employee_ids: [users.v1.id, users.m1.id, users.m2.id, users.m3.id],
       has_dimensions: true,
       created_by: users.chef.id
@@ -503,13 +557,13 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
       customer_id: kranz.id,
       jobsite_id: jobKranz.id,
       order_number: `DEMO-${year}-0002`,
-      title: "Demo: Flachdach Baeckerei Kranz",
+      title: "Demo: Flachdach Bäckerei Kranz",
       order_type: "flachdach",
       status: "angebot",
       priority: "normal",
       jobsite_address: jobKranz.address,
       start_date: todayOffset(2),
-      description: "Vor-Kalkulation fuer Flachdach mit Dampfsperre, Daemmung und Oberlage.",
+      description: "Vor-Kalkulation für Flachdach mit Dampfsperre, Dämmung und Oberlage.",
       internal_notes: "Demo-Fokus: Chef-Preise und XRechnung/DATEV-Funktionen zeigen.",
       assigned_employee_ids: [users.v2.id, users.m4.id, users.m5.id],
       has_dimensions: true,
@@ -553,7 +607,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
       roof_drains_count: 0,
       emergency_overflows_count: 0,
       waste_percent: 20,
-      notes: "Demo-Aufmass: zwei Dachflaechen, Abzug Dachfenster/Gaube, Ortgang links beschaedigt.",
+      notes: "Demo-Aufmaß: zwei Dachflächen, Abzug Dachfenster/Gaube, Ortgang links beschädigt.",
       created_by: users.chef.id
     },
     {
@@ -682,8 +736,8 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
         chimneys_count: 1,
         waste_percent: 20,
         ai_enabled: false,
-        review_notice: "Demo: Vorschlag aus Aufmass und Dachdecker-Regeln. Vor Bestellung fachlich pruefen.",
-        notes: "Ziegel ca. 11,5 Stueck/m2, Lattung grob aus Dachflaeche geschaetzt.",
+        review_notice: "Demo: Vorschlag aus Aufmaß und Dachdecker-Regeln. Vor Bestellung fachlich prüfen.",
+        notes: "Ziegel ca. 11,5 Stück/m2, Lattung grob aus Dachfläche geschätzt.",
         created_by: users.chef.id
       },
       {
@@ -703,8 +757,8 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
         chimneys_count: 0,
         waste_percent: 20,
         ai_enabled: false,
-        review_notice: "Demo: Flachdach-Materialliste ist ein Angebotsvorschlag und muss vor Ausfuehrung geprueft werden.",
-        notes: "Dampfsperre, Daemmung und Oberlage jeweils mit 20 Prozent Zuschlag.",
+        review_notice: "Demo: Flachdach-Materialliste ist ein Angebotsvorschlag und muss vor Ausführung geprüft werden.",
+        notes: "Dampfsperre, Dämmung und Oberlage jeweils mit 20 Prozent Zuschlag.",
         created_by: users.chef.id
       },
       {
@@ -765,7 +819,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
       jobsite_id: jobSchmidt.id,
       report_date: todayOffset(-1),
       weather: "Trocken, 18 Grad, leichter Wind",
-      weather_summary: "Trocken, 18 °C, leichter Wind - gute Bedingungen fuer Dacharbeiten.",
+      weather_summary: "Trocken, 18 °C, leichter Wind - gute Bedingungen für Dacharbeiten.",
       weather_temperature_c: 18,
       weather_precipitation_mm: 0,
       weather_wind_kmh: 14,
@@ -774,7 +828,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
       work_start: "07:00",
       work_end: "16:00",
       employee_ids: [users.v1.id, users.m1.id, users.m2.id],
-      activities: "Unterspannbahn vorbereitet, Material kontrolliert, Aufmass geprueft und Ortgang links dokumentiert.",
+      activities: "Unterspannbahn vorbereitet, Material kontrolliert, Aufmaß geprüft und Ortgang links dokumentiert.",
       material_usage: "Unterspannbahn 75 m2, Dachlatten 110 lfm.",
       machine_usage: "Dachaufzug, Sprinter K-DT 210.",
       issues: "Konterlattenbestand reicht voraussichtlich nicht. Chef-Warnung wurde erzeugt.",
@@ -830,7 +884,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
       jobsite_id: jobSchmidt.id,
       event_type: "status",
       title: "Baustelle gestartet",
-      body: "Geruest steht, Material wurde geprueft und die Dachflaeche ist fuer die naechsten Arbeitsschritte vorbereitet.",
+      body: "Gerüst steht, Material wurde geprüft und die Dachfläche ist für die nächsten Arbeitsschritte vorbereitet.",
       visible_to_customer: true,
       event_date: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString(),
       created_by: users.chef.id
@@ -897,7 +951,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
   const demoWorkOrderSnapshot = {
     title: "Arbeitsauftrag: Steildachsanierung Schmidt",
     scope_of_work:
-      "Unterspannbahn verlegen, Konterlattung und Dachlattung herstellen, Ortgang links pruefen und die naechsten Materialschritte dokumentieren.",
+      "Unterspannbahn verlegen, Konterlattung und Dachlattung herstellen, Ortgang links prüfen und die nächsten Materialschritte dokumentieren.",
     version: 1,
     customer_id: schmidt.id,
     jobsite_id: jobSchmidt.id
@@ -909,7 +963,7 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
       jobsite_id: jobSchmidt.id,
       order_id: orderSchmidt.id,
       title: demoWorkOrderSnapshot.title,
-      description: "Demo-Arbeitsauftrag fuer die digitale Kundenfreigabe.",
+      description: "Demo-Arbeitsauftrag für die digitale Kundenfreigabe.",
       scope_of_work: demoWorkOrderSnapshot.scope_of_work,
       price_note: "Preisdetails stehen im Angebot. Interne EK-/Marge-Daten sind nicht Teil des Kundenportals.",
       status: "sent",
@@ -921,13 +975,13 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
   ]);
 
   await insertRows(admin, "tasks", [
-    { company_id: companyId, jobsite_id: jobSchmidt.id, title: "Demo: Konterlatten nachbestellen", description: "Mindestens 150 lfm fuer Schmidt reservieren.", assigned_to: users.chef.id, due_date: todayOffset(0), status: "offen", created_by: users.v1.id },
-    { company_id: companyId, jobsite_id: jobKranz.id, title: "Demo: Brenner und Gas pruefen", description: "Vor Flachdachtermin Gasbrennerzubehoer kontrollieren.", assigned_to: users.v2.id, due_date: todayOffset(1), status: "in_arbeit", created_by: users.chef.id }
+    { company_id: companyId, jobsite_id: jobSchmidt.id, title: "Demo: Konterlatten nachbestellen", description: "Mindestens 150 lfm für Schmidt reservieren.", assigned_to: users.chef.id, due_date: todayOffset(0), status: "offen", created_by: users.v1.id },
+    { company_id: companyId, jobsite_id: jobKranz.id, title: "Demo: Brenner und Gas prüfen", description: "Vor Flachdachtermin Gasbrennerzubehör kontrollieren.", assigned_to: users.v2.id, due_date: todayOffset(1), status: "in_arbeit", created_by: users.chef.id }
   ]);
 
   const bringLists = await insertRows(admin, "bring_lists", [
     { company_id: companyId, job_id: jobSchmidt.id, date: todayOffset(1), title: "Demo: Morgen Schmidt vorbereiten", notes: "Vom Hauptlager und Container laden. Fehlende Konterlatten und Ziegelmenge melden.", status: "ready", created_by: users.chef.id, assigned_to: users.v1.id, vehicle_id: vehicles[0].id },
-    { company_id: companyId, job_id: jobKranz.id, date: todayOffset(2), title: "Demo: Flachdach Kranz packen", notes: "Brenner-Set, Dampfsperre, Daemmung und Oberlage pruefen. Daemmung und Oberlage sind knapp.", status: "draft", created_by: users.chef.id, assigned_to: users.v2.id, vehicle_id: vehicles[1].id },
+    { company_id: companyId, job_id: jobKranz.id, date: todayOffset(2), title: "Demo: Flachdach Kranz packen", notes: "Brenner-Set, Dampfsperre, Dämmung und Oberlage prüfen. Dämmung und Oberlage sind knapp.", status: "draft", created_by: users.chef.id, assigned_to: users.v2.id, vehicle_id: vehicles[1].id },
     { company_id: companyId, job_id: jobRheinblick.id, date: todayOffset(1), title: "Demo: Rinnenanlage Rosenweg", notes: "Rinne, Halter, Fallrohre und Rohrschellen laden. Bestand reicht nicht vollstaendig.", status: "ready", created_by: users.chef.id, assigned_to: users.v1.id, vehicle_id: vehicles[1].id }
   ]);
   const [bringList, bringListKranz, bringListRheinblick] = bringLists;
@@ -964,20 +1018,33 @@ async function seedDemoData(admin: AdminClient, companyId: string, users: Record
   ]);
 }
 
-export async function ensureDemoModeData() {
+export async function ensureDemoModeData(options: EnsureDemoModeOptions = {}) {
   if (!demoModeEnabled()) {
     throw new SafeActionError("Demo-Modus ist in dieser Umgebung nicht aktiviert.");
   }
 
   let admin: AdminClient;
   try {
-    admin = createSupabaseAdminClient();
+    admin = createScopedSupabaseAdminClient({
+      caller: "demo.ensureDemoModeData",
+      reason: "Demo-Modus legt isolierte Beispiel-Firma, Benutzer und Beispieldaten serverseitig an."
+    });
   } catch {
     throw new SafeActionError("Demo-Modus braucht serverseitig SUPABASE_SERVICE_ROLE_KEY.");
   }
 
   const password = demoPassword();
   const company = await ensureDemoCompany(admin);
+
+  if (!options.forceUserSync && !shouldReseedDemoDataOnStart() && (await hasPreparedDemoData(admin, company.id))) {
+    return {
+      companyId: company.id,
+      companyName: DEMO_COMPANY_NAME,
+      chefEmail: DEMO_CHEF_EMAIL,
+      password
+    };
+  }
+
   const existingUsers = await listAllUsers(admin);
   const users = Object.fromEntries(
     await Promise.all(demoUsers.map(async (seed) => [seed.key, await ensureDemoUser(admin, seed, company.id, password, existingUsers)] as const))

@@ -72,7 +72,7 @@ export default async function DeliveryNoteDetailPage({
   const priceByItemId = new Map(prices.map((price) => [price.delivery_note_item_id, price]));
   const isConfirmed = note?.status === "confirmed";
   const signedPhoto =
-    note?.storage_path
+    context.canManage && note?.storage_path
       ? await supabase.storage.from("delivery-notes").createSignedUrl(note.storage_path, 600).then((result) => result.data?.signedUrl ?? null)
       : null;
   const defaultLocationId = locations.find((location) => location.location_type === "Hauptlager")?.id ?? locations[0]?.id ?? "";
@@ -154,10 +154,18 @@ export default async function DeliveryNoteDetailPage({
             {signedPhoto ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={signedPhoto} alt="Original Lieferschein" className="max-h-80 w-full object-contain" loading="lazy" decoding="async" />
-            ) : (
+            ) : context.canManage ? (
               <div className="flex min-h-48 flex-col items-center justify-center gap-2 text-slate-500">
                 <FileImage className="h-8 w-8" aria-hidden="true" />
                 <p className="text-sm font-bold">Originalfoto gespeichert</p>
+              </div>
+            ) : (
+              <div className="flex min-h-48 flex-col items-center justify-center gap-2 p-4 text-center text-slate-500">
+                <Lock className="h-8 w-8" aria-hidden="true" />
+                <p className="text-sm font-bold">Originalfoto nur für Chef sichtbar</p>
+                <p className="text-xs font-semibold text-slate-500">
+                  Lieferschein-Fotos können Preise enthalten. Vorarbeiter sehen nur die preisbereinigten Positionen.
+                </p>
               </div>
             )}
           </div>

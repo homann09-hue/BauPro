@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { collectTriggerHelperGrantIssues } from "../helpers/supabase-rpc-hardening";
 
 const root = path.resolve(__dirname, "../..");
 
@@ -33,6 +34,51 @@ describe("RedTeam hardening guards", () => {
     expect(plans).toContain("maxAiTokensPerMonth");
     expect(plans).toContain("getMonthlyAiTokenUsage");
     expect(plans).toContain("KI-Token-Limit fuer diesen Monat erreicht");
+  });
+
+  it("limits AI report photo context to currently accessible non-archived reports", () => {
+    const route = source("app/api/ai/report-draft/route.ts");
+
+    expect(route).toContain(".from(\"report_photos\")");
+    expect(route).toContain(".select(\"id, report_id, storage_path\")");
+    expect(route).toContain(".is(\"archived_at\", null)");
+    expect(route).toContain(".from(\"reports\")");
+    expect(route).toContain(".select(\"id, created_by, employee_ids\")");
+    expect(route).toContain("accessibleReportIds");
+    expect(route).toContain("canManage || report.created_by === userId || (report.employee_ids ?? []).includes(userId)");
+    expect(route).toContain("allowedPhotos.slice(0, 4)");
+    expect(route).not.toContain('query = query.eq("created_by", userId)');
+  });
+
+  it("does not call internal commercial document recalculation over public RPC", () => {
+    const actions = source("lib/actions/commercial-document-actions.ts");
+    const schema = source("supabase/schema.sql");
+
+    expect(actions).not.toContain('rpc("recalculate_commercial_document_totals"');
+    expect(schema).not.toContain("grant execute on function public.recalculate_commercial_document_totals(uuid) to authenticated");
+    expect(schema).toContain("revoke all on function public.recalculate_commercial_document_totals(uuid) from authenticated");
+    expect(schema).toContain("create trigger recalculate_commercial_document_totals_on_items");
+  });
+
+  it("does not expose raw invoice item insertion as direct RPC", () => {
+    const schema = source("supabase/schema.sql");
+    const migration = source("supabase/migrations/20260724_invoice_items_rpc_explicit_role_revoke.sql");
+
+    expect(schema).not.toContain("grant execute on function public.insert_invoice_items_from_json(uuid, jsonb) to authenticated");
+    for (const roleName of ["public", "anon", "authenticated"]) {
+      expect(schema).toContain(`revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from ${roleName}`);
+      expect(migration).toContain(`revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from ${roleName}`);
+    }
+  });
+
+  it("revokes direct execute grants from SECURITY DEFINER trigger helpers", () => {
+    const schema = source("supabase/schema.sql");
+    const migration = [
+      source("supabase/migrations/20260725_trigger_function_execute_hardening.sql"),
+      source("supabase/migrations/20260726_material_movement_audit_trigger_revoke.sql")
+    ].join("\n");
+
+    expect(collectTriggerHelperGrantIssues({ schema, migration })).toEqual([]);
   });
 
   it("limits CSV imports and sanitizes PostgREST ilike search patterns", () => {
@@ -77,5 +123,19 @@ describe("RedTeam hardening guards", () => {
     expect(inventoryActions).toContain("if (insertError)");
     expect(deliveryNoteActions).toContain("if (insertError)");
     expect(supplierActions).toContain("if (insertError)");
+  });
+
+  it("does not report expected Next.js redirects as route errors", () => {
+    const observability = source("lib/performance/observability.ts");
+
+    expect(observability).toContain("function isNextControlFlowError");
+    expect(observability).toContain('error.message === "NEXT_REDIRECT"');
+    expect(observability).toContain('error.message === "NEXT_NOT_FOUND"');
+    expect(observability).toContain('digest.startsWith("NEXT_REDIRECT;")');
+
+    const guardIndex = observability.indexOf("if (isNextControlFlowError(error))");
+    const errorLogIndex = observability.indexOf('logServerError("perf.route-error"');
+    expect(guardIndex).toBeGreaterThan(-1);
+    expect(errorLogIndex).toBeGreaterThan(guardIndex);
   });
 });

@@ -104,7 +104,7 @@ function max(values: Array<number | null | undefined>) {
 function weatherCodeLabel(code: number | null) {
   if (code === null) return "Wetterlage unbekannt";
   if (code === 0) return "Klar";
-  if ([1, 2, 3].includes(code)) return "Bewoelkt";
+  if ([1, 2, 3].includes(code)) return "Bewölkt";
   if ([45, 48].includes(code)) return "Nebel";
   if ([51, 53, 55, 56, 57].includes(code)) return "Nieselregen";
   if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return "Regen";
@@ -157,14 +157,14 @@ export function buildLiveWeatherSummary({
   windKmh: number | null;
 }) {
   if (riskLevel === "red") {
-    if (windKmh !== null && windKmh >= 50) return "Starker Wind - Dacharbeiten und Sicherung pruefen.";
-    return "Starker Regen moeglich - Material sichern und Tagesbericht sauber dokumentieren.";
+    if (windKmh !== null && windKmh >= 50) return "Starker Wind - Dacharbeiten und Sicherung prüfen.";
+    return "Starker Regen möglich - Material sichern und Tagesbericht sauber dokumentieren.";
   }
 
   if (riskLevel === "yellow") {
-    if (windKmh !== null && windKmh >= 30) return "Windig - Arbeiten am Dach pruefen.";
+    if (windKmh !== null && windKmh >= 30) return "Windig - Arbeiten am Dach prüfen.";
     if ((precipitationMm ?? 0) > 0.2) return "Regen zieht rein - Material/Folien sichern.";
-    if ((precipitationProbability ?? 0) >= 45) return "Aktuell ruhig, aber spaeter Niederschlag moeglich.";
+    if ((precipitationProbability ?? 0) >= 45) return "Aktuell ruhig, aber später Niederschlag möglich.";
     return "Aufpassen - Wetterlage im Blick behalten.";
   }
 

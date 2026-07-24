@@ -25,6 +25,52 @@ const pricePermissionHardening = fs.readFileSync(
   path.join(root, "supabase/migrations/20260712_price_permission_hardening.sql"),
   "utf8"
 );
+const platformSystemAdminHardening = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260715_platform_system_admin.sql"),
+  "utf8"
+);
+const atomicOrderCreation = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260716_atomic_order_creation.sql"),
+  "utf8"
+);
+const authSignupMetadataHardening = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260717_auth_signup_metadata_hardening.sql"),
+  "utf8"
+);
+const publicViewSecurityInvoker = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260720_public_view_security_invoker.sql"),
+  "utf8"
+);
+const internalInvoiceRpcHardening = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260721_internal_invoice_rpc_hardening.sql"),
+  "utf8"
+);
+const internalInvoiceRpcExplicitRoleRevoke = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260722_internal_invoice_rpc_explicit_role_revoke.sql"),
+  "utf8"
+);
+const commercialDocumentRpcHardening = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260723_commercial_document_rpc_hardening.sql"),
+  "utf8"
+);
+const invoiceItemsRpcExplicitRoleRevoke = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260724_invoice_items_rpc_explicit_role_revoke.sql"),
+  "utf8"
+);
+const triggerFunctionExecuteHardening = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260725_trigger_function_execute_hardening.sql"),
+  "utf8"
+);
+const materialMovementAuditTriggerRevoke = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260726_material_movement_audit_trigger_revoke.sql"),
+  "utf8"
+);
+const triggerFunctionHardeningMigrations = `${triggerFunctionExecuteHardening}\n${materialMovementAuditTriggerRevoke}`;
+const dashboardRpc = fs.readFileSync(path.join(root, "supabase/migrations/20260619_dashboard_rpc.sql"), "utf8");
+const dashboardRpcAnonRevoke = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260727_dashboard_rpc_anon_revoke.sql"),
+  "utf8"
+);
 
 const failures = [];
 
@@ -40,9 +86,29 @@ function block(source, start, end) {
 
 const inventoryPublicView = block(
   schema,
-  "create or replace view public.inventory_items_public as",
+  "create or replace view public.inventory_items_public",
   "grant select on public.inventory_items_public"
 );
+const publicViewNames = [
+  "orders_public",
+  "inventory_items_public",
+  "job_material_calculation_items_public",
+  "job_material_requirements_public"
+];
+const triggerOnlySecurityDefinerFunctions = [
+  "assert_employee_permission_change_allowed",
+  "assert_role_change_allowed",
+  "create_defect_due_notification",
+  "create_defect_from_checklist_problem",
+  "create_task_for_checklist_problem",
+  "handle_new_user",
+  "record_material_movement_from_audit",
+  "recalculate_commercial_document_totals_trigger",
+  "recalculate_invoice_totals_trigger",
+  "validate_checklist_tenant",
+  "validate_defect_tenant",
+  "validate_resource_document_tenant"
+];
 
 check(schema.includes("force row level security"), "schema.sql must force RLS on public tables.");
 check(hardening.includes("force row level security"), "redteam migration must force RLS.");
@@ -58,6 +124,14 @@ check(
     schema.includes("force row level security"),
   "schema.sql must include the final privacy/security hardening block."
 );
+for (const viewName of publicViewNames) {
+  const viewBlock = block(schema, `create or replace view public.${viewName}`, `grant select on public.${viewName}`);
+  check(viewBlock.includes("with (security_invoker = true)"), `${viewName} must use security_invoker=true.`);
+  check(
+    publicViewSecurityInvoker.includes(`alter view if exists public.${viewName} set (security_invoker = true)`),
+    `public view hardening migration must set security_invoker=true on ${viewName}.`
+  );
+}
 check(schema.includes("redteam managers select fallback"), "schema.sql must include tenant manager CRUD fallback policies.");
 check(hardening.includes("redteam managers delete fallback"), "redteam migration must include tenant delete fallback policies.");
 check(
@@ -101,6 +175,50 @@ check(
     pricePermissionHardening.includes("public.can_manage_company()"),
   "price/manager permission hardening migration must remove delegated Chef-only permissions."
 );
+check(
+  platformSystemAdminHardening.includes('create policy "systemadmins read all companies"') &&
+    platformSystemAdminHardening.includes('create policy "systemadmins read all profiles"') &&
+    platformSystemAdminHardening.includes('create policy "systemadmins update profiles"') &&
+    platformSystemAdminHardening.includes('create policy "systemadmins read company audit log"') &&
+    platformSystemAdminHardening.includes("public.current_role() = 'admin'") &&
+    platformSystemAdminHardening.includes("public.current_role() = 'chef'"),
+  "platform system-admin migration must make admin a cross-company system role without merging it with chef."
+);
+check(
+  schema.includes('create policy "systemadmins read all companies"') &&
+    schema.includes('create policy "systemadmins read all profiles"') &&
+    schema.includes('create policy "systemadmins update profiles"') &&
+    schema.includes('create policy "systemadmins read company audit log"') &&
+    schema.includes("admin = firmenuebergreifender BauPro-Systemadministrator") &&
+    schema.includes("chef = operative Betriebsleitung einer einzelnen Firma"),
+  "schema.sql must include platform system-admin policies and role documentation."
+);
+check(
+  !platformSystemAdminHardening.includes('create policy "systemadmins read all customers"') &&
+    !platformSystemAdminHardening.includes('create policy "systemadmins read all jobsites"') &&
+    !platformSystemAdminHardening.includes('create policy "systemadmins read all inventory'),
+  "platform system-admin migration must not open operative tenant data cross-company."
+);
+for (const source of [schema, atomicOrderCreation]) {
+  check(source.includes("create or replace function public.generate_order_number"), "atomic order creation must define generate_order_number.");
+  check(source.includes("create or replace function public.create_order_with_jobsite"), "atomic order creation must define create_order_with_jobsite.");
+  check(source.includes("pg_advisory_xact_lock"), "order number generation must use an advisory transaction lock.");
+  check(source.includes("public.has_employee_permission('orders.create')"), "atomic order creation must enforce orders.create permission in SQL.");
+  check(source.includes("p_created_by is distinct from auth.uid()"), "atomic order creation must bind created_by to auth.uid().");
+}
+
+for (const source of [schema, authSignupMetadataHardening]) {
+  const handleNewUser = block(source, "create or replace function public.handle_new_user()", "notify pgrst");
+  check(handleNewUser.includes("raw_app_meta_data->>'baupro_server_created'"), "handle_new_user must trust only server app_metadata for existing company assignment.");
+  check(handleNewUser.includes("raw_app_meta_data->>'baupro_company_id'"), "handle_new_user must read server company id from app_metadata.");
+  check(handleNewUser.includes("raw_app_meta_data->>'baupro_role'"), "handle_new_user must read server role from app_metadata.");
+  check(!handleNewUser.includes("raw_user_meta_data->>'company_id'"), "handle_new_user must not trust client user_metadata company_id.");
+  check(!handleNewUser.includes("raw_user_meta_data->>'role'"), "handle_new_user must not trust client user_metadata role.");
+}
+
+const bootstrapProfile = block(schema, "create or replace function public.bootstrap_my_profile()", "grant execute on function public.bootstrap_my_profile()");
+check(bootstrapProfile.includes("'chef', true"), "bootstrap_my_profile fallback must create a company chef, not a system admin.");
+check(!bootstrapProfile.includes("'admin', true"), "bootstrap_my_profile must not auto-create system admins.");
 
 check(inventoryPublicView.includes("where i.company_id = public.current_company_id()"), "inventory_items_public must filter by current company.");
 check(
@@ -151,6 +269,91 @@ check(schema.includes("function public.assert_role_change_allowed"), "role chang
 check(schema.includes("guard_profile_role_change_before_audit"), "profiles must have a role escalation guard trigger.");
 check(schema.includes("before update of role on public.profiles"), "role escalation guard must run before profile role updates.");
 check(schema.includes("Keine Berechtigung fuer diese Rollenaenderung."), "role escalation guard must raise a safe German error.");
+
+for (const signature of ["generate_invoice_number(uuid, text)", "recalculate_invoice_totals(uuid)"]) {
+  check(schema.includes(`revoke all on function public.${signature} from public`), `${signature} must not be directly executable by PUBLIC.`);
+  check(
+    internalInvoiceRpcHardening.includes(`revoke all on function public.${signature} from public`),
+    `invoice RPC hardening migration must revoke PUBLIC execute on ${signature}.`
+  );
+  for (const roleName of ["anon", "authenticated"]) {
+    check(schema.includes(`revoke all on function public.${signature} from ${roleName}`), `${signature} must not be directly executable by ${roleName}.`);
+    check(
+      internalInvoiceRpcExplicitRoleRevoke.includes(`revoke all on function public.${signature} from ${roleName}`),
+      `invoice RPC explicit role revoke migration must revoke ${roleName} execute on ${signature}.`
+    );
+  }
+  check(!schema.includes(`grant execute on function public.${signature} to authenticated`), `${signature} must not be granted directly to authenticated.`);
+}
+
+for (const roleName of ["public", "anon", "authenticated"]) {
+  check(
+    schema.includes(`revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from ${roleName}`),
+    `insert_invoice_items_from_json must not be directly executable by ${roleName}.`
+  );
+  check(
+    invoiceItemsRpcExplicitRoleRevoke.includes(`revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from ${roleName}`),
+    `invoice item helper RPC hardening migration must revoke ${roleName} execute on insert_invoice_items_from_json.`
+  );
+  check(
+    schema.includes(`revoke all on function public.recalculate_commercial_document_totals(uuid) from ${roleName}`),
+    `recalculate_commercial_document_totals must not be directly executable by ${roleName}.`
+  );
+  check(
+    commercialDocumentRpcHardening.includes(`revoke all on function public.recalculate_commercial_document_totals(uuid) from ${roleName}`),
+    `commercial document RPC hardening migration must revoke ${roleName} execute on recalculate_commercial_document_totals.`
+  );
+}
+check(
+  !schema.includes("grant execute on function public.recalculate_commercial_document_totals(uuid) to authenticated"),
+  "recalculate_commercial_document_totals must not be granted directly to authenticated."
+);
+check(
+  !schema.includes("grant execute on function public.insert_invoice_items_from_json(uuid, jsonb) to authenticated"),
+  "insert_invoice_items_from_json must not be granted directly to authenticated."
+);
+
+const dashboardSummaryRpc = block(
+  schema,
+  "create or replace function public.get_dashboard_summary(",
+  "grant execute on function public.get_dashboard_summary(uuid, uuid, boolean, date) to authenticated"
+);
+check(dashboardSummaryRpc.includes("security definer"), "schema.sql must include the dashboard summary SECURITY DEFINER RPC.");
+check(dashboardSummaryRpc.includes("p_user_id is distinct from auth.uid()"), "dashboard summary RPC must bind p_user_id to auth.uid().");
+check(dashboardSummaryRpc.includes("and p.company_id = p_company_id"), "dashboard summary RPC must validate the caller's company.");
+check(dashboardSummaryRpc.includes("v_can_manage := v_role = 'chef'"), "dashboard summary RPC must derive manager access server-side.");
+check(dashboardSummaryRpc.includes("p_can_manage") && dashboardSummaryRpc.includes("not v_can_manage"), "dashboard summary RPC must reject forged manager flags.");
+check(
+  schema.includes("revoke all on function public.get_dashboard_summary(uuid, uuid, boolean, date) from public") &&
+    schema.includes("revoke all on function public.get_dashboard_summary(uuid, uuid, boolean, date) from anon") &&
+    schema.includes("grant execute on function public.get_dashboard_summary(uuid, uuid, boolean, date) to authenticated"),
+  "dashboard summary RPC must be callable only by authenticated users."
+);
+check(dashboardRpc.includes("revoke all on function public.get_dashboard_summary(uuid, uuid, boolean, date) from anon"), "dashboard RPC migration must revoke anon execute.");
+check(
+  dashboardRpcAnonRevoke.includes("revoke all on function public.get_dashboard_summary(uuid, uuid, boolean, date) from anon"),
+  "dashboard RPC anon revoke migration must exist for already-migrated databases."
+);
+
+for (const functionName of triggerOnlySecurityDefinerFunctions) {
+  check(schema.includes(`create or replace function public.${functionName}()`), `${functionName} must exist in schema.sql.`);
+  check(
+    schema.includes(`returns trigger`) &&
+      schema.includes(`execute function public.${functionName}()`),
+    `${functionName} must remain trigger-backed, not a standalone RPC path.`
+  );
+
+  for (const roleName of ["public", "anon", "authenticated"]) {
+    const expected = `revoke all on function public.${functionName}() from ${roleName}`;
+    check(schema.includes(expected), `${functionName} must not be directly executable by ${roleName}.`);
+    check(triggerFunctionHardeningMigrations.includes(expected), `trigger function hardening migrations must revoke ${roleName} execute on ${functionName}.`);
+  }
+
+  check(
+    !schema.includes(`grant execute on function public.${functionName}() to authenticated`),
+    `${functionName} must not be granted directly to authenticated.`
+  );
+}
 
 check(schema.includes("archived_at timestamptz"), "reports must support archived_at for soft deletion.");
 check(reportArchiveHardening.includes("alter table public.reports add column if not exists archived_at timestamptz"), "report archive migration must add archived_at.");

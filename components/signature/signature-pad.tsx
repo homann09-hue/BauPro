@@ -24,9 +24,9 @@ export function SignaturePad({
 }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [drawing, setDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const drawingRef = useRef(false);
   const lastPointRef = useRef<Point | null>(null);
 
   useEffect(() => {
@@ -56,13 +56,49 @@ export function SignaturePad({
     return () => window.removeEventListener("resize", resize);
   }, []);
 
-  function pointFromEvent(event: React.PointerEvent<HTMLCanvasElement>): Point {
+  function pointFromClient(clientX: number, clientY: number): Point {
     const canvas = canvasRef.current;
     const rect = canvas?.getBoundingClientRect();
     return {
-      x: event.clientX - (rect?.left ?? 0),
-      y: event.clientY - (rect?.top ?? 0)
+      x: clientX - (rect?.left ?? 0),
+      y: clientY - (rect?.top ?? 0)
     };
+  }
+
+  function pointFromEvent(event: React.PointerEvent<HTMLCanvasElement> | React.MouseEvent<HTMLCanvasElement>): Point {
+    return pointFromClient(event.clientX, event.clientY);
+  }
+
+  function beginDrawing(point: Point) {
+    drawingRef.current = true;
+    lastPointRef.current = point;
+    markPoint(point);
+  }
+
+  function markPoint(point: Point) {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+
+    context.beginPath();
+    context.arc(point.x, point.y, 1.4, 0, Math.PI * 2);
+    context.fillStyle = "#111827";
+    context.fill();
+    persistSignature();
+  }
+
+  function drawLine(point: Point) {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    const lastPoint = lastPointRef.current;
+    if (!canvas || !context || !lastPoint) return;
+
+    context.beginPath();
+    context.moveTo(lastPoint.x, lastPoint.y);
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    lastPointRef.current = point;
+    persistSignature();
   }
 
   function persistSignature() {
@@ -76,30 +112,18 @@ export function SignaturePad({
   function startDrawing(event: React.PointerEvent<HTMLCanvasElement>) {
     event.preventDefault();
     canvasRef.current?.setPointerCapture(event.pointerId);
-    setDrawing(true);
-    lastPointRef.current = pointFromEvent(event);
+    beginDrawing(pointFromEvent(event));
   }
 
   function draw(event: React.PointerEvent<HTMLCanvasElement>) {
-    if (!drawing) return;
+    if (!drawingRef.current) return;
     event.preventDefault();
-    const canvas = canvasRef.current;
-    const context = canvas?.getContext("2d");
-    const lastPoint = lastPointRef.current;
-    const point = pointFromEvent(event);
-    if (!canvas || !context || !lastPoint) return;
-
-    context.beginPath();
-    context.moveTo(lastPoint.x, lastPoint.y);
-    context.lineTo(point.x, point.y);
-    context.stroke();
-    lastPointRef.current = point;
-    persistSignature();
+    drawLine(pointFromEvent(event));
   }
 
   function stopDrawing(event?: React.PointerEvent<HTMLCanvasElement>) {
     if (event) canvasRef.current?.releasePointerCapture(event.pointerId);
-    setDrawing(false);
+    drawingRef.current = false;
     lastPointRef.current = null;
   }
 
@@ -111,8 +135,25 @@ export function SignaturePad({
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, rect.width, rect.height);
     inputRef.current.value = "";
+    drawingRef.current = false;
     setHasSignature(false);
     setError(null);
+  }
+
+  function startMouseDrawing(event: React.MouseEvent<HTMLCanvasElement>) {
+    event.preventDefault();
+    beginDrawing(pointFromEvent(event));
+  }
+
+  function drawMouse(event: React.MouseEvent<HTMLCanvasElement>) {
+    if (!drawingRef.current || event.buttons !== 1) return;
+    event.preventDefault();
+    drawLine(pointFromEvent(event));
+  }
+
+  function stopMouseDrawing() {
+    drawingRef.current = false;
+    lastPointRef.current = null;
   }
 
   function validateBeforeSubmit(event: React.FormEvent<HTMLInputElement>) {
@@ -141,6 +182,10 @@ export function SignaturePad({
         onPointerMove={draw}
         onPointerUp={stopDrawing}
         onPointerCancel={stopDrawing}
+        onMouseDown={startMouseDrawing}
+        onMouseMove={drawMouse}
+        onMouseUp={stopMouseDrawing}
+        onMouseLeave={stopMouseDrawing}
         aria-label={label}
       />
       <input ref={inputRef} type="hidden" name={name} onInvalid={validateBeforeSubmit} />

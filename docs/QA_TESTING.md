@@ -51,6 +51,12 @@ npm run test
 npm run build
 ```
 
+Vollstaendiges lokales Quality Gate:
+
+```bash
+npm run test:all
+```
+
 Mobiler Smoke-Test fuer die wichtigsten Seiten und Browser-Console-Fehler:
 
 ```bash
@@ -69,6 +75,18 @@ Demo neu seed’en und direkt E2E laufen lassen:
 ```bash
 npm run test:e2e:demo
 ```
+
+## Last- und Stresstests
+
+Die 2.000-User-Lasttest-Struktur liegt in `tests/load/` und wird mit k6 ausgefuehrt. Sie ist optional und darf nur gegen lokale, Test- oder Staging-Umgebungen laufen:
+
+```bash
+npm run test:load:check
+LOAD_TEST_ENVIRONMENT=local npm run test:load
+LOAD_TEST_ENVIRONMENT=test LOAD_ALLOW_REMOTE_TARGET=1 LOAD_TEST_ACKNOWLEDGE_2000_USERS=1 LOAD_TARGET_VUS=2000 npm run test:stress
+```
+
+Details, ENV-Variablen und Ergebnisbericht: [LOAD_AND_E2E_TESTING.md](LOAD_AND_E2E_TESTING.md).
 
 ## Abgedeckte Hauptablaeufe
 

@@ -85,13 +85,17 @@ describe("server action hardening", () => {
     expect(orderPage).toContain("canManage={context.canManage}");
     expect(orderForm).toContain("canManage: boolean");
     expect(orderForm).toContain("{canManage ? (");
-    expect(orderForm).toContain("Kosten, EK/VK und Margen bleiben Chef/Admin vorbehalten.");
+    expect(orderForm).toContain("Kosten, EK/VK und Margen bleiben Chef vorbehalten.");
   });
 
   it("does not trust material usage FormData for company or actor ids", () => {
     const inventoryActions = source("lib/actions/inventory-actions.ts");
     const reportAction = actionBlock(inventoryActions, "reportMaterialUsageAction", "confirmMaterialUsageReportAction");
-    const confirmAction = actionBlock(inventoryActions, "confirmMaterialUsageReportAction", "reserveMaterialForJobsiteAction");
+    const confirmStart = inventoryActions.indexOf("async function confirmMaterialUsageReport");
+    const confirmEnd = inventoryActions.indexOf("export async function reserveMaterialForJobsiteAction");
+    expect(confirmStart).toBeGreaterThanOrEqual(0);
+    expect(confirmEnd).toBeGreaterThan(confirmStart);
+    const confirmAction = inventoryActions.slice(confirmStart, confirmEnd);
     const reserveAction = actionBlock(inventoryActions, "reserveMaterialForJobsiteAction", "createInventoryLocationAction");
 
     expect(reportAction).toContain("requireAppContext");
@@ -240,6 +244,21 @@ describe("server action hardening", () => {
     expect(orderActions).toContain("Nur aktive Mitarbeiter oder Vorarbeiter dieser Firma duerfen zugeordnet werden.");
     expect(orderActions).toContain('optionalFormUuid(formData, "customer_id", "Kunde")');
     expect(orderActions).toContain('requiredFormUuid(formData, "order_id", "Auftrag")');
+  });
+
+  it("validates optional customer ids for time entries against the current company", () => {
+    const tenantGuards = source("lib/security/tenant-guards.ts");
+    const timeActions = source("lib/actions/time-tracking-actions.ts");
+
+    expect(tenantGuards).toContain("export async function assertCustomerInCompany");
+    expect(tenantGuards).toContain('.from("customers")');
+    expect(tenantGuards).toContain('.eq("company_id", companyId)');
+    expect(tenantGuards).toContain('.is("archived_at", null)');
+
+    expect(timeActions).toContain('optionalFormUuid(formData, "customer_id", "Kunde")');
+    expect(timeActions).toContain("assertCustomerInCompany({ supabase, companyId, customerId })");
+    expect(timeActions).toContain("customer_id: customerId");
+    expect(timeActions).not.toContain('customer_id: optionalString(formData, "customer_id")');
   });
 
   it("checks affected rows for customer updates and status changes", () => {
@@ -435,5 +454,17 @@ describe("server action hardening", () => {
     expect(weatherWarningAction).toContain('.select("id")');
     expect(weatherWarningAction).toContain(".maybeSingle()");
     expect(weatherWarningAction).toContain("if (error || !data)");
+  });
+
+  it("keeps planning assignment API aligned with server-side tenant guards", () => {
+    const planningApi = source("app/api/planning/assignments/route.ts");
+
+    expect(planningApi).toContain("assertProfilesInCompany");
+    expect(planningApi).toContain("assertVehicleInCompany");
+    expect(planningApi).toContain('allowedRoles: ["vorarbeiter", "mitarbeiter"]');
+    expect(planningApi).toContain(".eq(\"active\", true)");
+    expect(planningApi).toContain('.is("archived_at", null)');
+    expect(planningApi).toContain("uuidPattern.test(id)");
+    expect(planningApi).not.toContain('const table = resourceType === "employee"');
   });
 });

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import { detectPlanningConflicts } from "@/lib/planning";
 import { maintenanceDueState, resourceKindLabels, resourceStatusLabels } from "@/lib/resources";
 import { PROTECTED_TABLES } from "@/lib/data/soft-delete-guard";
@@ -27,17 +29,17 @@ function equipmentAssignment(overrides: Partial<PlanningAssignment>): PlanningAs
   };
 }
 
-describe("Geraete- und Fahrzeugverwaltung", () => {
-  it("enthaelt praxisnahe Ressourcenarten und Statuswerte", () => {
+describe("Geräte- und Fahrzeugverwaltung", () => {
+  it("enthält praxisnahe Ressourcenarten und Statuswerte", () => {
     expect(resourceKindLabels).toMatchObject({
       fahrzeug: "Fahrzeug",
-      anhaenger: "Anhaenger",
+      anhaenger: "Anhänger",
       maschine: "Maschine",
       werkzeug: "Werkzeug",
-      geruest_leiter: "Geruest / Leiter"
+      geruest_leiter: "Gerüst / Leiter"
     });
     expect(resourceStatusLabels).toMatchObject({
-      verfuegbar: "Verfuegbar",
+      verfuegbar: "Verfügbar",
       auf_baustelle: "Auf Baustelle",
       im_fahrzeug: "Im Fahrzeug",
       defekt: "Defekt",
@@ -46,7 +48,7 @@ describe("Geraete- und Fahrzeugverwaltung", () => {
     });
   });
 
-  it("erkennt faellige und bald faellige Pruef- oder Wartungstermine", () => {
+  it("erkennt fällige und bald fällige Prüf- oder Wartungstermine", () => {
     const isoInDays = (days: number) => {
       const date = new Date();
       date.setUTCDate(date.getUTCDate() + days);
@@ -59,7 +61,7 @@ describe("Geraete- und Fahrzeugverwaltung", () => {
     expect(maintenanceDueState(null, null)).toBe("none");
   });
 
-  it("markiert doppelt gebuchte Geraete als kritischen Konflikt", () => {
+  it("markiert doppelt gebuchte Geräte als kritischen Konflikt", () => {
     const assignments = [
       equipmentAssignment({ id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", planning_resource_id: "resource-1" }),
       equipmentAssignment({ id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", planning_resource_id: "resource-1", start_date: "2026-06-20" })
@@ -79,5 +81,13 @@ describe("Geraete- und Fahrzeugverwaltung", () => {
 
   it("schuetzt Ressourcen-Dokumente vor Hard-Delete-Regressionen", () => {
     expect(PROTECTED_TABLES).toContain("resource_documents");
+  });
+
+  it("schuetzt Ressourcen-Dokument-Downloads serverseitig ueber Fahrzeuge-Rechte", () => {
+    const route = fs.readFileSync(path.join(process.cwd(), "app/(app)/fahrzeuge/documents/[documentId]/route.ts"), "utf8");
+
+    expect(route).toContain("hasAppPermission");
+    expect(route).toContain('"vehicles.manage"');
+    expect(route).toContain("Keine Berechtigung.");
   });
 });

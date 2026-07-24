@@ -89,7 +89,8 @@ describe("weather documentation", () => {
   });
 
   it("falls back to Nominatim for full street addresses when Open-Meteo has no city result", async () => {
-    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+    const fetchMock = vi.fn(async (...args: [string | URL | Request, RequestInit?]) => {
+      const [url] = args;
       const href = String(url);
       if (href.includes("geocoding-api.open-meteo.com")) {
         return new Response(JSON.stringify({ results: [] }), { status: 200 });

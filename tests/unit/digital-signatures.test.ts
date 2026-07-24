@@ -42,16 +42,18 @@ describe("digital signatures", () => {
 
   it("requires signatures in customer portal and records immutable signature evidence", () => {
     const portalPage = read("app/portal/[token]/page.tsx");
-    const portalActions = read("lib/actions/customer-portal-actions.ts");
+    const portalSignForm = read("components/customer-portal/portal-work-order-sign-form.tsx");
+    const portalSignRoute = read("app/api/customer-portal/work-orders/sign/route.ts");
     const tokens = read("lib/customer-portal/tokens.ts");
 
-    expect(portalPage).toContain("SignaturePad");
-    expect(portalPage).toContain("Unterschrift für Bestätigung");
-    expect(portalActions).toContain("validateSignatureDataUrl");
-    expect(portalActions).toContain('required: decisionValue === "sign"');
-    expect(portalActions).toContain("digital_document_versions");
-    expect(portalActions).toContain("digital_signatures");
-    expect(portalActions).toContain('signer_role: "kunde"');
+    expect(portalPage).toContain("PortalWorkOrderSignForm");
+    expect(portalSignForm).toContain("SignaturePad");
+    expect(portalSignForm).toContain("Unterschrift für Bestätigung");
+    expect(portalSignRoute).toContain("validateSignatureDataUrl");
+    expect(portalSignRoute).toContain('required: decision === "sign"');
+    expect(portalSignRoute).toContain("digital_document_versions");
+    expect(portalSignRoute).toContain("digital_signatures");
+    expect(portalSignRoute).toContain('signer_role: "kunde"');
     expect(tokens).toContain("signature_data_hash");
   });
 

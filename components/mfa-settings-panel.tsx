@@ -40,7 +40,7 @@ export function MfaSettingsPanel({ factors }: MfaSettingsPanelProps) {
             <p className="meta-label">Account-Schutz</p>
             <h2 className="section-title">Zwei-Faktor-Authentifizierung</h2>
             <p className="mt-1 text-sm leading-6 text-slate-600">
-              Empfohlen für Admin- und Chef-Accounts. Der Login benötigt dann zusätzlich einen Code aus deiner Authenticator-App.
+              Empfohlen für Systemadmin-Accounts. Der Login benötigt dann zusätzlich einen Code aus deiner Authenticator-App.
             </p>
           </div>
         </div>

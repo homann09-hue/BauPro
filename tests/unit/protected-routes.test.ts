@@ -21,7 +21,7 @@ describe("protected app routes", () => {
     for (const file of [
       "app/page.tsx",
       "app/(auth)/login/page.tsx",
-      "app/(auth)/demo/page.tsx",
+      "app/demo/page.tsx",
       "app/features/page.tsx",
       "app/use-cases/page.tsx",
       "app/security/page.tsx",

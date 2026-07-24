@@ -1,9 +1,14 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+import { originOf } from "@/lib/security/origin";
 
 function isUnsafeMethod(method: string) {
   return method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE";
+}
+
+function isWebhookOrServicePath(pathname: string) {
+  return pathname === "/api/stripe/webhook" || pathname.startsWith("/api/stripe/webhook/");
 }
 
 function createNonce() {
@@ -11,9 +16,12 @@ function createNonce() {
 }
 
 function buildContentSecurityPolicy(nonce: string) {
-  const scriptSources = ["'self'", `'nonce-${nonce}'`, "https://va.vercel-scripts.com"];
-  if (process.env.NODE_ENV === "development") {
-    // Next.js Dev-Server nutzt eval-basierte Source-Maps/Overlays. In Production bleibt unsafe-eval aus der CSP draußen.
+  const isProduction = process.env.NODE_ENV === "production";
+  const scriptSources = ["'self'", `'nonce-${nonce}'`];
+
+  if (!isProduction) {
+    // Im Development/Tests sind manche Next.js-Runtimes noch eval-basiert (z. B. Hot-Reload-Umgebungen).
+    // Damit der eigentliche App-Flow dort stabil bleibt, wird unsafe-eval nur außerhalb der Produktion erlaubt.
     scriptSources.push("'unsafe-eval'");
   }
 
@@ -26,7 +34,8 @@ function buildContentSecurityPolicy(nonce: string) {
     "manifest-src 'self'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
-    "style-src 'self' 'unsafe-inline'",
+    "style-src 'self'",
+    "style-src-elem 'self'",
     `script-src ${scriptSources.join(" ")}`,
     "connect-src 'self' https://*.supabase.co https://*.sentry.io https://api.openai.com https://api.open-meteo.com https://geocoding-api.open-meteo.com https://nominatim.openstreetmap.org https://vitals.vercel-insights.com",
     "worker-src 'self' blob:"
@@ -44,10 +53,15 @@ export async function proxy(request: NextRequest) {
   const csp = buildContentSecurityPolicy(nonce);
 
   if (isUnsafeMethod(request.method)) {
-    const origin = request.headers.get("origin");
     const expectedOrigin = new URL(request.url).origin;
+    const requestOrigin = originOf(request.headers.get("origin")) ?? originOf(request.headers.get("referer"));
+    const isServiceRequest = isWebhookOrServicePath(request.nextUrl.pathname);
 
-    if (origin && origin !== expectedOrigin) {
+    if (requestOrigin && requestOrigin !== expectedOrigin) {
+      return applySecurityHeaders(new NextResponse("Anfrage abgelehnt.", { status: 403 }), csp, nonce);
+    }
+
+    if (!requestOrigin && !isServiceRequest && process.env.NODE_ENV === "production") {
       return applySecurityHeaders(new NextResponse("Anfrage abgelehnt.", { status: 403 }), csp, nonce);
     }
   }

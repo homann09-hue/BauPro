@@ -70,7 +70,7 @@ export default async function TimeReportDetailPage({
         <p className="mt-4 rounded-md border border-line bg-fog p-3 text-sm text-slate-600">
           Automatisch erzeugter Stundenzettel aus digitaler Zeiterfassung. Keine Rechtsberatung.
           Erstellt am {formatDateTime(data.report.generated_at)} durch{" "}
-          {data.generatedBy?.full_name || data.generatedBy?.email || "Chef/Admin"}.
+          {data.generatedBy?.full_name || data.generatedBy?.email || "Chef"}.
         </p>
       </section>
 

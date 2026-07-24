@@ -1,12 +1,36 @@
 import { redirect } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
+import { AuthError, PostgrestError } from "@supabase/supabase-js";
 import { MessageBox } from "@/components/message-box";
 import { SubmitButton } from "@/components/submit-button";
+import { logServerWarning } from "@/lib/security/logging";
 import { verifyLoginMfaChallengeAction } from "@/lib/actions/mfa-actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isVerifiedTotpFactor } from "@/lib/security/mfa";
 import { searchParamMessage } from "@/lib/utils";
+import { withQueryTimeout } from "@/lib/performance/observability";
+
+const MFA_USER_TIMEOUT_MS = 2_000;
+const MFA_AAL_TIMEOUT_MS = 1_500;
+const MFA_FACTORS_TIMEOUT_MS = 1_500;
+const MFA_PROFILE_TIMEOUT_MS = 1_500;
 
 export const dynamic = "force-dynamic";
+
+function authTimeout(message: string) {
+  return new AuthError(message, 504, "timeout");
+}
+
+function postgrestTimeout(message: string) {
+  return {
+    data: null,
+    error: new PostgrestError({ message, details: "", hint: "", code: "timeout" }),
+    count: null,
+    status: 504,
+    statusText: "Timeout",
+    success: false as const
+  };
+}
 
 export default async function MfaChallengePage({
   searchParams
@@ -15,17 +39,66 @@ export default async function MfaChallengePage({
 }) {
   const supabase = await createSupabaseServerClient();
   const { error, success } = searchParamMessage(await searchParams);
+
   const {
-    data: { user }
-  } = await supabase.auth.getUser();
+    data: { user },
+    error: userError
+  } = await withQueryTimeout(
+    () => supabase.auth.getUser(),
+    {
+      route: "auth",
+      action: "mfa.getUser",
+      timeoutMs: MFA_USER_TIMEOUT_MS,
+      fallback: () => ({ data: { user: null }, error: authTimeout("MFA getUser timeout") })
+    }
+  );
+
+  if (userError) {
+    logServerWarning("mfa-challenge-get-user", userError, { reason: "fallback" });
+  }
 
   if (!user) redirect("/login");
 
-  const aal = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  const profileResult = await withQueryTimeout(
+    () => supabase.from("profiles").select("id, active").eq("id", user.id).maybeSingle(),
+    {
+      route: "auth",
+      action: "mfa.profile.fetch",
+      timeoutMs: MFA_PROFILE_TIMEOUT_MS,
+      fallback: () => postgrestTimeout("MFA profile timeout")
+    }
+  );
+  if (profileResult.error || !profileResult.data) {
+    await supabase.auth.signOut();
+    redirect("/login?error=Benutzerprofil+konnte+nicht+geprueft+werden.");
+  }
+  const profile = profileResult.data;
+  if (profile?.active === false) {
+    await supabase.auth.signOut();
+    redirect("/login?error=Dieses+Benutzerkonto+wurde+deaktiviert.");
+  }
+
+  const aal = await withQueryTimeout(
+    () => supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+    {
+      route: "auth",
+      action: "mfa.getAuthenticatorAssuranceLevel",
+      timeoutMs: MFA_AAL_TIMEOUT_MS,
+      fallback: () => ({ data: null, error: authTimeout("AAL timeout") })
+    }
+  );
   if (!aal.error && aal.data?.currentLevel === "aal2") redirect("/dashboard");
 
-  const { data: factors } = await supabase.auth.mfa.listFactors();
-  const factor = factors?.totp?.[0];
+  const { data: factors } = await withQueryTimeout(
+    () => supabase.auth.mfa.listFactors(),
+    {
+      route: "auth",
+      action: "mfa.listFactors",
+      timeoutMs: MFA_FACTORS_TIMEOUT_MS,
+      fallback: () => ({ data: null, error: authTimeout("MFA listFactors timeout") })
+    }
+  );
+  const factor = factors?.totp?.find(isVerifiedTotpFactor);
 
   if (!factor) {
     redirect("/login?error=Kein+aktiver+2FA-Faktor+gefunden.");
@@ -33,12 +106,12 @@ export default async function MfaChallengePage({
 
   return (
     <div>
-      <div className="mb-5 inline-flex h-12 w-12 items-center justify-center border border-line bg-mint text-primary">
+      <div className="mb-5 inline-flex h-12 w-12 items-center justify-center border border-line bg-surface-container-high text-ocher">
         <ShieldCheck className="h-6 w-6" aria-hidden="true" />
       </div>
       <p className="section-kicker mb-7">Zweiter Faktor</p>
-      <h1 className="text-5xl font-normal uppercase leading-none tracking-wide text-ink [font-family:var(--font-display)]">2FA-Code</h1>
-      <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+      <h1 className="text-5xl font-extrabold leading-tight tracking-tight text-ink">2FA-Code</h1>
+      <p className="mt-2 text-sm font-semibold leading-6 text-ash">
         Öffne deine Authenticator-App und gib den 6-stelligen Code ein.
       </p>
 

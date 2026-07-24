@@ -100,6 +100,15 @@ export function PlanningBoard({
     }
     return grouped;
   }, [assignments]);
+  const desktopGridClass = useMemo(() => {
+    if (view === "week") {
+      return "planning-grid-week";
+    }
+    if (days.length >= 31) return "planning-grid-month-31";
+    if (days.length === 30) return "planning-grid-month-30";
+    if (days.length === 29) return "planning-grid-month-29";
+    return "planning-grid-month-28";
+  }, [days.length, view]);
   const rowsByType = useMemo(
     () => ({
       employee: rows.filter((row) => row.type === "employee"),
@@ -155,8 +164,7 @@ export function PlanningBoard({
 
       <div className="hidden overflow-x-auto rounded-lg border border-line bg-white shadow-sm lg:block">
         <div
-          className="min-w-max"
-          style={{ display: "grid", gridTemplateColumns: `260px repeat(${days.length}, minmax(${view === "week" ? "132px" : "108px"}, 1fr))` }}
+          className={cn("min-w-max", desktopGridClass)}
         >
           <div className="sticky left-0 z-20 border-b border-r border-line bg-anthracite px-4 py-3 text-sm font-black text-white">
             Ressource
@@ -359,11 +367,12 @@ function AssignmentCard({
       className={cn(
         "rounded-md border p-2 text-xs shadow-sm transition",
         colors.block,
+        "border-l-4",
+        colors.stripe,
         conflicts.length > 0 && conflictTone(conflicts),
         draggable && "cursor-grab active:cursor-grabbing",
         pending && "opacity-55"
       )}
-      style={{ borderLeftColor: assignment.color, borderLeftWidth: 5 }}
     >
       <div className="flex items-start gap-2">
         {draggable ? <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" /> : null}
@@ -416,7 +425,7 @@ function AssignmentCard({
               </p>
               {weatherRisk.acknowledgedAction ? (
                 <p className="mt-2 rounded bg-white/70 px-2 py-1 text-[11px] font-black">
-                  {weatherRisk.acknowledgedAction === "ignored" ? "Von Chef/Admin ignoriert" : "Von Chef/Admin bestätigt"}
+                  {weatherRisk.acknowledgedAction === "ignored" ? "Von Chef ignoriert" : "Von Chef bestätigt"}
                   {weatherRisk.acknowledgedAt ? ` · ${new Date(weatherRisk.acknowledgedAt).toLocaleDateString("de-DE")}` : ""}
                 </p>
               ) : canManage && weatherRisk.missingLocation && assignment.jobsite_id ? (

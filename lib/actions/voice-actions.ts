@@ -9,6 +9,7 @@ import { generatePurchaseSuggestions } from "@/lib/inventory/purchase-suggestion
 import { requireAppContext } from "@/lib/auth";
 import { searchOrFilter } from "@/lib/data/shared";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { safeReturnPath } from "@/lib/security/redirects";
 import { calculateTimeMinutes } from "@/lib/time-tracking";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -76,7 +77,7 @@ async function parseConfirmedInput(formData: FormData, rawText: string) {
 
   if (Number(action.confidence) < 0.7) {
     const questions = action.parsed_json.follow_up_questions.join(" ");
-    throw new SafeActionError(`KI ist noch unsicher. Bitte zuerst pruefen: ${questions || "Angaben fehlen."}`);
+    throw new SafeActionError(`KI ist noch unsicher. Bitte zuerst prüfen: ${questions || "Angaben fehlen."}`);
   }
 
   return { parsed: parsedFromAi(action.parsed_json), aiActionId };
@@ -170,6 +171,7 @@ export async function confirmVoiceNoteAction(formData: FormData) {
   let redirectTo = target;
 
   try {
+    await checkRateLimit(`voice-confirm:${context.companyId}:${context.userId}`, 20, 60_000);
     const { parsed, aiActionId } = await parseConfirmedInput(formData, rawText);
     const jobsite = await findJobsite(context.companyId, parsed.targetName);
 
@@ -306,7 +308,7 @@ export async function confirmVoiceNoteAction(formData: FormData) {
       });
       await markAiActionStatus({ actionId: aiActionId, status: "executed", linkedJobId: jobsite?.id ?? null });
       revalidatePath("/dashboard");
-      redirectTo = `${target}?success=${toQuery("Materialmeldung wurde an Chef/Admin weitergegeben.")}`;
+      redirectTo = `${target}?success=${toQuery("Materialmeldung wurde an Chef weitergegeben.")}`;
     } else {
       await createVoiceNote({
         companyId: context.companyId,
@@ -328,21 +330,28 @@ export async function confirmVoiceNoteAction(formData: FormData) {
 
 export async function discardVoiceNoteAction(formData: FormData) {
   const context = await requireAppContext();
+  const target = returnTo(formData);
   const rawText = String(formData.get("raw_text") ?? "").trim();
   const parsed = parseVoiceInput(rawText);
 
-  if (rawText) {
-    await createVoiceNote({
-      companyId: context.companyId,
-      userId: context.userId,
-      rawText,
-      status: "discarded",
-      entities: parsed
-    });
+  try {
+    await checkRateLimit(`voice-discard:${context.companyId}:${context.userId}`, 30, 60_000);
+
+    if (rawText) {
+      await createVoiceNote({
+        companyId: context.companyId,
+        userId: context.userId,
+        rawText,
+        status: "discarded",
+        entities: parsed
+      });
+    }
+
+    const aiActionId = String(formData.get("ai_action_id") ?? "").trim() || null;
+    await markAiActionStatus({ actionId: aiActionId, status: "rejected" });
+  } catch (error) {
+    redirect(`${target}?error=${toQuery(safeErrorMessage(error, "Diktat konnte nicht verworfen werden."))}`);
   }
 
-  const aiActionId = String(formData.get("ai_action_id") ?? "").trim() || null;
-  await markAiActionStatus({ actionId: aiActionId, status: "rejected" });
-
-  redirect(`${returnTo(formData)}?success=${toQuery("Diktat wurde verworfen.")}`);
+  redirect(`${target}?success=${toQuery("Diktat wurde verworfen.")}`);
 }

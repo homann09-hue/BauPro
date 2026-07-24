@@ -24,6 +24,33 @@ describe("new order flow", () => {
     expect(actions).toContain("Bitte einen Kunden auswaehlen oder einen neuen Kunden anlegen.");
   });
 
+  it("erstellt Auftrag und Baustelle atomar per Datenbank-RPC", () => {
+    const actions = source("lib/actions/order-actions.ts");
+    const aiJobActions = source("lib/actions/ai-job-actions.ts");
+    const schema = source("supabase/schema.sql");
+    const migration = source("supabase/migrations/20260716_atomic_order_creation.sql");
+    const createOrderAction = actions.slice(
+      actions.indexOf("export async function createOrderAction"),
+      actions.indexOf("export async function updateOrderDimensionsAction")
+    );
+
+    expect(actions).not.toContain("async function nextOrderNumber");
+    expect(aiJobActions).not.toContain("async function nextOrderNumber");
+    expect(createOrderAction).toContain('rpc("create_order_with_jobsite"');
+    expect(aiJobActions).toContain('rpc("create_order_with_jobsite"');
+    expect(createOrderAction).toContain("ORDER_RPC_SCHEMA_MISSING_MESSAGE");
+    expect(createOrderAction).not.toContain('.from("jobsites")\n      .insert');
+    expect(createOrderAction).not.toContain('.from("orders")\n      .insert');
+
+    for (const sql of [schema, migration]) {
+      expect(sql).toContain("create or replace function public.generate_order_number");
+      expect(sql).toContain("pg_advisory_xact_lock");
+      expect(sql).toContain("create or replace function public.create_order_with_jobsite");
+      expect(sql).toContain("public.has_employee_permission('orders.create')");
+      expect(sql).toContain("p_created_by is distinct from auth.uid()");
+    }
+  });
+
   it("kennzeichnet dieselben Pflichtfelder im Formular fuer klare Nutzerfuehrung", () => {
     const form = source("components/forms/order-wizard-form.tsx");
 
