@@ -427,14 +427,31 @@ describe("predictive prefetching", () => {
 
     for (const file of [
       "app/(app)/orders/loading.tsx",
+      "app/(app)/orders/new/loading.tsx",
       "app/(app)/customers/loading.tsx",
+      "app/(app)/customers/new/loading.tsx",
       "app/(app)/berichte/loading.tsx",
+      "app/(app)/berichte/neu/loading.tsx",
       "app/(app)/customers/[id]/loading.tsx",
       "app/(app)/berichte/[id]/loading.tsx",
+      "app/(app)/calendar/loading.tsx",
+      "app/(app)/checklists/loading.tsx",
+      "app/(app)/fahrzeuge/loading.tsx",
+      "app/(app)/invoices/loading.tsx",
+      "app/(app)/maengel/loading.tsx",
+      "app/(app)/materials/catalog/loading.tsx",
+      "app/(app)/materials/control-center/loading.tsx",
+      "app/(app)/materials/live-offers/loading.tsx",
+      "app/(app)/materials/locations/loading.tsx",
+      "app/(app)/materials/low-stock/loading.tsx",
+      "app/(app)/materials/online-discovery/loading.tsx",
+      "app/(app)/settings/loading.tsx",
+      "app/(app)/time-tracking/daily/loading.tsx",
+      "app/(app)/time-tracking/reports/loading.tsx",
       "app/portal/[token]/loading.tsx",
       "app/(app)/dashboard/loading.tsx"
     ]) {
-      expect(source(file), file).toContain("PageSkeleton");
+      expect(source(file), file).toMatch(/PageSkeleton|FormSkeleton/);
     }
   });
 

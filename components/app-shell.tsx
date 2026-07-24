@@ -16,6 +16,7 @@ import {
 import { getInitials } from "@/lib/utils";
 import type { AppContext } from "@/lib/auth";
 import { AppTopBar } from "@/components/app-top-bar";
+import { CommandPalette, type CommandIconKey, type CommandPaletteAction } from "@/components/command-palette";
 import { NavLink } from "@/components/nav-link";
 import { PredictivePrefetch } from "@/components/performance/PredictivePrefetch";
 import { VoiceDictation } from "@/components/voice-dictation";
@@ -123,6 +124,24 @@ type MobileAction = {
   primary?: boolean;
 };
 
+type CommandActionInput = Omit<CommandPaletteAction, "keywords"> & {
+  keywords?: string[];
+};
+
+function navIconToCommandIcon(icon: NavItem["icon"]): CommandIconKey {
+  const mappedIcons: Partial<Record<NavItem["icon"], CommandIconKey>> = {
+    datenschutz: "sicherheit",
+    lieferanten: "material",
+    materialMelden: "material",
+    onboarding: "ki",
+    plantafel: "kalender",
+    profil: "kunden",
+    stundenzettel: "zeiten"
+  };
+
+  return mappedIcons[icon] ?? (icon as CommandIconKey);
+}
+
 function getShellNavigation(context: AppContext) {
   const can = (permission: PermissionKey) => hasAppPermission(context.profile.role, context.permissions, permission);
   const permittedQuickLinks = permissionQuickLinks
@@ -210,6 +229,189 @@ function getShellNavigation(context: AppContext) {
   };
 }
 
+function commandAction(action: CommandActionInput): CommandPaletteAction {
+  return {
+    ...action,
+    keywords: action.keywords ?? [action.label, action.description, action.group]
+  };
+}
+
+function quickLinkCommand(item: NavItem): CommandPaletteAction {
+  return commandAction({
+    href: item.href,
+    label: item.label,
+    description: "Direkt zu diesem Bereich springen.",
+    group: "Navigation",
+    icon: navIconToCommandIcon(item.icon)
+  });
+}
+
+function uniqueCommandActions(actions: CommandPaletteAction[]) {
+  const seen = new Set<string>();
+  return actions.filter((action) => {
+    const key = `${action.href}:${action.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getCommandPaletteActions(context: AppContext, quickLinks: NavItem[]): CommandPaletteAction[] {
+  const common = [
+    commandAction({
+      href: "/dashboard",
+      label: context.isChef ? "Betriebsdashboard öffnen" : "Heute öffnen",
+      description: "Zur wichtigsten Übersicht für deinen aktuellen Arbeitstag.",
+      group: "Start",
+      icon: "dashboard",
+      primary: true,
+      keywords: ["dashboard", "heute", "start", "übersicht", "uebersicht"]
+    }),
+    commandAction({
+      href: "/hilfe",
+      label: "Hilfe öffnen",
+      description: "Anleitungen und Hilfetexte für BauPro öffnen.",
+      group: "Hilfe",
+      icon: "hilfe",
+      keywords: ["hilfe", "support", "frage", "anleitung"]
+    })
+  ];
+
+  if (context.isAdmin) {
+    return uniqueCommandActions([
+      ...common,
+      commandAction({
+        href: "/team",
+        label: "Benutzer und Rollen verwalten",
+        description: "Systemadmin-Bereich für Benutzer, Rollen und Rechte.",
+        group: "System",
+        icon: "team",
+        primary: true,
+        keywords: ["benutzer", "rollen", "rechte", "admin", "team"]
+      }),
+      commandAction({
+        href: "/settings/security",
+        label: "Sicherheit und 2FA prüfen",
+        description: "Sicherheitsoptionen und Zwei-Faktor-Authentifizierung öffnen.",
+        group: "System",
+        icon: "sicherheit",
+        keywords: ["sicherheit", "2fa", "mfa", "admin"]
+      }),
+      commandAction({
+        href: "/debug/system",
+        label: "Systemstatus öffnen",
+        description: "Supabase, Profil, Firma und Tabellenstatus prüfen.",
+        group: "System",
+        icon: "einstellungen",
+        keywords: ["debug", "system", "status", "supabase"]
+      }),
+      commandAction({
+        href: "/billing",
+        label: "Lizenz und Abrechnung öffnen",
+        description: "Tarif, Nutzerlimit und Abonnement verwalten.",
+        group: "Abrechnung",
+        icon: "angebote",
+        keywords: ["billing", "abo", "lizenz", "stripe"]
+      }),
+      ...quickLinks.map(quickLinkCommand)
+    ]);
+  }
+
+  if (context.isChef) {
+    return uniqueCommandActions([
+      ...common,
+      commandAction({
+        href: "/orders/new",
+        label: "Neuen Auftrag erstellen",
+        description: "Kunde, Baustelle, Aufmaß und Kalkulation erfassen.",
+        group: "Aufträge",
+        icon: "auftraege",
+        primary: true,
+        keywords: ["auftrag", "neu", "angebot", "kalkulation", "aufmaß", "aufmass"]
+      }),
+      commandAction({
+        href: "/customers/new",
+        label: "Neuen Kunden anlegen",
+        description: "Kundendaten und Baustellenadresse schnell erfassen.",
+        group: "Kunden",
+        icon: "kunden",
+        keywords: ["kunde", "neu", "adresse"]
+      }),
+      commandAction({
+        href: "/baustellen/neu",
+        label: "Neue Baustelle anlegen",
+        description: "Baustelle mit Adresse, Status und Notizen erstellen.",
+        group: "Baustellen",
+        icon: "baustellen",
+        keywords: ["baustelle", "neu", "adresse"]
+      }),
+      commandAction({
+        href: "/time-tracking/daily",
+        label: "Tagesstunden prüfen",
+        description: "Heutige Zeiten je Mitarbeiter prüfen und freigeben.",
+        group: "Zeiten",
+        icon: "zeiten",
+        keywords: ["zeit", "stunden", "freigabe", "tagesstunden"]
+      }),
+      commandAction({
+        href: "/materials/control-center",
+        label: "Lager-Zentrale öffnen",
+        description: "Fehlmengen, Reservierungen und Bestände kontrollieren.",
+        group: "Material",
+        icon: "lager",
+        keywords: ["lager", "material", "fehlmenge", "bestand"]
+      }),
+      commandAction({
+        href: "/ai/job-wizard",
+        label: "Auftrag per KI vorbereiten",
+        description: "Text oder Sprache in Auftragsentwurf und Materialbedarf umwandeln.",
+        group: "KI",
+        icon: "ki",
+        keywords: ["ki", "sprache", "auftrag", "materialbedarf"]
+      }),
+      ...quickLinks.map(quickLinkCommand)
+    ]);
+  }
+
+  return uniqueCommandActions([
+    ...common,
+    commandAction({
+      href: "/time/new",
+      label: "Arbeitszeit eintragen",
+      description: "Heute, Baustelle, Start, Ende und Pause erfassen.",
+      group: "Baustelle",
+      icon: "zeiten",
+      primary: true,
+      keywords: ["zeit", "stunden", "arbeitszeit", "heute"]
+    }),
+    commandAction({
+      href: "/berichte/neu",
+      label: "Tagesbericht schreiben",
+      description: "Arbeiten, Fotos, Wetter, Material und Besonderheiten dokumentieren.",
+      group: "Baustelle",
+      icon: "berichte",
+      keywords: ["bericht", "foto", "tagesbericht", "dokumentieren"]
+    }),
+    commandAction({
+      href: "/material-melden",
+      label: "Material fehlt melden",
+      description: "Fehlendes Material ohne Preisdetails an Chef/Vorarbeiter melden.",
+      group: "Material",
+      icon: "material",
+      keywords: ["material", "fehlt", "melden", "lager"]
+    }),
+    commandAction({
+      href: "/bring-lists",
+      label: "Mitbringlisten öffnen",
+      description: "Material, Werkzeuge und Aufgaben für die Baustelle prüfen.",
+      group: "Baustelle",
+      icon: "mitbringen",
+      keywords: ["mitbringen", "morgen", "liste", "werkzeug"]
+    }),
+    ...quickLinks.map(quickLinkCommand)
+  ]);
+}
+
 export function AppShell({
   context,
   children
@@ -218,6 +420,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const { primaryNav, mobileNav, quickLinks, mobileActions, notice } = getShellNavigation(context);
+  const commandActions = getCommandPaletteActions(context, quickLinks);
   const roleLabel = roleLabels[context.profile.role];
   const isDemoContext = context.companyName === DEMO_COMPANY_NAME;
   const mobileNavGridClass = mobileNav.length === 6 ? "grid-cols-6" : "grid-cols-5";
@@ -315,7 +518,7 @@ export function AppShell({
           logoutReturnTo={isDemoContext ? "/demo" : "/login"}
         />
 
-        <main className="pb-[calc(11.5rem+env(safe-area-inset-bottom))] lg:pb-0">
+        <main id="main-content" className="pb-[calc(11.5rem+env(safe-area-inset-bottom))] lg:pb-0">
           <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 lg:px-8 lg:py-8">
             {children}
           </div>
@@ -324,6 +527,7 @@ export function AppShell({
 
       <VoiceDictation />
       <PredictivePrefetch role={context.profile.role} canManage={context.canManage} />
+      <CommandPalette actions={commandActions} roleLabel={roleLabel} companyName={context.companyName} />
 
       <Link
         href="/ai-assistant"

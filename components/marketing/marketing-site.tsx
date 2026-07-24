@@ -98,7 +98,7 @@ export function MarketingShell({
   isLoggedIn?: boolean;
 }) {
   return (
-    <main className="marketing-shell-bg min-h-dvh bg-coal text-ink">
+    <main id="main-content" className="marketing-shell-bg min-h-dvh bg-coal text-ink">
       <PublicNav isLoggedIn={isLoggedIn} />
       {children}
       <PublicFooter />

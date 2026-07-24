@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { ConsentBanner } from "@/components/consent-banner";
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
+import { RouteProgress } from "@/components/route-progress";
+import { SkipToContent } from "@/components/skip-to-content";
 import { VercelTelemetry } from "@/components/vercel-telemetry";
 import "./globals.css";
 
@@ -56,7 +59,10 @@ export default async function RootLayout({
     <html lang="de">
       {/* Aktuell gibt es keine app-eigenen Inline-Skripte. Falls spaeter eines hinzukommt, muss es `nonce={nonce}` nutzen. */}
       <body data-nonce-present={nonce ? "true" : undefined}>
+        <SkipToContent />
+        <RouteProgress />
         {children}
+        <PwaInstallPrompt />
         <ConsentBanner />
         <VercelTelemetry />
       </body>

@@ -265,11 +265,36 @@ BauPro hat eine zentrale Check-Pipeline fuer lokale Entwicklung, Pull Requests u
 | `npm run check:release` | Release-Gate: Qualitaet, Security, Performance, KI, Trading, Production-Build | jeder harte Release-Fund |
 | `npm run check:all` | vollstaendiger lokaler/manueler Gate-Lauf | jeder harte Fund |
 | `npm run check:ci` | Pull-Request-Gate fuer GitHub Actions | schnelle Checks, Security, Performance-Konfig und Build |
+| `npm run redteam:full` | aggressive, aber nicht-destruktive Redteam-Härtung ueber Security, Auth, Rollen, RLS, Uploads, PWA, Lager, Zeiten, Billing, Load und Chaos | harte Sicherheits-/Release-Findings in den Redteam-Gates |
 
 Blockierende Checks sind: TypeScript-Fehler, Lint-Fehler, fehlschlagende Tests, High/Critical Dependency-Findings, unsichere Supabase-RLS-/RPC-Muster, unsicheres Rate Limiting, unsichere Security Header, unsicherer Service-Worker-Cache, nicht sanitisiertes Error Handling, fehlende KI-Opt-in-/Fallback-Mechanismen und ein fehlgeschlagener Production-Build.
 
 Warnende Checks sind bewusst nicht blockierend, wenn ein Bereich im Produkt noch nicht existiert oder optional ist, z. B. Trading-/Marktdatenmodule, lokale fehlende Coverage-Datei oder optionale externe Tools. Sobald solche Module eingefuehrt werden, werden die passenden Gates blockierend. Das Coverage-Gate nutzt standardmaessig mindestens 50 % Line-Coverage und kann ueber `COVERAGE_LINES_MIN`, `COVERAGE_BRANCHES_MIN`, `COVERAGE_FUNCTIONS_MIN` und `COVERAGE_STATEMENTS_MIN` verschaerft werden.
 Der lokale Dependency-Audit warnt bei gesperrtem Netzwerkzugriff. In GitHub Actions oder mit `REQUIRE_ONLINE_AUDIT=true` ist ein nicht erreichbarer npm-Audit-Endpunkt blockierend.
+
+### Redteam-Härtung
+
+Die Redteam-Pipeline ist als sichere lokale/staging Prüfschicht aufgebaut. Standardmäßig feuert sie keine echten Angriffe gegen Production, keine Drittanbieter und keine produktiven Supabase-Datenbanken ab. Sie prüft stattdessen reproduzierbare Gates für Auth, Rollen, Mandantentrennung, RLS, Uploads, PDFs, Offline/PWA, Spracheingabe, Lager, Zeiterfassung, Billing, Lasttest-Konfiguration und Chaos-Harness.
+
+```bash
+npm run redteam:full
+```
+
+Einzelne Bereiche können gezielt geprüft werden:
+
+```bash
+npm run redteam:roles
+npm run redteam:inventory
+npm run redteam:load
+```
+
+Echte Last- und Chaosläufe bleiben bewusst opt-in:
+
+- `npm run test:load` und `npm run test:stress` brauchen `LOAD_TEST_ENVIRONMENT=local|test|staging`.
+- Der 2.000-User-Test braucht zusätzlich `LOAD_TEST_ACKNOWLEDGE_2000_USERS=1`.
+- Live-Chaos-Probes laufen nur mit `REDTEAM_LIVE_CHAOS=1`.
+
+Details stehen in `docs/REDTEAM_HARDENING.md`.
 
 ### CI/CD-Regeln
 

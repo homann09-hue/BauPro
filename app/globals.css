@@ -869,6 +869,24 @@ select {
     }
   }
 
+  .route-progress-bar {
+    width: 42%;
+    transform-origin: left center;
+    animation: bp-route-progress 1.15s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  }
+
+  @keyframes bp-route-progress {
+    0% {
+      transform: translateX(-115%) scaleX(0.45);
+    }
+    45% {
+      transform: translateX(35%) scaleX(0.9);
+    }
+    100% {
+      transform: translateX(255%) scaleX(0.5);
+    }
+  }
+
   @media (max-width: 767px) {
     .bp-parallax-image {
       animation: none;
@@ -918,7 +936,8 @@ select {
     }
 
     .bp-parallax-image,
-    .bp-image-card::before {
+    .bp-image-card::before,
+    .route-progress-bar {
       transform: none !important;
     }
   }

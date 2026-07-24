@@ -69,12 +69,14 @@ export function NavLink({ href, label, icon, variant = "desktop" }: NavLinkProps
   const pathname = usePathname();
   const Icon = icons[icon] ?? Home;
   const active = pathname === href || pathname.startsWith(`${href}/`);
+  const accessibleLabel = active ? `${label}, aktueller Bereich` : label;
 
   if (variant === "mobile") {
     return (
       <Link
         href={href}
-        aria-label={label}
+        aria-label={accessibleLabel}
+        aria-current={active ? "page" : undefined}
         className={cn(
           "flex min-h-[64px] min-w-0 flex-col items-center justify-center gap-1 rounded-md px-0.5 py-2 text-center text-[10px] font-black leading-tight text-slate-500 transition active:scale-[0.98]",
           active && "bg-primary text-white shadow-soft",
@@ -90,6 +92,7 @@ export function NavLink({ href, label, icon, variant = "desktop" }: NavLinkProps
   return (
     <Link
       href={href}
+      aria-current={active ? "page" : undefined}
       className={cn(
         "group flex min-h-12 items-center gap-3 rounded-md px-3 py-3 text-sm font-black text-slate-300 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-4 focus:ring-white/10",
         active && "bg-primary text-white shadow-soft"
