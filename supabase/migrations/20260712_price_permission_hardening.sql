@@ -1,6 +1,6 @@
 -- 20260712_price_permission_hardening.sql
 -- Chef-/Preisrechte sind nicht an Mitarbeiter/Vorarbeiter delegierbar.
--- EK/VK/Marge/Preisvergleich, Angebote/Kalkulationen und Einstellungen bleiben Chef/Admin vorbehalten.
+-- EK/VK/Marge/Preisvergleich, Angebote/Kalkulationen und Einstellungen bleiben Chef vorbehalten.
 
 do $$
 declare

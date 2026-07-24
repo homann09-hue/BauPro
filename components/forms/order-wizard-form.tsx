@@ -49,7 +49,10 @@ const orderPriorities = Object.keys(orderPriorityLabels) as OrderPriority[];
 const customerTypes = Object.keys(customerTypeLabels) as CustomerType[];
 
 function decimalValue(value: string) {
-  const parsed = Number(value.replace(",", "."));
+  const normalized = value.replace(",", ".").trim();
+  if (!normalized) return null;
+
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
@@ -122,7 +125,7 @@ export function OrderWizardForm({
     const lengthValue = decimalValue(length);
     const widthValue = decimalValue(width);
 
-    if (!lengthValue || !widthValue) return "";
+    if (lengthValue === null || widthValue === null) return "";
     return String(Math.round(lengthValue * widthValue * 100) / 100).replace(".", ",");
   }, [length, width]);
   const areaValue = area || calculatedArea;
@@ -202,14 +205,18 @@ export function OrderWizardForm({
     setLength(value);
     const widthValue = decimalValue(width);
     const lengthValue = decimalValue(value);
-    if (lengthValue && widthValue) setArea(String(Math.round(lengthValue * widthValue * 100) / 100).replace(".", ","));
+    if (lengthValue !== null && widthValue !== null) {
+      setArea(String(Math.round(lengthValue * widthValue * 100) / 100).replace(".", ","));
+    }
   }
 
   function updateWidth(value: string) {
     setWidth(value);
     const widthValue = decimalValue(value);
     const lengthValue = decimalValue(length);
-    if (lengthValue && widthValue) setArea(String(Math.round(lengthValue * widthValue * 100) / 100).replace(".", ","));
+    if (lengthValue !== null && widthValue !== null) {
+      setArea(String(Math.round(lengthValue * widthValue * 100) / 100).replace(".", ","));
+    }
   }
 
   function scrollToEditing() {
@@ -237,7 +244,7 @@ export function OrderWizardForm({
     : 0;
 
   return (
-    <form action={createOrderAction} className="space-y-5">
+    <form action={createOrderAction} className="space-y-5" data-testid="order-wizard-form">
       <section id="order-editing-area" className="form-step-card">
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-mint text-moss">
@@ -403,7 +410,7 @@ export function OrderWizardForm({
             />
           </div>
           <div className="sm:col-span-2">
-            <VoiceTextarea label="Interne Chef-Notizen" name="internal_notes" rows={5} placeholder="Nur für Chef/Admin" />
+            <VoiceTextarea label="Interne Chef-Notizen" name="internal_notes" rows={5} placeholder="Nur für Chef" />
           </div>
         </div>
 
@@ -552,7 +559,7 @@ export function OrderWizardForm({
             <p className="meta-label">Schritt 4</p>
             <h2 className="section-title">Direkte Kostenkalkulation</h2>
             <p className="mt-1 text-sm font-semibold text-slate-600">
-              Nur für Chef/Admin. Mitarbeiter sehen diese Kosten und EK-Werte nicht.
+              Nur für Chef. Mitarbeiter sehen diese Kosten und EK-Werte nicht.
             </p>
           </div>
         </div>
@@ -958,7 +965,7 @@ export function OrderWizardForm({
               <p className="meta-label">Abschluss</p>
               <h2 className="section-title">Auftrag speichern</h2>
               <p className="mt-1 text-sm font-semibold text-slate-600">
-                Maße und Materialmengen werden gespeichert. Kosten, EK/VK und Margen bleiben Chef/Admin vorbehalten.
+                Maße und Materialmengen werden gespeichert. Kosten, EK/VK und Margen bleiben Chef vorbehalten.
               </p>
             </div>
           </div>

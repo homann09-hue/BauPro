@@ -163,7 +163,7 @@ export async function createCommercialDocumentFromOrderAction(formData: FormData
         document_id: document.id,
         position: 1,
         title: order.title,
-        description: "Pauschalposition aus Auftrag. Bitte Preis und Leistungsbeschreibung pruefen.",
+        description: "Pauschalposition aus Auftrag. Bitte Preis und Leistungsbeschreibung prüfen.",
         quantity: 1,
         unit: "Pauschal",
         unit_price_net: 0,
@@ -172,7 +172,6 @@ export async function createCommercialDocumentFromOrderAction(formData: FormData
       if (error) throw new SafeActionError("Dokument wurde angelegt, aber die Pauschalposition konnte nicht erstellt werden.");
     }
 
-    await supabase.rpc("recalculate_commercial_document_totals", { p_document_id: document.id });
     if (type === "quote") {
       await supabase.from("orders").update({ status: "angebot" }).eq("id", order.id).eq("company_id", context.companyId);
     }

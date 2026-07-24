@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { generateDailyReportDraftFromPayload } from "@/lib/actions/ai-actions";
 import { getOptionalAppContext } from "@/lib/auth";
-import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import { SafeActionError, safeErrorMessage, safeErrorStatus } from "@/lib/security/errors";
+import { hasAppPermission } from "@/lib/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { DailyReportAutomationContext } from "@/lib/ai/types";
 
@@ -39,6 +41,18 @@ const reportDraftRequestSchema = z.object({
   existingPhotoIds: z.array(z.string().uuid()).max(4).optional()
 });
 
+type AiReportPhoto = {
+  id: string;
+  report_id: string;
+  storage_path: string;
+};
+
+type AiReportAccess = {
+  id: string;
+  created_by: string | null;
+  employee_ids: string[] | null;
+};
+
 function json(payload: Record<string, unknown>, init?: ResponseInit) {
   return NextResponse.json(payload, {
     ...init,
@@ -50,23 +64,45 @@ function json(payload: Record<string, unknown>, init?: ResponseInit) {
   });
 }
 
-async function signedReportPhotoUrls(photoIds: string[], companyId: string) {
+async function signedReportPhotoUrls(photoIds: string[], companyId: string, userId: string, canManage: boolean) {
   if (photoIds.length === 0) return [];
 
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
+  const { data: photoRows, error: photosError } = await supabase
     .from("report_photos")
-    .select("id, storage_path")
+    .select("id, report_id, storage_path")
     .eq("company_id", companyId)
     .is("archived_at", null)
     .in("id", photoIds);
 
-  if (error || !data) {
+  if (photosError || !photoRows) {
     throw new SafeActionError("Foto-Kontext konnte nicht geladen werden.");
   }
 
+  const photos = photoRows as AiReportPhoto[];
+  const reportIds = [...new Set(photos.map((photo) => photo.report_id))];
+  if (reportIds.length === 0) return [];
+
+  const { data: reportRows, error: reportsError } = await supabase
+    .from("reports")
+    .select("id, created_by, employee_ids")
+    .eq("company_id", companyId)
+    .is("archived_at", null)
+    .in("id", reportIds);
+
+  if (reportsError || !reportRows) {
+    throw new SafeActionError("Foto-Kontext konnte nicht geprüft werden.");
+  }
+
+  const accessibleReportIds = new Set(
+    (reportRows as AiReportAccess[])
+      .filter((report) => canManage || report.created_by === userId || (report.employee_ids ?? []).includes(userId))
+      .map((report) => report.id)
+  );
+  const allowedPhotos = photos.filter((photo) => accessibleReportIds.has(photo.report_id));
+
   const urls = await Promise.all(
-    data.slice(0, 4).map(async (photo) => {
+    allowedPhotos.slice(0, 4).map(async (photo) => {
       const { data: signed } = await supabase.storage.from("report-photos").createSignedUrl(photo.storage_path as string, 60 * 5);
       return signed?.signedUrl ?? null;
     })
@@ -79,7 +115,13 @@ export async function POST(request: Request) {
   const context = await getOptionalAppContext();
   if (!context) return json({ ok: false, configured: false, message: "Nicht angemeldet." }, { status: 401 });
 
+  if (!hasAppPermission(context.profile.role, context.permissions, "reports.create")) {
+    return json({ ok: false, configured: true, message: "Keine Berechtigung für KI-Report-Vorlagen." }, { status: 403 });
+  }
+
   try {
+    await checkRateLimit(`ai-report-draft:${context.companyId}:${context.userId}`, 30, 60_000);
+
     const body = request.headers.get("content-type")?.includes("application/json")
       ? await request.json().catch(() => ({}))
       : {};
@@ -88,7 +130,7 @@ export async function POST(request: Request) {
       return json({ ok: false, configured: true, message: parsed.error.issues[0]?.message ?? "KI-Eingabe konnte nicht gelesen werden." }, { status: 400 });
     }
 
-    const imageUrls = await signedReportPhotoUrls(parsed.data.existingPhotoIds ?? [], context.companyId);
+    const imageUrls = await signedReportPhotoUrls(parsed.data.existingPhotoIds ?? [], context.companyId, context.userId, context.canManage);
     const reportContext: DailyReportAutomationContext = {
       ...(parsed.data.context ?? {}),
       photo_context_note:
@@ -111,7 +153,7 @@ export async function POST(request: Request) {
         configured: true,
         message: safeErrorMessage(error, "KI-Bautagesbericht konnte nicht erstellt werden.")
       },
-      { status: error instanceof SafeActionError ? 400 : 500 }
+      { status: safeErrorStatus(error) }
     );
   }
 }

@@ -8,7 +8,8 @@ import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/error
 import { checkPasswordBreach } from "@/lib/security/password-breach-check";
 import { safeReturnPath } from "@/lib/security/redirects";
 import { isMissingSchemaError, isUnsupportedVorarbeiterRoleError } from "@/lib/supabase/errors";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient, type SupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalString, requiredString } from "@/lib/utils";
 import type { Role } from "@/types/app";
 
@@ -139,7 +140,7 @@ export async function importOnboardingEmployeesAction(formData: FormData) {
   const returnTo = formData.get("return_to");
   const startPassword = requiredString(formData, "start_password");
   const raw = requiredString(formData, "employees_csv");
-  let admin: ReturnType<typeof createSupabaseAdminClient>;
+  let admin: SupabaseAdminClient;
 
   if (startPassword.length < 8) {
     redirectBack(returnTo, { error: "Startpasswort muss mindestens 8 Zeichen haben." });
@@ -152,7 +153,10 @@ export async function importOnboardingEmployeesAction(formData: FormData) {
   }
 
   try {
-    admin = createSupabaseAdminClient();
+    admin = createScopedSupabaseAdminClient({
+      caller: "actions.onboarding.importEmployees",
+      reason: "Onboarding importiert Mitarbeiter als Supabase-Auth-Nutzer."
+    });
   } catch {
     redirectBack(returnTo, { error: "SUPABASE_SERVICE_ROLE_KEY fehlt fuer Mitarbeiterimport." });
   }
@@ -179,10 +183,13 @@ export async function importOnboardingEmployeesAction(formData: FormData) {
       email: employee.email,
       password: startPassword,
       email_confirm: true,
+      app_metadata: {
+        baupro_server_created: true,
+        baupro_company_id: context.companyId,
+        baupro_role: employee.role
+      },
       user_metadata: {
-        company_id: context.companyId,
-        full_name: employee.fullName,
-        role: employee.role
+        full_name: employee.fullName
       }
     });
 
@@ -205,10 +212,13 @@ export async function importOnboardingEmployeesAction(formData: FormData) {
       finalRole = "mitarbeiter";
       roleFallbacks += 1;
       await admin.auth.admin.updateUserById(data.user.id, {
+        app_metadata: {
+          baupro_server_created: true,
+          baupro_company_id: context.companyId,
+          baupro_role: finalRole
+        },
         user_metadata: {
-          company_id: context.companyId,
-          full_name: employee.fullName,
-          role: finalRole
+          full_name: employee.fullName
         }
       });
       profileResult = await admin.from("profiles").upsert({
@@ -318,7 +328,7 @@ export async function createOnboardingDemoDataAction(formData: FormData) {
       address: "Musterstraße 12, 50667 Köln",
       start_date: new Date().toISOString().slice(0, 10),
       status: "aktiv",
-      notes: "Demo-Baustelle: Unterspannbahn, Lattung und Dachziegel pruefen.",
+      notes: "Demo-Baustelle: Unterspannbahn, Lattung und Dachziegel prüfen.",
       assigned_employee_ids: [],
       created_by: context.userId
     })

@@ -59,24 +59,36 @@ export const managerOnlyPermissionKeys = [
   "quotes.view",
   "quotes.create",
   "prices.purchase.view",
-  "prices.sales.view",
+  "prices.sales.view"
+] as const;
+
+export const adminOnlyPermissionKeys = [
   "settings.edit",
-  "users.permissions.manage"
+  "users.permissions.manage",
+  "billing.manage",
+  "features.manage",
+  "integrations.manage",
+  "security.manage",
+  "privacy.manage",
+  "api.manage"
 ] as const;
 
 export type EmployeePermissionKey = (typeof employeePermissionGroups)[number]["permissions"][number]["key"];
 export type ManagerOnlyPermissionKey = (typeof managerOnlyPermissionKeys)[number];
-export type PermissionKey = EmployeePermissionKey | ManagerOnlyPermissionKey;
+export type AdminOnlyPermissionKey = (typeof adminOnlyPermissionKeys)[number];
+export type PermissionKey = EmployeePermissionKey | ManagerOnlyPermissionKey | AdminOnlyPermissionKey;
 
 export const assignableEmployeePermissionKeys = employeePermissionGroups.flatMap((group) =>
   group.permissions.map((permission) => permission.key)
 ) as EmployeePermissionKey[];
 
-export const allPermissionKeys = [...assignableEmployeePermissionKeys, ...managerOnlyPermissionKeys] as PermissionKey[];
+export const allPermissionKeys = [...assignableEmployeePermissionKeys, ...managerOnlyPermissionKeys, ...adminOnlyPermissionKeys] as PermissionKey[];
+export const chefPermissionKeys = [...assignableEmployeePermissionKeys, ...managerOnlyPermissionKeys] as PermissionKey[];
 
 const permissionSet = new Set<string>(allPermissionKeys);
 const assignablePermissionSet = new Set<string>(assignableEmployeePermissionKeys);
 const managerOnlyPermissionSet = new Set<string>(managerOnlyPermissionKeys);
+const adminOnlyPermissionSet = new Set<string>(adminOnlyPermissionKeys);
 
 export function isPermissionKey(value: string): value is PermissionKey {
   return permissionSet.has(value);
@@ -86,12 +98,16 @@ export function isManagerOnlyPermission(value: string) {
   return managerOnlyPermissionSet.has(value);
 }
 
+export function isAdminOnlyPermission(value: string) {
+  return adminOnlyPermissionSet.has(value);
+}
+
 export function isAssignableEmployeePermission(value: string): value is EmployeePermissionKey {
   return assignablePermissionSet.has(value);
 }
 
 export function isFullAccessRole(role?: Role | null) {
-  return role === "admin" || role === "chef";
+  return role === "admin";
 }
 
 export function normalizePermissionKeys(values: Iterable<string>) {
@@ -100,11 +116,16 @@ export function normalizePermissionKeys(values: Iterable<string>) {
 
 export function effectivePermissionKeys(role: Role, grantedPermissions: Iterable<string>) {
   if (isFullAccessRole(role)) return allPermissionKeys;
-  return normalizePermissionKeys(grantedPermissions).filter((permission) => !isManagerOnlyPermission(permission));
+  if (role === "chef") return chefPermissionKeys;
+  return normalizePermissionKeys(grantedPermissions).filter(
+    (permission) => !isManagerOnlyPermission(permission) && !isAdminOnlyPermission(permission)
+  );
 }
 
 export function hasAppPermission(role: Role, grantedPermissions: Iterable<string>, permission: PermissionKey) {
   if (isFullAccessRole(role)) return true;
+  if (role === "chef") return !isAdminOnlyPermission(permission);
   if (isManagerOnlyPermission(permission)) return false;
+  if (isAdminOnlyPermission(permission)) return false;
   return normalizePermissionKeys(grantedPermissions).includes(permission);
 }

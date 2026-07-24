@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { flushQueue, useOfflineQueue } from "@/lib/offline/queue";
+import { useOfflineQueue } from "@/lib/offline/queue";
 
 type NetworkInformationLike = EventTarget & {
   effectiveType?: string;
@@ -22,15 +22,6 @@ function isSlowConnection() {
 export function OfflineQueueProvider({ children }: { children: React.ReactNode }) {
   const { isOffline, queuedCount } = useOfflineQueue();
   const [slowConnection, setSlowConnection] = useState(false);
-
-  useEffect(() => {
-    function handleOnline() {
-      void flushQueue();
-    }
-
-    window.addEventListener("online", handleOnline);
-    return () => window.removeEventListener("online", handleOnline);
-  }, []);
 
   useEffect(() => {
     const connection = getConnection();

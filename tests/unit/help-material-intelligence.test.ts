@@ -14,7 +14,7 @@ function source(file: string) {
 }
 
 describe("help and material intelligence", () => {
-  it("shows manager help only to chef/admin and worker help to operational roles", () => {
+  it("shows manager help only to chef and worker help to operational roles", () => {
     expect(canSeeHelpTip("chef", "manager")).toBe(true);
     expect(canSeeHelpTip("admin", "manager")).toBe(true);
     expect(canSeeHelpTip("vorarbeiter", "manager")).toBe(false);

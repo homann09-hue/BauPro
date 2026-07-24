@@ -4,14 +4,14 @@ BauPro ist eine mobile-first Betriebssoftware fuer deutsche Dachdecker- und Hand
 
 ## Funktionen
 
-- Firmenregistrierung mit Admin-Profil
+- Firmenregistrierung mit Chef-Profil
 - Startassistent fuer neue Betriebe: Firmenprofil, Demo-Daten, Mitarbeiterimport, Baustellenimport und gefuehrte Einfuehrung
 - Demo-Modus fuer Interessenten: vorbereitete Firma mit Baustellen, Team, Lager, Auftraegen, Zeiten und 2-Minuten-Tour
-- Firmenprofil, Profilseite, Rollenverwaltung und Chef-Einstellungen
+- Firmenprofil, Profilseite, Systemadmin-Benutzerverwaltung und Chef-Einstellungen
 - Login/Logout ueber Supabase Auth
 - Rollen: `admin`, `chef`, `vorarbeiter`, `mitarbeiter`, `kunde`
 - Vorarbeiter-Rolle ohne Preis-/Chef-Rechte
-- Rollenklare Navigation fuer Chef/Admin, Vorarbeiter und Mitarbeiter
+- Rollenklare Navigation fuer Systemadmin, Chef, Vorarbeiter und Mitarbeiter
 - Predictive Prefetching fuer rollenabhaengige Hauptstrecken, schlanke Route-Warmups und Kundenportal-Assets
 - Dashboard als Betriebszentrale bzw. Mitarbeiter-Arbeitstag
 - Kundenkartei mit Privatkunden, Gewerbekunden, Hausverwaltungen, Architekten und Versicherungen
@@ -27,17 +27,17 @@ BauPro ist eine mobile-first Betriebssoftware fuer deutsche Dachdecker- und Hand
 - Mitarbeiter-Zeiterfassung mit Freigabe, Aenderungsprotokoll, Monats-Stundenzettel, PDF- und CSV-Export
 - Sprache-zu-Text Diktat mit Bestaetigung fuer Mitbringlisten, Zeiterfassung und Materialmeldungen
 - OpenAI-KI-Assistent fuer Diktat-Auswertung, Tagesbericht-Entwuerfe, Materialnamen-Abgleich und rollenbasierte Betriebsfragen
-- KI-Auftragswizard fuer Chef/Admin: Text/Sprache zu Auftragsentwurf, regelbasierter Materialberechnung, Lagerabgleich und Chef-Kalkulation
+- KI-Auftragswizard fuer Chef: Text/Sprache zu Auftragsentwurf, regelbasierter Materialberechnung, Lagerabgleich und Chef-Kalkulation
 - Mitbringlisten mit Packstatus, Fehlmaterialmeldung, Lagerabgleich, Reservierungen und Einkaufsvorschlaegen
 - Materialmeldung fuer Mitarbeiter ohne Preisansicht
 - Dachdecker-Materialkatalog mit ueber 150 praxisnahen Standardartikeln
 - Material-/Lagerverwaltung mit Lagerorten, Mindestbestand, Preisen, Schnellerfassung und Umlagerung
 - Live-Preisvergleich vorbereitet fuer manuelle Angebote, CSV-Feeds und offizielle Anbieter-APIs
-- Online Price Discovery als optionaler Chef-Preisindikator ueber erlaubte Feeds/offizielle APIs
+- Online Price Discovery als optionaler Chef-Preisindikator ueber erlaubte Feeds/offizielle APIs; Integrationen verwaltet der Systemadmin
 - Materialberechnung je Baustelle und Auftrag mit Dachart, strukturiertem Aufmass, 20 % Standard-Verschnitt und Chef-Preisen
 - Angebote/Rechnungen als klar markierter vorbereiteter Produktbereich
 - Fahrzeuge mit einfachem Fahrzeuglager
-- Teamverwaltung und manuelles Anlegen von Mitarbeitern
+- Systemadmin-Benutzerverwaltung und manuelles Anlegen von Mitarbeitern
 - Datenschutz-Center mit Auskunftsexport, Firmenexport und Betroffenenanfragen
 - Rechtliche Entwurfsseiten fuer Impressum, Datenschutz, AGB, AVV, Cookies, Loeschkonzept und Subprozessoren
 - Consent-Banner mit Opt-in fuer optionale Analyse/Marketing-Verarbeitung
@@ -119,9 +119,24 @@ supabase/migrations/20260707_performance_followup_indexes.sql
 supabase/migrations/20260708_privacy_security_hardening.sql
 supabase/migrations/20260709_fix_material_usage_confirmation_rpc.sql
 supabase/migrations/20260710_calculation_travel_rate.sql
+supabase/migrations/20260711_ai_job_estimates_gap_fix.sql
 supabase/migrations/20260711_invoice_atomic_stats.sql
 supabase/migrations/20260712_price_permission_hardening.sql
 supabase/migrations/20260713_redteam_storage_prefetch_hardening.sql
+supabase/migrations/20260714_system_admin_role_split.sql
+supabase/migrations/20260715_platform_system_admin.sql
+supabase/migrations/20260716_atomic_order_creation.sql
+supabase/migrations/20260717_auth_signup_metadata_hardening.sql
+supabase/migrations/20260718_bootstrap_profile_role_hardening.sql
+supabase/migrations/20260719_delivery_note_original_price_hardening.sql
+supabase/migrations/20260720_public_view_security_invoker.sql
+supabase/migrations/20260721_internal_invoice_rpc_hardening.sql
+supabase/migrations/20260722_internal_invoice_rpc_explicit_role_revoke.sql
+supabase/migrations/20260723_commercial_document_rpc_hardening.sql
+supabase/migrations/20260724_invoice_items_rpc_explicit_role_revoke.sql
+supabase/migrations/20260725_trigger_function_execute_hardening.sql
+supabase/migrations/20260726_material_movement_audit_trigger_revoke.sql
+supabase/migrations/20260727_dashboard_rpc_anon_revoke.sql
 ```
 
 `20260615_material_alerts_repair.sql` bleibt idempotent, damit aeltere Testdatenbanken mit fehlender Mitbringlisten-Kette repariert werden koennen. Fuer neue Projekte ist der vollstaendige Stand bereits in `supabase/schema.sql` enthalten.
@@ -181,7 +196,7 @@ KI-Bautagesberichte laufen ueber `/api/ai/report-draft`, verlangen ein aktives N
 
 Der Demo-Modus ist lokal ueber `/demo` oder den Button auf `/login` erreichbar. Er legt serverseitig die Demo-Firma `Müller Dachtechnik GmbH` mit einem Chef, zwei Vorarbeitern, fuenf Mitarbeitern, Baustellen, Lagerbestand, Auftraegen, Aufmass, Zeiten, Berichten, Mitbringliste, Materialwarnungen und Einkaufsvorschlaegen an und loggt direkt als Chef ein.
 
-In Production ist die Demo nur aktiv, wenn `DEMO_MODE_ENABLED=true` gesetzt ist. `SUPABASE_SERVICE_ROLE_KEY` wird serverseitig benoetigt, damit Auth-User und Beispieldaten automatisch angelegt werden koennen.
+In Production ist die Demo nur aktiv, wenn `DEMO_MODE_ENABLED=true` gesetzt ist. `SUPABASE_SERVICE_ROLE_KEY` wird serverseitig benoetigt, damit Auth-User und Beispieldaten automatisch angelegt werden koennen. Der normale Demo-Start verwendet vorhandene Beispieldaten wieder, damit Interessenten nicht auf ein komplettes Neu-Seeding warten. Nur fuer Wartung/QA kannst du `DEMO_RESEED_ON_START=true` setzen; in Production sollte der Wert leer oder `false` bleiben.
 
 Optional kannst du die Demo-Firma auch per CLI vorgeladen:
 
@@ -214,7 +229,7 @@ Danach im Browser oeffnen:
 http://localhost:3000
 ```
 
-Nach der ersten Registrierung landet Chef/Admin automatisch im Startassistenten unter `/onboarding`. Dort kann ein Betrieb in wenigen Minuten:
+Nach der ersten Firmenregistrierung landet der Chef automatisch im Startassistenten unter `/onboarding`. Dort kann ein Betrieb in wenigen Minuten:
 
 - Firmendaten vervollstaendigen
 - realistische Demo-Daten anlegen
@@ -224,27 +239,115 @@ Nach der ersten Registrierung landet Chef/Admin automatisch im Startassistenten 
 
 ## Rollenmodell
 
-- `admin` und `chef`: duerfen Firma, Kunden, Auftraege, Team, Baustellen, Material, Fahrzeuge, Aufgaben und alle Berichte verwalten.
+- `admin`: BauPro-Systemadmin fuer firmenuebergreifende Verwaltung. Admins verwalten Benutzer, Rechte, Features, Abrechnung, Integrationen, API-/Sicherheitsoptionen, DSGVO-Einstellungen und Systemstatus. Operative Baustellenarbeit laeuft nicht ueber diese Rolle.
+- `chef`: Betriebsleiter/Geschaeftsfuehrer der Firma. Chefs verwalten Kunden, Auftraege, Baustellen, Material, Lager, Fahrzeuge, Mitarbeitereinsatz, Tagesberichte, Zeiterfassung, Kalkulation, Angebote und Rechnungen.
 - `vorarbeiter`: sieht zugeordnete Baustellen, Auftraege, Zeiten, Tagesberichte, Mitbringlisten, Materialmeldungen und preisbereinigte Lagerdaten. EK, VK, Marge, Einkaufsvorschlaege und Preisvergleich bleiben gesperrt.
 - `mitarbeiter`: sieht eigene Aufgaben, eigene/zugeordnete Berichte, zugeordnete Baustellen, zugeordnete Auftraege, eigene Zeiten, Mitbringlisten und Materialmeldungen. Stammdaten, Preisquellen, EK, VK, Aufschlag und Marge bleiben gesperrt.
 - `kunde`: ist fuer Kundenzugaenge vorgesehen. Kunden sehen im Portal nur explizit freigegebene Projektdaten, Fotos, Dokumente und Arbeitsauftraege.
 
 Die RLS-Policies in `supabase/schema.sql` erzwingen, dass Nutzer nur Daten ihrer eigenen Firma sehen.
-Preisfelder wie `purchase_price`, `sales_price`, `markup_percent`, `price_net`, `price_gross`, Supplier-Angebote und Online-Preisangebote sind nur fuer `admin` und `chef` freigegeben. Mitarbeiter und Vorarbeiter nutzen preisbereinigte Views wie `inventory_items_public`.
+Preisfelder wie `purchase_price`, `sales_price`, `markup_percent`, `price_net`, `price_gross`, Supplier-Angebote und Online-Preisangebote sind fuer Chefs freigegeben. Systemadmins sehen System- und Integrationsbereiche, aber die operative Preisarbeit bleibt im Chef-Bereich. Mitarbeiter und Vorarbeiter nutzen preisbereinigte Views wie `inventory_items_public`.
 
 ## Security und CI
+
+### Quality-, Security- und Release-Pipeline
+
+BauPro hat eine zentrale Check-Pipeline fuer lokale Entwicklung, Pull Requests und Releases. Die Befehle buendeln bestehende Tests, Schema-Hardening und neue statische QA-Gates unter `scripts/qa/`.
+
+| Befehl | Zweck | Blockiert bei |
+| --- | --- | --- |
+| `npm run check:fast` | schneller Entwicklercheck: TypeScript, ESLint, Unit-/Integrationstests | TypeScript-, Lint- oder Testfehler |
+| `npm run check:security` | Security-Gate: Dependency-Audit, Supabase-Schema, RPC-Hardening, statische OWASP-/RLS-/Header-/Rate-Limit-Pruefung | High/Critical-CVEs, unsichere RLS-/RPC-/Rate-Limit-/Header-Befunde |
+| `npm run check:quality` | tiefere Codequalitaet: Typecheck, Lint, Coverage, statische Qualitaetspruefung | Testfehler, Coverage unter Zielwert, harte TypeScript-Findings |
+| `npm run check:performance` | Performance-Gate: PWA-Cache, Prefetching, Load-Test-Konfiguration, Performance-E2E-Abdeckung | unsicherer Cache, fehlende Load-Test-Konfiguration, fehlende Performance-Abdeckung |
+| `npm run check:ai` | KI-Sicherheitsgate: serverseitige Keys, Rate Limits, Opt-in, Error-Sanitizing, Fallbacks | fehlende KI-Sicherheitsmechanismen |
+| `npm run check:trading` | Marktdaten-/Trading-Gate fuer kuenftige Module | harte Datenqualitaetsluecken, sobald Trading-/Marktdatenmodule existieren |
+| `npm run check:release` | Release-Gate: Qualitaet, Security, Performance, KI, Trading, Production-Build | jeder harte Release-Fund |
+| `npm run check:all` | vollstaendiger lokaler/manueler Gate-Lauf | jeder harte Fund |
+| `npm run check:ci` | Pull-Request-Gate fuer GitHub Actions | schnelle Checks, Security, Performance-Konfig und Build |
+| `npm run redteam:full` | aggressive, aber nicht-destruktive Redteam-Härtung ueber Security, Auth, Rollen, RLS, Uploads, PWA, Lager, Zeiten, Billing, Load und Chaos | harte Sicherheits-/Release-Findings in den Redteam-Gates |
+
+Blockierende Checks sind: TypeScript-Fehler, Lint-Fehler, fehlschlagende Tests, High/Critical Dependency-Findings, unsichere Supabase-RLS-/RPC-Muster, unsicheres Rate Limiting, unsichere Security Header, unsicherer Service-Worker-Cache, nicht sanitisiertes Error Handling, fehlende KI-Opt-in-/Fallback-Mechanismen und ein fehlgeschlagener Production-Build.
+
+Warnende Checks sind bewusst nicht blockierend, wenn ein Bereich im Produkt noch nicht existiert oder optional ist, z. B. Trading-/Marktdatenmodule, lokale fehlende Coverage-Datei oder optionale externe Tools. Sobald solche Module eingefuehrt werden, werden die passenden Gates blockierend. Das Coverage-Gate nutzt standardmaessig mindestens 50 % Line-Coverage und kann ueber `COVERAGE_LINES_MIN`, `COVERAGE_BRANCHES_MIN`, `COVERAGE_FUNCTIONS_MIN` und `COVERAGE_STATEMENTS_MIN` verschaerft werden.
+Der lokale Dependency-Audit warnt bei gesperrtem Netzwerkzugriff. In GitHub Actions oder mit `REQUIRE_ONLINE_AUDIT=true` ist ein nicht erreichbarer npm-Audit-Endpunkt blockierend.
+
+### Redteam-Härtung
+
+Die Redteam-Pipeline ist als sichere lokale/staging Prüfschicht aufgebaut. Standardmäßig feuert sie keine echten Angriffe gegen Production, keine Drittanbieter und keine produktiven Supabase-Datenbanken ab. Sie prüft stattdessen reproduzierbare Gates für Auth, Rollen, Mandantentrennung, RLS, Uploads, PDFs, Offline/PWA, Spracheingabe, Lager, Zeiterfassung, Billing, Lasttest-Konfiguration und Chaos-Harness.
+
+```bash
+npm run redteam:full
+```
+
+Einzelne Bereiche können gezielt geprüft werden:
+
+```bash
+npm run redteam:roles
+npm run redteam:inventory
+npm run redteam:load
+```
+
+Echte Last- und Chaosläufe bleiben bewusst opt-in:
+
+- `npm run test:load` und `npm run test:stress` brauchen `LOAD_TEST_ENVIRONMENT=local|test|staging`.
+- Der 2.000-User-Test braucht zusätzlich `LOAD_TEST_ACKNOWLEDGE_2000_USERS=1`.
+- Live-Chaos-Probes laufen nur mit `REDTEAM_LIVE_CHAOS=1`.
+
+Details stehen in `docs/REDTEAM_HARDENING.md`.
+
+### CI/CD-Regeln
+
+- Pull Requests fuehren `npm run check:ci` aus.
+- Pushes auf `main` fuehren `npm run check:release` aus.
+- Der manuelle Workflow `workflow_dispatch` fuehrt `npm run check:all` aus.
+- Es gibt keine automatischen Force-Fixes in CI.
+- Secrets duerfen nie in Logs erscheinen.
+- Mock-, Demo- oder Testdaten duerfen nicht als echte Marktdaten oder echte Kundendaten dargestellt werden.
+
+### Production-Pflichtvariablen
+
+Fuer Production muessen mindestens gesetzt sein:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+CRON_SECRET=
+NEXT_PUBLIC_APP_URL=
+```
+
+Optional, aber fuer aktivierte Module erforderlich:
+
+```env
+OPENAI_API_KEY=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+SUPPLIER_API_ENCRYPTION_KEY=
+SENTRY_DSN=
+```
+
+Redis/KV ist in Production Pflicht, weil Login, Demo, KI, Uploads, Wetter, Preisabfragen, Kundenportal und andere oeffentliche oder kostenrelevante Pfade global gedrosselt werden muessen. Ohne Redis/KV darf Production nicht still unlimitiert weiterlaufen.
+
+### Provider-, Kosten- und Incident-Regeln
+
+- KI-Provider duerfen nur serverseitig angesprochen werden.
+- KI-Antworten sind Entwuerfe und muessen durch Nutzer bestaetigt werden.
+- Kostenrelevante Provider brauchen Rate Limits und Kontingentpruefung.
+- Stripe- und Supabase-Service-Role-Keys duerfen nie mit `NEXT_PUBLIC_` beginnen.
+- Incident-Ablauf: siehe `docs/INCIDENT_RUNBOOK.md`.
 
 Der PR-Workflow `.github/workflows/ci.yml` fuehrt aus:
 
 ```bash
 npm ci
-npm run lint
-npm run test
-npm run db:schema-check
-npm run build
+npm run check:ci
 ```
 
 Der Schema-Check prueft statisch FORCE RLS, preisbereinigte Views, Manager-only Preis-Policies, Storage-Pfade und atomare Lager-RPCs.
+Zusaetzlich kann `npm run audit:rpc-hardening` alle `SECURITY DEFINER`-Funktionen im Schema tabellarisch auswerten und blockiert direkte Execute-Grants auf reine Trigger-Helfer.
 
 ### Rate Limiting in Production
 
@@ -293,14 +396,26 @@ Wichtige Härtungen:
 - Die App-Shell startet nach Login einen unauffaelligen Prefetcher fuer wahrscheinliche naechste Routen.
 - `/api/prefetch/route-data` laedt kleine, rollenbereinigte Datenpakete mit `private, max-age` und `stale-while-revalidate`.
 - Mitarbeiter/Vorarbeiter erhalten beim Prefetch nur preisbereinigte Materialdaten.
-- Chef/Admin waermen zusaetzlich das Live-Wetter der aktivsten Baustelle vor; Mitarbeiterstandorte werden dafuer nicht genutzt.
+- Chefs waermen zusaetzlich das Live-Wetter der aktivsten Baustelle vor; Mitarbeiterstandorte werden dafuer nicht genutzt.
 - Das Kundenportal prefetches bereits freigegebene Foto- und Dokument-URLs im Idle-Zeitfenster.
 - Listen wie Baustellen, Auftraege, Kunden, Tagesberichte, Materiallager und Zeiterfassung nutzen Pagination bzw. schlanke Selects statt Volltabellen-Loads.
 - `20260617_performance_indexes.sql` legt idempotente Indizes fuer Dashboard, Lager, Zeiten, Materialwarnungen, Kundenportal und Auftraege an.
 
 ## Produktnavigation
 
-Chef/Admin sieht:
+Systemadmin sieht:
+
+- Dashboard
+- Benutzer
+- Rollen/Rechte
+- Features
+- Abrechnung
+- Integrationen/API
+- Sicherheit
+- DSGVO
+- Systemstatus
+
+Chef sieht:
 
 - Dashboard
 - Startassistent
@@ -315,7 +430,7 @@ Chef/Admin sieht:
 - Zeiterfassung
 - Stundenzettel
 - Angebote/Rechnungen
-- Einstellungen
+- Betriebsdaten, Kalkulation und Lager
 
 Mitarbeiter sieht:
 
@@ -337,10 +452,10 @@ Die Zeiterfassung ist unter `/time-tracking` erreichbar. Mitarbeiter koennen eig
 - Warnhinweise erscheinen bei mehr als 10 Netto-Stunden oder fehlender Pause bei laengerer Arbeitszeit
 - Status: Entwurf, Eingereicht, Freigegeben, Abgelehnt
 - Nach Freigabe ist der Eintrag fuer Mitarbeiter gesperrt
-- Chef/Admin kann Zeiten korrigieren, freigeben oder ablehnen
+- Chef kann Zeiten korrigieren, freigeben oder ablehnen
 - Jede Anlage/Korrektur/Freigabe wird in `time_entry_audit_log` protokolliert
 
-Chef/Admin erstellt Monats-Stundenzettel unter `/time-tracking/reports`. Der Bericht nutzt eingereichte oder freigegebene Zeiten und bietet:
+Chef erstellt Monats-Stundenzettel unter `/time-tracking/reports`. Der Bericht nutzt eingereichte oder freigegebene Zeiten und bietet:
 
 - Detailansicht mit Summen
 - PDF-Download mit Firmenname, Zeitraum, Mitarbeiter, Tabelle, Summe, Freigabe und Erstellungsdatum
@@ -360,9 +475,9 @@ Die App zeigt unten rechts einen Mikrofon-Button. Die Spracheingabe nutzt die We
 - Beispiel: `Heute Baustelle Hauptstraße von 7 bis 16 Uhr gearbeitet, 30 Minuten Pause, Ziegel eingedeckt`
 - Beispiel: `Baustelle Hauptstraße Unterspannbahn fehlt 2 Rollen`
 
-Mitbringlisten liegen unter `/bring-lists`. Chef/Admin kann Listen manuell erstellen oder im Auftragsdetail aus dem berechneten Materialbedarf eine Liste fuer morgen erzeugen. Zusaetzlich erzeugt BauPro fuer morgen automatisch Listen aus Auftrag, Materialplanung, Lagerbestand und Plantafel. Mitarbeiter und Vorarbeiter sehen die ihnen zugeordneten Listen, koennen Positionen abhaken, manuell ergaenzen und fehlendes Material melden.
+Mitbringlisten liegen unter `/bring-lists`. Chefs koennen Listen manuell erstellen oder im Auftragsdetail aus dem berechneten Materialbedarf eine Liste fuer morgen erzeugen. Zusaetzlich erzeugt BauPro fuer morgen automatisch Listen aus Auftrag, Materialplanung, Lagerbestand und Plantafel. Mitarbeiter und Vorarbeiter sehen die ihnen zugeordneten Listen, koennen Positionen abhaken, manuell ergaenzen und fehlendes Material melden.
 
-Der Lagerabgleich prueft Bestand, Mindestbestand, offene Reservierungen und Fahrzeug-/Lagerorte. Bei Fehlbestand entstehen Materialwarnungen und Einkaufsvorschlaege fuer Chef/Admin im Dashboard. Wenn Material im falschen Fahrzeug liegt oder ein Geraet in der Plantafel als defekt/Werkstatt markiert ist, zeigt die Mitbringliste einen Hinweis. Einkaufsvorschlaege und Einkaufsdaten sind fuer Mitarbeiter nicht sichtbar.
+Der Lagerabgleich prueft Bestand, Mindestbestand, offene Reservierungen und Fahrzeug-/Lagerorte. Bei Fehlbestand entstehen Materialwarnungen und Einkaufsvorschlaege fuer den Chef im Dashboard. Wenn Material im falschen Fahrzeug liegt oder ein Geraet in der Plantafel als defekt/Werkstatt markiert ist, zeigt die Mitbringliste einen Hinweis. Einkaufsvorschlaege und Einkaufsdaten sind fuer Mitarbeiter nicht sichtbar.
 
 ## KI-Assistent
 
@@ -373,20 +488,20 @@ Der KI-Assistent liegt unter `/ai-assistant` und ist zusaetzlich global ueber `K
 - KI-Nutzung wird in `ai_usage_logs` protokolliert
 - Aktionsvorschlaege werden in `ai_actions` gespeichert und erst nach Nutzerbestaetigung ausgefuehrt
 - Mitarbeiter-Kontext enthaelt keine EK-, VK-, Margen-, Aufschlags- oder Preisvergleichsdaten
-- Chef/Admin kann KI in `/settings` aktivieren/deaktivieren und Mitarbeiterzugriff steuern
+- Systemadmins steuern KI-Funktionen und Mitarbeiterzugriff in `/settings`; Chefs nutzen KI fuer operative Entwuerfe und Kalkulationen
 - Ohne `OPENAI_API_KEY` zeigt die UI einen Setup-Hinweis, aber die App bleibt nutzbar
 
 ## KI-Auftragswizard
 
-Der KI-Auftragswizard liegt unter `/ai/job-wizard` und ist nur fuer Admin/Chef erreichbar.
+Der KI-Auftragswizard liegt unter `/ai/job-wizard` und ist nur fuer Chefs erreichbar.
 
-- Chef/Admin beschreibt einen Auftrag per Text oder Sprache
+- Chef beschreibt einen Auftrag per Text oder Sprache
 - OpenAI extrahiert Kunde, Auftragstitel, Auftragsart, Adresse, Zeitraum, Maße und Rueckfragen als validiertes JSON
 - Die App berechnet Materialbedarf anschliessend regelbasiert mit Standard-Verschnitt aus `calculation_settings`
 - Lagerbestand, offene Reservierungen, fehlendes Material und Einkaufsvorschlaege werden angezeigt
 - Chef-Kalkulation zeigt EK, VK, Lohn, Gemeinkosten, Gewinn, Netto, MwSt., Brutto und Preisquellen
 - Nichts wird ohne Bestaetigung final gespeichert
-- Chef/Admin kann erkannte Daten korrigieren und die Vorschau neu berechnen
+- Chef kann erkannte Daten korrigieren und die Vorschau neu berechnen
 - Erst die Bestaetigungsbuttons erstellen Auftrag, Mitbringliste, Reservierung und gespeicherte Kalkulation
 - Mitarbeiter koennen diese Route und die Preis-/Kalkulationstabellen nicht lesen
 
@@ -415,11 +530,11 @@ Der Preisvergleich ist unter `/materials/live-offers` erreichbar. Lieferantenint
 - Angebote koennen Material zugeordnet und als EK uebernommen werden
 - Im Lagerdetail `/materials/inventory/[id]` sieht Chef guenstigstes Angebot, schnellste Lieferung und besten Deal
 
-Mitarbeiter haben keinen Zugriff auf Preisvergleichstabellen. Die RLS-Policies erlauben `supplier_integrations`, `supplier_offers`, `supplier_offer_matches` und `supplier_price_history` nur fuer Admin/Chef.
+Mitarbeiter haben keinen Zugriff auf Preisvergleichstabellen. Die RLS-Policies erlauben Preisvergleiche nur fuer Chefs; Integrationsschluessel und API-Konfigurationen bleiben Systemadmins vorbehalten.
 
 ## Online Price Discovery
 
-Die Online-Recherche ist unter `/materials/online-discovery` erreichbar und ist nur ein Preisindikator fuer Admin/Chef.
+Die Online-Recherche ist unter `/materials/online-discovery` erreichbar und ist nur ein Preisindikator fuer Chefs.
 
 - Adapter vorbereitet fuer `wuerth_catalog_csv`, `manual_csv`, `ebay`, `priceapi`, `dataforseo_google_shopping` und `searchapi_google_shopping`
 - CSV-Preislisten von Wuerth, BTI, Foerch oder Baustoffhandel koennen als erlaubter Feed angebunden werden
@@ -432,35 +547,35 @@ Die Online-Recherche ist unter `/materials/online-discovery` erreichbar und ist 
 - Kalkulationsprioritaet im Lagerdetail: eigener EK, CSV-/Lieferantenpreis, eBay, PriceAPI/DataForSEO/SearchApi, Markt-Richtpreis
 - Markt-Richtpreise werden nur als Fallback genutzt, wenn keine bessere Quelle Treffer liefert
 
-Online-Preisdaten liegen in `online_price_discoveries` und `online_price_offers`. RLS erlaubt Zugriff nur fuer Admin/Chef.
+Online-Preisdaten liegen in `online_price_discoveries` und `online_price_offers`. RLS erlaubt Zugriff nur fuer Chefs.
 
 ## Materialberechnung auf Baustellen
 
-Jede Baustelle hat eine Detailseite unter `/baustellen/[id]`. Dort koennen Admin/Chef eine schnelle Vor-Kalkulation erstellen:
+Jede Baustelle hat eine Detailseite unter `/baustellen/[id]`. Dort koennen Chefs eine schnelle Vor-Kalkulation erstellen:
 
 - Dachart waehlen: Steildach, Flachdach, Reparatur, Entwaesserung oder Blech
 - Laenge und Breite eintragen; die Flaeche wird automatisch berechnet
 - optionale Laengen fuer Traufe, First, Ortgang, Kehle und Wandanschluss eintragen
 - Standard-Verschnitt ist 20 %, in den Chef-Einstellungen aenderbar
-- berechnete Materialliste zeigt Grundmenge, Zuschlag, Gesamtmenge und fuer Chef/Admin EK, VK und Marge
+- berechnete Materialliste zeigt Grundmenge, Zuschlag, Gesamtmenge und fuer Chefs EK, VK und Marge
 
 Mitarbeiter sehen auf zugeordneten Baustellen nur Materialname, benoetigte Menge, Einheit, Lagerort, Bestand und Mindestbestand. EK, VK, Aufschlag, Marge und Gesamtkosten sind in Frontend und Datenbankzugriff getrennt.
 
 ## Kunden und Auftraege
 
-Die Kundenkartei ist unter `/customers` erreichbar. Admin/Chef koennen Kunden anlegen, bearbeiten und aus dem Kundenprofil direkt einen neuen Auftrag starten.
+Die Kundenkartei ist unter `/customers` erreichbar. Chefs koennen Kunden anlegen, bearbeiten und aus dem Kundenprofil direkt einen neuen Auftrag starten.
 
 Die Auftragsstrecke ist unter `/orders` erreichbar:
 
 - `/orders/new`: Wizard fuer Kunde, Auftrag, Maße und automatische Materialberechnung
 - Laenge und Breite berechnen die Flaeche automatisch
 - Auftragsdetail: strukturiertes Aufmass mit Dachflaechen, Abzuegen, Traufe, First, Ortgang, Kehle, Wandanschluss, Fallrohr und Stueckzahlen
-- Standard-Verschnitt ist 20 %, kann aber von Chef/Admin angepasst werden
+- Standard-Verschnitt ist 20 %, kann aber vom Chef angepasst werden
 - Beim Speichern entsteht automatisch eine verknuepfte Baustelle
 - Materialbedarf wird in `job_material_requirements` gespeichert
 - Mitarbeiter lesen nur `orders_public` und `job_material_requirements_public`
 
-Chef/Admin sehen im Auftragsdetail EK gesamt, VK gesamt und Marge. Mitarbeiter sehen nur Materialname, Gesamtmenge, Einheit, Lagerort, Bestand und Mindestbestand.
+Chefs sehen im Auftragsdetail EK gesamt, VK gesamt und Marge. Mitarbeiter sehen nur Materialname, Gesamtmenge, Einheit, Lagerort, Bestand und Mindestbestand.
 
 ## SaaS-Haertung
 
@@ -477,7 +592,7 @@ Die App vermeidet sichtbare Scheinfunktionen. Noch nicht produktive Bereiche wie
 
 Die App enthaelt technische Grundlagen fuer Datenschutz und B2B-SaaS-Betrieb. Diese ersetzen keine anwaltliche Pruefung.
 
-- Datenschutz-Center unter `/privacy` mit eigenem Datenexport, Firmenexport fuer Chef/Admin und Datenschutzanfragen.
+- Datenschutz-Center unter `/privacy` mit eigenem Datenexport, Firmenexport fuer Systemadmins und Datenschutzanfragen.
 - Billing unter `/billing` mit Stripe Checkout, Stripe Customer Portal, Tariflimits und KI-Kontingent.
 - Angebote/Rechnungen unter `/invoices` mit Belegstatus, PDF-Export und Auftrag-Uebernahme. Das aeltere Modul `/angebote-rechnungen` bleibt fuer bestehende DATEV-/XRechnung-Exporte erreichbar.
 - Rechtliche Entwurfsseiten unter `/legal`.
@@ -524,8 +639,23 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 - `supabase/migrations/20260704_resource_vehicle_management.sql`: Delta fuer Fahrzeuge, Maschinen, Werkzeuge, Prueftermine, Dokumente und Plantafel-Zuordnung
 - `supabase/migrations/20260705_flexible_checklists.sql`: Delta fuer wiederverwendbare Checklisten, Baustellen-Checks, Foto-Nachweise, optionale Signatur und automatische Problem-Aufgaben
 - `supabase/migrations/20260706_defect_management.sql`: Delta fuer Maengel, Fotos, Fristen, Kundenfreigabe, interne Benachrichtigungen und PDF-Maengelbericht
+- `supabase/migrations/20260711_ai_job_estimates_gap_fix.sql`: Gap-Fix fuer Bestandsdatenbanken mit fehlenden KI-Auftragsentwuerfen, Kostenschaetzungen und `inventory_locations.vehicle_id`
 - `supabase/migrations/20260712_price_permission_hardening.sql`: Delta entfernt delegierbare Chef-/Preisrechte fuer Mitarbeiter/Vorarbeiter und haertet `has_employee_permission`
 - `supabase/migrations/20260713_redteam_storage_prefetch_hardening.sql`: Delta bindet Report-Foto-Storage-Lesen an Bericht-Metadaten und Berichtsrechte
+- `supabase/migrations/20260714_system_admin_role_split.sql`: Delta trennt BauPro-Systemadmin und operativen Chef in App- und RLS-Rechten
+- `supabase/migrations/20260715_platform_system_admin.sql`: Delta macht `admin` zur firmenuebergreifenden Plattformrolle fuer Firmen, Benutzer, Rechte und Audit-Metadaten, ohne operative Kundendaten global zu oeffnen
+- `supabase/migrations/20260716_atomic_order_creation.sql`: Delta erstellt Auftragsnummer, Baustelle und Auftrag atomar per Postgres-RPC und verhindert doppelte Auftragsnummern bei parallelen Klicks
+- `supabase/migrations/20260717_auth_signup_metadata_hardening.sql`: Delta verhindert, dass clientseitige Signup-Metadaten Firma oder Rolle setzen; vertrauenswuerdige Mitarbeiteranlage nutzt serverseitige `app_metadata`
+- `supabase/migrations/20260718_bootstrap_profile_role_hardening.sql`: Delta verhindert, dass der Profil-Bootstrap-Fallback normale Nutzer automatisch zu Systemadmins macht
+- `supabase/migrations/20260719_delivery_note_original_price_hardening.sql`: Delta beschraenkt Original-Lieferschein-Fotos auf Chef/Systemadmin, weil sie Lieferanten- oder EK/VK-Preise enthalten koennen
+- `supabase/migrations/20260720_public_view_security_invoker.sql`: Delta setzt preisbereinigte Public-Views auf `security_invoker`, damit Basistabellen-RLS nicht durch View-Ausfuehrung umgangen wird
+- `supabase/migrations/20260721_internal_invoice_rpc_hardening.sql`: Delta entfernt direkte RPC-Ausfuehrung interner Invoice-Helfer; erlaubt bleiben nur die geprueften Beleg-Wrapper
+- `supabase/migrations/20260722_internal_invoice_rpc_explicit_role_revoke.sql`: Delta entzieht explizite RPC-Ausfuehrung fuer `anon` und `authenticated`, falls aeltere Grants bereits existierten
+- `supabase/migrations/20260723_commercial_document_rpc_hardening.sql`: Delta entzieht direkte RPC-Ausfuehrung fuer interne Angebot-/Rechnung-Summenberechnung; die Berechnung laeuft ueber Trigger
+- `supabase/migrations/20260724_invoice_items_rpc_explicit_role_revoke.sql`: Delta entzieht direkte RPC-Ausfuehrung fuer rohe Invoice-Positionsanlage; erlaubt bleiben nur die geprueften Invoice-Wrapper
+- `supabase/migrations/20260725_trigger_function_execute_hardening.sql`: Delta entzieht direkte RPC-Ausfuehrung fuer reine SECURITY-DEFINER-Trigger-Helfer; Trigger selbst bleiben funktionsfaehig
+- `supabase/migrations/20260726_material_movement_audit_trigger_revoke.sql`: Delta entzieht direkte RPC-Ausfuehrung fuer den Materialbewegungs-Audit-Trigger-Helfer
+- `supabase/migrations/20260727_dashboard_rpc_anon_revoke.sql`: Delta entzieht anonymen Execute-Zugriff auf die Dashboard-Summary-RPC; authentifizierte Nutzer bleiben erlaubt
 - `supabase/material-catalog-seed.sql`: praxisnaher Dachdecker-Materialkatalog
 - `scripts/seed-demo-company.mjs`: realistische Demo-Firma fuer Verkauf, QA und Produktdemos
 - `tests/`: Unit-, Integration- und E2E-Smoke-Tests
@@ -536,7 +666,15 @@ Vor Produktion final pruefen: Impressum, AGB, Datenschutzerklaerung, AVV, Subpro
 ```bash
 npm run lint
 npm run test
+npm run db:schema-check
+npm run audit:rpc-hardening
 npm run build
+```
+
+Vollstaendiges lokales Quality Gate:
+
+```bash
+npm run test:all
 ```
 
 Optionaler Mobile-E2E-Smoke-Test:
@@ -552,7 +690,30 @@ Vollstaendiger Demo-QA-Lauf mit frischer Demo-Firma:
 npm run test:e2e:demo
 ```
 
+Last-/Stresstest-Konfiguration pruefen:
+
+```bash
+npm run test:load:check
+```
+
+Optionaler lokaler Load-Test mit k6:
+
+```bash
+LOAD_TEST_ENVIRONMENT=local npm run test:load
+```
+
+Optionaler 2.000-User-Stresstest nur gegen dedizierte Test-/Staging-Systeme:
+
+```bash
+LOAD_TEST_ENVIRONMENT=test \
+LOAD_ALLOW_REMOTE_TARGET=1 \
+LOAD_TEST_ACKNOWLEDGE_2000_USERS=1 \
+LOAD_TARGET_VUS=2000 \
+npm run test:stress
+```
+
 Details zu Demo-Daten, Testlogins, Hauptablaeufen und Fehlerfaellen stehen in `docs/QA_TESTING.md`.
+Der komplette Lasttest-Runbook inklusive ENV-Variablen, k6-Installation und Ergebnisbericht steht in `docs/LOAD_AND_E2E_TESTING.md`.
 
 Wenn Supabase-Umgebungsvariablen fehlen, kann die App nicht vollstaendig starten. Die erwarteten Variablen stehen in `.env.example`.
 

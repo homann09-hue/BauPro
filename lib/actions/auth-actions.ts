@@ -3,11 +3,11 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireAppContext, requireManager, requirePermission } from "@/lib/auth";
+import { requireAppContext, requirePlatformAdmin } from "@/lib/auth";
 import { checkUserLimit } from "@/lib/billing/plans";
 import { ensureDemoModeData } from "@/lib/demo/demo-mode";
 import { assignableEmployeePermissionKeys, isAssignableEmployeePermission, normalizePermissionKeys } from "@/lib/permissions";
-import { requiredFormUuid } from "@/lib/security/form-data";
+import { optionalFormUuid, requiredFormUuid } from "@/lib/security/form-data";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { logServerWarning } from "@/lib/security/logging";
 import { getClientIp, publicAppOrigin } from "@/lib/security/origin";
@@ -15,7 +15,8 @@ import { checkPasswordBreach } from "@/lib/security/password-breach-check";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { safeReturnPath } from "@/lib/security/redirects";
 import { isMissingSchemaError, isUnsupportedVorarbeiterRoleError } from "@/lib/supabase/errors";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient, type SupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalString, requiredString } from "@/lib/utils";
 import type { Role } from "@/types/app";
 
@@ -23,7 +24,11 @@ type LoginProfile = {
   id: string;
   company_id: string;
   role: Role;
+  active: boolean;
 };
+
+const LOGIN_EMAIL_RATE_LIMIT = 10;
+const LOGIN_IP_RATE_LIMIT = 60;
 
 function toQuery(value: string) {
   return encodeURIComponent(value);
@@ -85,13 +90,50 @@ function demoStartRateLimitKey(requestHeaders: Headers) {
   return `demo:start:${rateLimitKeyPart(clientIp)}:${rateLimitKeyPart(userAgent)}`;
 }
 
+function demoRateLimitPublicMessage(error: unknown) {
+  const message = safeErrorMessage(error, "Demo-Schutz konnte nicht geprüft werden.");
+
+  if (message.includes("Zu viele Anfragen")) {
+    return {
+      message: "Demo wurde zu oft gestartet. Bitte warte kurz und versuche es erneut.",
+      shouldLog: false
+    };
+  }
+
+  return {
+    message: "Demo-Schutz konnte nicht geprüft werden. Bitte später erneut versuchen.",
+    shouldLog: true
+  };
+}
+
+function targetCompanyIdFromForm(formData: FormData, fallbackCompanyId: string) {
+  return optionalFormUuid(formData, "company_id", "Firma") ?? fallbackCompanyId;
+}
+
+async function assertTargetCompanyExists(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  companyId: string
+) {
+  const { data, error } = await supabase
+    .from("companies")
+    .select("id")
+    .eq("id", companyId)
+    .maybeSingle();
+
+  if (error || !data) {
+    throw new SafeActionError("Zielfirma wurde nicht gefunden.");
+  }
+}
+
 export async function signInAction(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const email = requiredString(formData, "email");
   const password = requiredString(formData, "password");
+  const requestHeaders = await headers();
 
   try {
-    await checkRateLimit(`login:${email.toLowerCase()}`, 10, 60_000);
+    await checkRateLimit(`login:${email.toLowerCase()}`, LOGIN_EMAIL_RATE_LIMIT, 60_000);
+    await checkRateLimit(`login-ip:${getClientIp(requestHeaders)}`, LOGIN_IP_RATE_LIMIT, 60_000);
   } catch {
     redirect(`/login?error=${toQuery("Zu viele Login-Versuche. Bitte kurz warten.")}`);
   }
@@ -116,7 +158,7 @@ export async function signInAction(formData: FormData) {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, company_id, role")
+    .select("id, company_id, role, active")
     .eq("id", data.user.id)
     .maybeSingle();
 
@@ -127,7 +169,12 @@ export async function signInAction(formData: FormData) {
   }
 
   const loginProfile = profile as unknown as LoginProfile;
-  if (loginProfile.role === "admin" || loginProfile.role === "chef") {
+  if (loginProfile.active === false) {
+    await supabase.auth.signOut();
+    redirect(`/login?error=${toQuery("Dieses Benutzerkonto wurde deaktiviert.")}`);
+  }
+
+  if (loginProfile.role === "chef") {
     const { data: company, error: companyError } = await supabase
       .from("companies")
       .select("onboarding_completed_at")
@@ -157,12 +204,11 @@ export async function startDemoModeAction(formData: FormData) {
     try {
       await checkRateLimit(demoStartRateLimitKey(requestHeaders), 30, 60_000);
     } catch (error) {
-      const message = safeErrorMessage(error, "Demo-Schutz konnte nicht geprüft werden.");
-      if (message.includes("Zu viele Anfragen")) {
-        redirect(`${errorPath}?error=${toQuery("Demo wurde zu oft gestartet. Bitte warte kurz und versuche es erneut.")}`);
+      const publicMessage = demoRateLimitPublicMessage(error);
+      if (publicMessage.shouldLog) {
+        logServerWarning("demo-rate-limit-blocked", error, { message: publicMessage.message });
       }
-
-      logServerWarning("demo-rate-limit-fallback", error, { message });
+      redirect(`${errorPath}?error=${toQuery(publicMessage.message)}`);
     }
   }
 
@@ -174,10 +220,22 @@ export async function startDemoModeAction(formData: FormData) {
     redirect(`${errorPath}?error=${toQuery(safeErrorMessage(error, "Demo-Modus konnte nicht vorbereitet werden."))}`);
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
+  let { data, error } = await supabase.auth.signInWithPassword({
     email: demo.chefEmail,
     password: demo.password
   });
+
+  if (error || !data.user) {
+    try {
+      demo = await ensureDemoModeData({ forceUserSync: true });
+      ({ data, error } = await supabase.auth.signInWithPassword({
+        email: demo.chefEmail,
+        password: demo.password
+      }));
+    } catch (syncError) {
+      logServerWarning("demo-mode-user-sync-failed", syncError);
+    }
+  }
 
   if (error || !data.user) {
     redirect(`${errorPath}?error=${toQuery("Demo-Login konnte nicht gestartet werden.")}`);
@@ -185,12 +243,15 @@ export async function startDemoModeAction(formData: FormData) {
 
   await supabase.rpc("bootstrap_my_profile");
   revalidatePath("/dashboard");
-  redirect("/demo-tour?success=Demo-Modus gestartet. Folge den Karten von oben nach unten.");
+  redirect("/dashboard?success=Demo-Modus gestartet. Du bist jetzt im Chef-Dashboard der Demo-Firma.");
 }
 
 export async function signUpCompanyAction(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const origin = publicAppOrigin((await headers()).get("origin"));
+  if (!origin) {
+    redirect("/register?error=Registrierung nicht moeglich: App-URL fehlt.");
+  }
   const companyName = requiredString(formData, "company_name");
   const fullName = requiredString(formData, "full_name");
   const email = requiredString(formData, "email");
@@ -210,7 +271,7 @@ export async function signUpCompanyAction(formData: FormData) {
       data: {
         company_name: companyName,
         full_name: fullName,
-        role: "admin"
+        role: "chef"
       }
     }
   });
@@ -231,20 +292,25 @@ export async function signUpCompanyAction(formData: FormData) {
 export async function signOutAction(formData?: FormData) {
   const supabase = await createSupabaseServerClient();
   const reason = formData?.get("reason") === "inactivity" ? "inactivity" : "manual";
+  const returnTo = safeReturnPath(formData?.get("return_to"), "/login");
   await supabase.auth.signOut();
   if (reason === "inactivity") {
-    redirect(`/login?success=${toQuery("Du wurdest wegen Inaktivität abgemeldet.")}`);
+    redirectWithMessage(returnTo, "success", "Du wurdest wegen Inaktivität abgemeldet.");
   }
-  redirect("/login");
+  redirectWithMessage(returnTo, "success", "Du wurdest abgemeldet.");
 }
 
 export async function createEmployeeAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePlatformAdmin();
   const supabase = await createSupabaseServerClient();
   const returnTo = safeReturnPath(formData.get("return_to"), "/team");
-  let admin: ReturnType<typeof createSupabaseAdminClient>;
+  const targetCompanyId = targetCompanyIdFromForm(formData, context.companyId);
+  let admin: SupabaseAdminClient;
   try {
-    admin = createSupabaseAdminClient();
+    admin = createScopedSupabaseAdminClient({
+      caller: "actions.auth.createEmployeeAction",
+      reason: "Systemadmin legt Supabase-Auth-Nutzer fuer eine Firma an."
+    });
   } catch {
     redirectWithMessage(returnTo, "error", "SUPABASE_SERVICE_ROLE_KEY fehlt für das Anlegen von Mitarbeitern.");
   }
@@ -261,19 +327,23 @@ export async function createEmployeeAction(formData: FormData) {
   }
 
   try {
-    await checkUserLimit(supabase, context.companyId);
+    await assertTargetCompanyExists(supabase, targetCompanyId);
+    await checkUserLimit(supabase, targetCompanyId);
   } catch (error) {
-    redirectWithMessage(returnTo, "error", safeErrorMessage(error, "Nutzerlimit konnte nicht geprüft werden."));
+    redirectWithMessage(returnTo, "error", safeErrorMessage(error, "Zielfirma oder Nutzerlimit konnte nicht geprüft werden."));
   }
 
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
+    app_metadata: {
+      baupro_server_created: true,
+      baupro_company_id: targetCompanyId,
+      baupro_role: role
+    },
     user_metadata: {
-      company_id: context.companyId,
-      full_name: fullName,
-      role
+      full_name: fullName
     }
   });
 
@@ -284,7 +354,7 @@ export async function createEmployeeAction(formData: FormData) {
   let finalRole = role;
   let profileResult = await admin.from("profiles").upsert({
     id: data.user.id,
-    company_id: context.companyId,
+    company_id: targetCompanyId,
     email,
     full_name: fullName,
     role: finalRole,
@@ -294,15 +364,18 @@ export async function createEmployeeAction(formData: FormData) {
   if (profileResult.error && role === "vorarbeiter" && isUnsupportedVorarbeiterRoleError(profileResult.error)) {
     finalRole = "mitarbeiter";
     await admin.auth.admin.updateUserById(data.user.id, {
+      app_metadata: {
+        baupro_server_created: true,
+        baupro_company_id: targetCompanyId,
+        baupro_role: finalRole
+      },
       user_metadata: {
-        company_id: context.companyId,
-        full_name: fullName,
-        role: finalRole
+        full_name: fullName
       }
     });
     profileResult = await admin.from("profiles").upsert({
       id: data.user.id,
-      company_id: context.companyId,
+      company_id: targetCompanyId,
       email,
       full_name: fullName,
       role: finalRole,
@@ -324,9 +397,10 @@ export async function createEmployeeAction(formData: FormData) {
 }
 
 export async function updateEmployeeAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePlatformAdmin();
   const supabase = await createSupabaseServerClient();
   const id = requiredFormUuid(formData, "id", "Mitarbeiter");
+  const targetCompanyId = targetCompanyIdFromForm(formData, context.companyId);
   const fullName = optionalString(formData, "full_name");
   const role = normalizeRole(formData.get("role"));
   const active = formData.get("active") === "on";
@@ -335,29 +409,65 @@ export async function updateEmployeeAction(formData: FormData) {
     redirect(`/team?error=${toQuery("Du kannst deinen eigenen Zugang nicht deaktivieren.")}`);
   }
 
-  if (role === "admin" && context.profile.role !== "admin") {
-    redirect(`/team?error=${toQuery("Nur Admins koennen andere Nutzer zu Admin befoerdern.")}`);
+  try {
+    await assertTargetCompanyExists(supabase, targetCompanyId);
+  } catch (error) {
+    redirect(`/team?error=${toQuery(safeErrorMessage(error, "Zielfirma wurde nicht gefunden."))}`);
   }
 
   let finalRole = role;
-  let { error } = await supabase
+  let updateResult = await supabase
     .from("profiles")
     .update({ full_name: fullName, role: finalRole, active })
     .eq("id", id)
-    .eq("company_id", context.companyId);
+    .eq("company_id", targetCompanyId)
+    .select("id")
+    .maybeSingle();
+  let error = updateResult.error;
+  let updatedProfile = updateResult.data;
 
   if (error && role === "vorarbeiter" && isUnsupportedVorarbeiterRoleError(error)) {
     finalRole = "mitarbeiter";
-    const fallback = await supabase
+    updateResult = await supabase
       .from("profiles")
       .update({ full_name: fullName, role: finalRole, active })
       .eq("id", id)
-      .eq("company_id", context.companyId);
-    error = fallback.error;
+      .eq("company_id", targetCompanyId)
+      .select("id")
+      .maybeSingle();
+    error = updateResult.error;
+    updatedProfile = updateResult.data;
   }
 
-  if (error) {
+  if (error || !updatedProfile) {
     redirect(`/team?error=${toQuery("Mitarbeiter konnte nicht aktualisiert werden.")}`);
+  }
+
+  try {
+    const admin = createScopedSupabaseAdminClient({
+      caller: "actions.auth.updateEmployeeAction",
+      reason: "Systemadmin synchronisiert Supabase Auth app_metadata nach Rollen- oder Firmenaenderung."
+    });
+    const { error: authMetadataError } = await admin.auth.admin.updateUserById(id, {
+      app_metadata: {
+        baupro_server_created: true,
+        baupro_company_id: targetCompanyId,
+        baupro_role: finalRole
+      },
+      user_metadata: {
+        full_name: fullName ?? ""
+      }
+    });
+
+    if (authMetadataError) throw authMetadataError;
+  } catch (authMetadataSyncError) {
+    logServerWarning("employee-auth-metadata-sync-failed", authMetadataSyncError, {
+      targetProfileId: id,
+      targetCompanyId
+    });
+    redirect(
+      `/team?error=${toQuery("Mitarbeiter wurde aktualisiert, aber Auth-Metadaten konnten nicht synchronisiert werden.")}`
+    );
   }
 
   revalidatePath("/team");
@@ -369,34 +479,41 @@ export async function updateEmployeeAction(formData: FormData) {
 }
 
 export async function updateEmployeePermissionsAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePlatformAdmin();
   const supabase = await createSupabaseServerClient();
   const id = requiredFormUuid(formData, "id", "Mitarbeiter");
+  const requestedCompanyId = optionalFormUuid(formData, "company_id", "Firma");
 
   if (id === context.userId) {
     redirect(`/team?error=${toQuery("Du kannst deine eigenen Rechte nicht bearbeiten.")}`);
   }
 
-  const { data: target, error: targetError } = await supabase
+  let targetQuery = supabase
     .from("profiles")
     .select("id, company_id, role")
-    .eq("id", id)
-    .eq("company_id", context.companyId)
-    .maybeSingle();
+    .eq("id", id);
+
+  if (requestedCompanyId) {
+    targetQuery = targetQuery.eq("company_id", requestedCompanyId);
+  }
+
+  const { data: target, error: targetError } = await targetQuery.maybeSingle();
 
   if (targetError || !target) {
     redirect(`/team?error=${toQuery("Mitarbeiter wurde nicht gefunden.")}`);
   }
 
   if (target.role === "admin" || target.role === "chef") {
-    redirect(`/team?error=${toQuery("Chef/Admin hat automatisch alle Rechte und kann hier nicht eingeschränkt werden.")}`);
+    redirect(`/team?error=${toQuery("Systemadmin und Chef werden über ihre Rolle gesteuert und hier nicht eingeschränkt.")}`);
   }
+
+  const targetCompanyId = target.company_id;
 
   const requestedPermissions = normalizePermissionKeys(formData.getAll("permission").map(String)).filter(isAssignableEmployeePermission);
   const { data: currentRows, error: currentError } = await supabase
     .from("employee_permissions")
     .select("permission_key, granted")
-    .eq("company_id", context.companyId)
+    .eq("company_id", targetCompanyId)
     .eq("profile_id", id);
 
   if (currentError) {
@@ -414,7 +531,7 @@ export async function updateEmployeePermissionsAction(formData: FormData) {
   ).filter(isAssignableEmployeePermission);
 
   const rows = assignableEmployeePermissionKeys.map((permissionKey) => ({
-    company_id: context.companyId,
+    company_id: targetCompanyId,
     profile_id: id,
     permission_key: permissionKey,
     granted: requestedPermissions.includes(permissionKey),
@@ -430,7 +547,7 @@ export async function updateEmployeePermissionsAction(formData: FormData) {
   }
 
   const { error: auditError } = await supabase.from("employee_permission_audit_log").insert({
-    company_id: context.companyId,
+    company_id: targetCompanyId,
     actor_id: context.userId,
     target_profile_id: id,
     old_values: { permissions: oldPermissions },
@@ -459,16 +576,16 @@ export async function updateOwnProfileAction(formData: FormData) {
     .eq("company_id", context.companyId);
 
   if (error) {
-    redirect(`${returnTo}?error=${toQuery("Profil konnte nicht gespeichert werden.")}`);
+    redirectWithMessage(returnTo, "error", "Profil konnte nicht gespeichert werden.");
   }
 
   revalidatePath("/profile");
   revalidatePath("/dashboard");
-  redirect(`${returnTo}?success=${toQuery("Profil wurde gespeichert.")}`);
+  redirectWithMessage(returnTo, "success", "Profil wurde gespeichert.");
 }
 
 export async function updateCompanyProfileAction(formData: FormData) {
-  const context = await requirePermission("settings.edit", "/settings");
+  const context = await requirePlatformAdmin();
   const supabase = await createSupabaseServerClient();
   const returnTo = safeReturnPath(formData.get("return_to"), "/settings");
   const name = requiredString(formData, "name");

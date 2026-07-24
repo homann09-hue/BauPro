@@ -109,6 +109,18 @@ describe("customer portal security", () => {
     expect(portalTokens).not.toContain("workOrdersResult.data ?? []) as unknown as PortalWorkOrder[]).filter");
   });
 
+  it("scopes customer portal service-role viewed updates to the token tenant", () => {
+    const portalTokens = fs.readFileSync(path.join(root, "lib/customer-portal/tokens.ts"), "utf8");
+
+    expect(portalTokens).toContain("const pendingViewedUpdates = workOrders");
+    expect(portalTokens).toContain(".from(\"work_orders\")");
+    expect(portalTokens).toContain(".update({ status: \"viewed\"");
+    expect(portalTokens).toContain(".eq(\"company_id\", portalToken.company_id)");
+    expect(portalTokens).toContain(".eq(\"customer_id\", portalToken.customer_id)");
+    expect(portalTokens).toContain(".neq(\"status\", \"draft\")");
+    expect(portalTokens).toContain("updateQuery = updateQuery.eq(\"jobsite_id\", portalToken.jobsite_id)");
+  });
+
   it("keeps customer portal tokens hashed, expiring and absent from logs", () => {
     const portalTokens = fs.readFileSync(path.join(root, "lib/customer-portal/tokens.ts"), "utf8");
     const portalPage = fs.readFileSync(path.join(root, "app/portal/[token]/page.tsx"), "utf8");
@@ -121,26 +133,42 @@ describe("customer portal security", () => {
     expect(portalPage).toContain("Portal-Link ist abgelaufen oder ungültig");
   });
 
+  it("keeps freshly generated portal tokens out of internal order URLs", () => {
+    const linkForm = fs.readFileSync(path.join(root, "components/customer-portal/customer-portal-link-form.tsx"), "utf8");
+    const portalActions = fs.readFileSync(path.join(root, "lib/actions/customer-portal-actions.ts"), "utf8");
+    const orderPage = fs.readFileSync(path.join(root, "app/(app)/orders/[id]/page.tsx"), "utf8");
+
+    expect(linkForm).not.toContain("portal_token");
+    expect(linkForm).toContain("fresh-portal-link");
+    expect(linkForm).toContain("Der Link wird bewusst nicht in der Adresszeile gespeichert");
+    expect(portalActions).not.toContain('params.set("portal_token"');
+    expect(portalActions).not.toContain("customerPortalUrl(await requestOrigin()");
+    expect(orderPage).not.toContain("resolvedSearchParams?.portal_token");
+    expect(orderPage).not.toContain("createdPortalToken");
+  });
+
   it("checks affected rows for portal revocation, sending, signing and photo releases", () => {
     const portalActions = fs.readFileSync(path.join(root, "lib/actions/customer-portal-actions.ts"), "utf8");
     const portalPage = fs.readFileSync(path.join(root, "app/portal/[token]/page.tsx"), "utf8");
+    const signForm = fs.readFileSync(path.join(root, "components/customer-portal/portal-work-order-sign-form.tsx"), "utf8");
+    const signRoute = fs.readFileSync(path.join(root, "app/api/customer-portal/work-orders/sign/route.ts"), "utf8");
 
-    for (const marker of ["revokedToken", "sentWorkOrder", "signedWorkOrder", "updatedPhoto"]) {
+    for (const marker of ["revokedToken", "sentWorkOrder", "updatedPhoto"]) {
       expect(portalActions).toContain(marker);
     }
 
     expect(portalActions).toContain('.eq("order_id", orderId)');
-    expect(portalActions).toContain("workOrderDecision(decision)");
-    expect(portalActions).toContain("validateSignatureDataUrl");
-    expect(portalActions).toContain("required: decisionValue === \"sign\"");
-    expect(portalActions).toContain("digital_signatures");
-    expect(portalActions).toContain("Bitte bei Ablehnung kurz angeben");
-    expect(portalActions).toContain('.eq("customer_id", portalToken.customer_id)');
-    expect(portalActions).toContain('workOrderQuery = workOrderQuery.eq("jobsite_id", portalToken.jobsite_id)');
-    expect(portalActions).toContain('updateQuery = updateQuery.eq("jobsite_id", portalToken.jobsite_id)');
+    expect(signRoute).toContain("validateSignatureDataUrl");
+    expect(signRoute).toContain("required: decision === \"sign\"");
+    expect(signRoute).toContain("digital_signatures");
+    expect(signRoute).toContain("Bitte bei Ablehnung kurz angeben");
+    expect(signRoute).toContain('.eq("customer_id", portalToken.customer_id)');
+    expect(signRoute).toContain('workOrderQuery = workOrderQuery.eq("jobsite_id", portalToken.jobsite_id)');
+    expect(signRoute).toContain('updateQuery = updateQuery.eq("jobsite_id", portalToken.jobsite_id)');
     expect(portalActions.match(/\.select\("id"\)\s*\.maybeSingle\(\)/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
-    expect(portalPage).toContain("maxLength={120}");
-    expect(portalPage).toContain("maxLength={1000}");
+    expect(portalPage).toContain("PortalWorkOrderSignForm");
+    expect(signForm).toContain("maxLength={120}");
+    expect(signForm).toContain("maxLength={1000}");
   });
 
   it("adds customer portal tables with forced RLS to schema and migration", () => {

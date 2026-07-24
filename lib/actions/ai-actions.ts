@@ -129,7 +129,7 @@ function localAssistantFallback(input: string, assistantContext: Record<string, 
   const purchaseSuggestions = canManage ? records(assistantContext.purchase_suggestions) : [];
   const lowStock = inventory.filter((item) => numberValue(item, "stock") <= numberValue(item, "minimum_stock"));
   const lines = ["OpenAI ist gerade nicht nutzbar. Ich nutze deshalb die lokalen BauPro-Daten als schnellen Fallback."];
-  const warnings = ["Lokaler Fallback: Vorschlag bitte besonders pruefen."];
+  const warnings = ["Lokaler Fallback: Vorschlag bitte besonders prüfen."];
 
   if (lowerInput.includes("knapp") || lowerInput.includes("bestell") || lowerInput.includes("material")) {
     lines.push(
@@ -252,7 +252,7 @@ function localDailyReportFallback(input: string, context?: DailyReportAutomation
   ].filter((value): value is string => Boolean(value));
 
   return {
-    general_information: [context?.jobsite_label, context?.report_date].filter(Boolean).join(" | ") || "Allgemeine Angaben bitte pruefen.",
+    general_information: [context?.jobsite_label, context?.report_date].filter(Boolean).join(" | ") || "Allgemeine Angaben bitte prüfen.",
     weather_section: weather ?? "Wetter nicht angegeben.",
     employees_section: employees || "Mitarbeiter nicht angegeben.",
     activities: text,
@@ -263,11 +263,11 @@ function localDailyReportFallback(input: string, context?: DailyReportAutomation
     next_steps: "",
     issues: "",
     weather,
-    summary: "Lokaler Entwurf aus deinem Text. Bitte Taetigkeiten, Material und Besonderheiten vor dem Speichern pruefen.",
+    summary: "Lokaler Entwurf aus deinem Text. Bitte Tätigkeiten, Material und Besonderheiten vor dem Speichern prüfen.",
     missing_information: missing,
     follow_up_questions: missing.length
-      ? missing.map((field) => `Bitte ${field} ergaenzen oder bestaetigen.`)
-      : ["Bitte Entwurf fachlich pruefen und bei Bedarf ergaenzen."],
+      ? missing.map((field) => `Bitte ${field} ergänzen oder bestätigen.`)
+      : ["Bitte Entwurf fachlich prüfen und bei Bedarf ergänzen."],
     token_note: "Lokaler Fallback ohne OpenAI-Tokenverbrauch."
   };
 }
@@ -298,7 +298,7 @@ function localBusinessInputFallback(input: string): ClassifiedBusinessInput {
     materials: [],
     tools: [],
     notes: input.trim(),
-    follow_up_questions: ["Bitte pruefen und fehlende Baustelle, Datum, Zeiten oder Materialmengen ergaenzen."]
+    follow_up_questions: ["Bitte prüfen und fehlende Baustelle, Datum, Zeiten oder Materialmengen ergänzen."]
   };
 }
 
@@ -618,7 +618,7 @@ export async function classifyBusinessInputAction(rawInput: string): Promise<Act
   return {
     ok: true,
     configured: true,
-    message: parsed.confidence < 0.7 ? "KI ist unsicher. Bitte Angaben pruefen." : "KI-Vorschlag erstellt.",
+    message: parsed.confidence < 0.7 ? "KI ist unsicher. Bitte Angaben prüfen." : "KI-Vorschlag erstellt.",
     actionId,
     result: parsed
   };

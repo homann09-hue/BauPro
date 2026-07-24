@@ -43,7 +43,7 @@ describe("daily time tracking access", () => {
     timeEntry({ id: "b-1", company_id: "company-b", employee_id: "employee-c" })
   ];
 
-  it("allows chef/admin to see all employee hours in their company", () => {
+  it("allows chef to see all employee hours in their company", () => {
     const visible = filterDailyTimeEntries(entries, filters, {
       userId: "chef-a",
       companyId: "company-a",

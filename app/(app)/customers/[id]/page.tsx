@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { updateCustomerStatusAction } from "@/lib/actions/customer-actions";
 import { requireAnyPermission } from "@/lib/auth";
+import { googleMapsSearchUrl } from "@/lib/maps/google-maps";
 import { customerDisplayName, customerStatusLabels, customerTypeLabels, orderStatusLabels, orderTypeLabels } from "@/lib/order-labels";
 import { hasAppPermission } from "@/lib/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -68,6 +69,7 @@ export default async function CustomerDetailPage({
   const customer = customerData as unknown as Customer;
   const orders = (orderData ?? []) as unknown as Order[];
   const messages = (messageData ?? []) as unknown as CustomerPortalMessage[];
+  const mapsHref = googleMapsSearchUrl(customer.jobsite_address || customer.billing_address);
 
   return (
     <>
@@ -122,17 +124,15 @@ export default async function CustomerDetailPage({
               E-Mail
             </a>
           ) : null}
-          {customer.jobsite_address || customer.billing_address ? (
+          {mapsHref ? (
             <a
               className="btn-secondary"
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                customer.jobsite_address ?? customer.billing_address ?? ""
-              )}`}
+              href={mapsHref}
               target="_blank"
               rel="noreferrer"
             >
               <MapPin className="h-4 w-4" aria-hidden="true" />
-              Karte
+              In Google Maps öffnen
             </a>
           ) : null}
         </div>
