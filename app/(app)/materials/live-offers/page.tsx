@@ -43,6 +43,10 @@ function sortOffers(offers: SupplierOffer[], sort: string) {
   return list.sort((a, b) => Number(a.total_price_gross ?? 0) - Number(b.total_price_gross ?? 0));
 }
 
+const offerListLimit = 300;
+const materialOptionLimit = 300;
+const matchListLimit = 600;
+
 export default async function LiveOffersPage({
   searchParams
 }: {
@@ -59,26 +63,33 @@ export default async function LiveOffersPage({
   const available = param(params, "available") === "1";
   const sort = param(params, "sort") || "price";
 
-  const [offersResult, materialsResult, matchesResult] = await Promise.all([
+  const [offersResult, materialsResult] = await Promise.all([
     supabase
       .from("supplier_offers")
       .select(supplierOfferWithIntegrationSelect)
       .eq("company_id", context.companyId)
       .order("last_checked_at", { ascending: false })
-      .limit(300),
+      .limit(offerListLimit),
     supabase
       .from("inventory_items")
       .select(inventoryPriceOptionSelect)
       .eq("company_id", context.companyId)
-      .order("name", { ascending: true }),
-    supabase
-      .from("supplier_offer_matches")
-      .select(supplierOfferMatchLiveSelect)
-      .eq("company_id", context.companyId)
-      .order("match_score", { ascending: false })
+      .order("name", { ascending: true })
+      .limit(materialOptionLimit)
   ]);
 
   const allOffers = (offersResult.data ?? []) as unknown as SupplierOffer[];
+  const offerIds = allOffers.map((offer) => offer.id);
+  const matchesResult =
+    offerIds.length > 0
+      ? await supabase
+          .from("supplier_offer_matches")
+          .select(supplierOfferMatchLiveSelect)
+          .eq("company_id", context.companyId)
+          .in("supplier_offer_id", offerIds)
+          .order("match_score", { ascending: false })
+          .limit(matchListLimit)
+      : { data: [], error: null };
   const materials = (materialsResult.data ?? []) as unknown as InventoryItem[];
   const matches = (matchesResult.data ?? []) as unknown as SupplierOfferMatch[];
   const matchesByOfferId = new Map<string, SupplierOfferMatch[]>();
@@ -124,9 +135,9 @@ export default async function LiveOffersPage({
           <Upload className="h-4 w-4" aria-hidden="true" />
           CSV importieren
         </Link>
-        <Link href="/suppliers" className="btn-secondary">
-          Lieferanten verwalten
-        </Link>
+        <span className="inline-flex min-h-12 items-center rounded-md border border-line bg-fog px-4 py-2 text-sm font-bold text-slate-600">
+          API-Integrationen verwaltet der Systemadmin
+        </span>
       </div>
 
       <form className="surface mb-5 grid gap-3 p-3 lg:grid-cols-[1fr_170px_170px_150px_150px_auto]" action="/materials/live-offers">

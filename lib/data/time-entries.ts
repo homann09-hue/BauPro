@@ -1,4 +1,5 @@
 import { timeEntryFormSelect, timeEntryLegacySelect } from "@/lib/data/selects";
+import { postgrestTimeoutResponse, withQueryTimeout } from "@/lib/performance/observability";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
 import type { TimeEntry } from "@/types/app";
 
@@ -64,7 +65,12 @@ export function stripTimeEntryWeatherPayload<T extends Record<string, unknown>>(
 export async function selectTimeEntriesWithWeatherFallback<T extends Partial<TimeEntry> = Partial<TimeEntry>>(
   run: (select: string) => PromiseLike<QueryResult>
 ) {
-  const result = (await run(timeEntryFormSelect)) as QueryResult<T[]>;
+  const result = (await withQueryTimeout(() => run(timeEntryFormSelect), {
+    route: "time-entries",
+    action: "time_entries.select.form",
+    timeoutMs: 4_000,
+    fallback: () => postgrestTimeoutResponse("Timeout bei time_entries.select.form")
+  })) as QueryResult<T[]>;
   if (!isMissingTimeEntryWeatherSchema(result.error)) {
     return {
       ...result,
@@ -72,7 +78,12 @@ export async function selectTimeEntriesWithWeatherFallback<T extends Partial<Tim
     };
   }
 
-  const fallback = (await run(timeEntryLegacySelect)) as QueryResult<T[]>;
+  const fallback = (await withQueryTimeout(() => run(timeEntryLegacySelect), {
+    route: "time-entries",
+    action: "time_entries.select.legacy",
+    timeoutMs: 2_800,
+    fallback: () => postgrestTimeoutResponse("Timeout bei time_entries.select.legacy")
+  })) as QueryResult<T[]>;
   return {
     ...fallback,
     data: normalizeTimeEntriesWeather(fallback.data)
@@ -82,7 +93,12 @@ export async function selectTimeEntriesWithWeatherFallback<T extends Partial<Tim
 export async function selectSingleTimeEntryWithWeatherFallback<T extends Partial<TimeEntry> = Partial<TimeEntry>>(
   run: (select: string) => PromiseLike<QueryResult>
 ) {
-  const result = (await run(timeEntryFormSelect)) as QueryResult<T>;
+  const result = (await withQueryTimeout(() => run(timeEntryFormSelect), {
+    route: "time-entries",
+    action: "time_entry.single.form",
+    timeoutMs: 4_000,
+    fallback: () => postgrestTimeoutResponse("Timeout bei time_entry.single.form")
+  })) as QueryResult<T>;
   if (!isMissingTimeEntryWeatherSchema(result.error)) {
     return {
       ...result,
@@ -90,7 +106,12 @@ export async function selectSingleTimeEntryWithWeatherFallback<T extends Partial
     };
   }
 
-  const fallback = (await run(timeEntryLegacySelect)) as QueryResult<T>;
+  const fallback = (await withQueryTimeout(() => run(timeEntryLegacySelect), {
+    route: "time-entries",
+    action: "time_entry.single.legacy",
+    timeoutMs: 2_800,
+    fallback: () => postgrestTimeoutResponse("Timeout bei time_entry.single.legacy")
+  })) as QueryResult<T>;
   return {
     ...fallback,
     data: fallback.data ? normalizeTimeEntryWeather(fallback.data) : fallback.data
@@ -106,7 +127,12 @@ export async function timeEntryWeatherColumnsAvailable(
     };
   }
 ) {
-  const { error } = await supabase.from("time_entries").select("weather_summary").limit(0);
+  const { error } = await withQueryTimeout(() => supabase.from("time_entries").select("weather_summary").limit(0), {
+    route: "time-entries",
+    action: "time_entries.columns.weather",
+    timeoutMs: 1_200,
+    fallback: () => postgrestTimeoutResponse("Timeout bei time_entries.columns.weather")
+  });
   return !isMissingTimeEntryWeatherSchema(error);
 }
 

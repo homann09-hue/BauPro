@@ -17,8 +17,8 @@ test("Login mit falschen Credentials zeigt Fehlermeldung", async ({ page }) => {
   await expect(page.getByText(/E-Mail oder Passwort stimmt nicht|Login fehlgeschlagen|Zu viele Login-Versuche/)).toBeVisible();
 });
 
-test("Logout fuehrt zur Login-Seite", async ({ page }) => {
+test("Logout fuehrt zur oeffentlichen Startseite", async ({ page }) => {
   await login(page);
   await logout(page);
-  await expect(page.getByRole("heading", { name: "Einloggen" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Die Software für Dachdecker/ })).toBeVisible();
 });

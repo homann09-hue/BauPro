@@ -56,7 +56,7 @@ export default async function MaterialCatalogPage({
         <EmptyState
           icon={TriangleAlert}
           title="Kein Zugriff"
-          description="Material und Lager werden von Admin oder Chef verwaltet."
+          description="Material und Lager werden vom Chef verwaltet."
         />
       </>
     );

@@ -17,7 +17,7 @@ const baseTourCards = [
   },
   {
     title: "2. Baustelle öffnen",
-    text: "Steildach Schmidt zeigt Maße, Aufmasspositionen, 20 % Verschnitt und automatisch erzeugte Materialliste.",
+    text: "Steildach Schmidt zeigt Maße, Aufmaßpositionen, 20 % Verschnitt und automatisch erzeugte Materialliste.",
     href: "/orders",
     label: "Aufträge öffnen",
     icon: BriefcaseBusiness
@@ -142,7 +142,7 @@ export default async function DemoTourPage({
       <section className="mt-6 rounded-lg border border-primary/20 bg-mint p-4 sm:p-5">
         <p className="font-black text-primary-dark">Merksatz für Interessenten</p>
         <p className="mt-2 text-sm leading-6 text-primary-dark/80">
-          BauPro ist nicht nur digitale Ablage. BauPro verbindet Auftrag, Aufmass, Material, Mitbringliste,
+          BauPro ist nicht nur digitale Ablage. BauPro verbindet Auftrag, Aufmaß, Material, Mitbringliste,
           Zeiten, Berichte und Chef-Auswertung in einem Ablauf.
         </p>
       </section>

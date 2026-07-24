@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { hasVerifiedTotpFactor, isVerifiedTotpFactor } from "@/lib/security/mfa";
 
 const root = path.resolve(__dirname, "../..");
 
@@ -9,6 +10,22 @@ function source(file: string) {
 }
 
 describe("MFA security flow", () => {
+  it("treats only verified TOTP factors as active MFA", () => {
+    expect(isVerifiedTotpFactor({ factor_type: "totp", status: "verified" })).toBe(true);
+    expect(isVerifiedTotpFactor({ factor_type: "totp", status: "unverified" })).toBe(false);
+    expect(isVerifiedTotpFactor({ factor_type: "phone", status: "verified" })).toBe(false);
+
+    expect(
+      hasVerifiedTotpFactor({
+        totp: [
+          { factor_type: "totp", status: "unverified" },
+          { factor_type: "totp", status: "verified" }
+        ]
+      })
+    ).toBe(true);
+    expect(hasVerifiedTotpFactor({ totp: [{ factor_type: "totp", status: "unverified" }] })).toBe(false);
+  });
+
   it("adds Supabase TOTP server actions with password-protected unenroll", () => {
     const actions = source("lib/actions/mfa-actions.ts");
 
@@ -38,14 +55,20 @@ describe("MFA security flow", () => {
     const dashboard = source("app/(app)/dashboard/page.tsx");
     const settings = source("app/(app)/settings/page.tsx");
     const securityPage = source("app/(app)/settings/security/page.tsx");
+    const challengePage = source("app/(auth)/login/mfa-challenge/page.tsx");
     const banner = source("components/mfa-recommendation-banner.tsx");
 
     expect(auth).toContain("mfaEnabled: boolean");
     expect(auth).toContain("supabase.auth.mfa.listFactors");
-    expect(dashboard).toContain("<MfaRecommendationBanner canManage={context.canManage} mfaEnabled={context.mfaEnabled} />");
+    expect(auth).toContain("hasVerifiedTotpFactor");
+    expect(challengePage).toContain("isVerifiedTotpFactor");
+    expect(challengePage).toContain("factors?.totp?.find(isVerifiedTotpFactor)");
+    expect(dashboard).toContain("<MfaRecommendationBanner show={context.isAdmin || context.isChef} mfaEnabled={context.mfaEnabled} />");
     expect(settings).toContain('href="/settings/security"');
     expect(securityPage).toContain("MfaSettingsPanel");
+    expect(securityPage).toContain("requirePrivilegedAccountSecurity");
     expect(banner).toContain("Schütze deinen Account zusätzlich");
-    expect(banner).toContain("!canManage || mfaEnabled");
+    expect(banner).toContain("!show || mfaEnabled");
+    expect(banner).toContain("Systemadmin- und Chef-Zugänge");
   });
 });

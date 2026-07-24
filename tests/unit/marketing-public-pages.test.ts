@@ -21,7 +21,7 @@ describe("Öffentliche BauPro Marketing-Seiten", () => {
     expect(home).toContain("HeroSection");
     expect(hero).toContain("MarketingHero");
     expect(marketing).toContain("BauPro digitalisiert Dachdeckerbetriebe");
-    expect(home).toContain("getOptionalAppContext");
+    expect(home).toContain("hasActiveSession");
     expect(home).not.toContain('redirect("/login")');
     expect(home).not.toContain('redirect(context ? "/dashboard" : "/login")');
   });
@@ -34,7 +34,7 @@ describe("Öffentliche BauPro Marketing-Seiten", () => {
     expect(home).toContain("Rollenmodell");
     expect(home).toContain("Nutzer prüfen und bearbeiten alles");
     expect(home).toContain("Interne Notizen, Lagerdaten und Preise bleiben intern");
-    expect(home).toContain("Vorarbeiter arbeitet operativ");
+    expect(home).toContain("Systemadmins verwalten Rechte, Sicherheit und Integrationen");
   });
 
   it("liefert die wichtigsten öffentlichen Informationsseiten", () => {
@@ -44,7 +44,7 @@ describe("Öffentliche BauPro Marketing-Seiten", () => {
       "app/security/page.tsx",
       "app/pricing/page.tsx",
       "app/about/page.tsx",
-      "app/(auth)/demo/page.tsx"
+      "app/demo/page.tsx"
     ]) {
       expect(exists(file), file).toBe(true);
     }
@@ -127,5 +127,31 @@ describe("Öffentliche BauPro Marketing-Seiten", () => {
     ]) {
       expect(data).toContain(text);
     }
+  });
+
+  it("enthält ausführliche Funktionsinhalte, neue Beispieltarife und mindestens 15 FAQ-Fragen", () => {
+    const data = source("lib/marketing.ts");
+
+    expect(data).toContain("marketingFeatureDetails");
+    expect(data).toContain("29,99 €");
+    expect(data).toContain("49,99 €");
+    expect(data).toContain("79,99 €");
+    expect(data).toContain("pro Monat · Beispieltarif");
+    expect(data).toContain("marketingPricingComparison");
+
+    const faqQuestions = data.match(/question:/g) ?? [];
+    expect(faqQuestions.length).toBeGreaterThanOrEqual(15);
+  });
+
+  it("führt öffentliche Legal-Seiten professionell mit deutschen Umlauten", () => {
+    const legal = source("lib/legal/pages.ts");
+    const legalIndex = source("app/legal/page.tsx");
+    const legalDetail = source("app/legal/[slug]/page.tsx");
+
+    expect(legal).toContain("Datenschutzerklärung");
+    expect(legal).toContain("Lösch- und Aufbewahrungskonzept");
+    expect(legal).toContain("Geschäftsführung");
+    expect(legalIndex).toContain("Rechtliche Informationen");
+    expect(legalDetail).toContain("generateMetadata");
   });
 });

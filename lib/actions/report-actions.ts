@@ -11,6 +11,7 @@ import { revalidateDashboardCache } from "@/lib/data/dashboard";
 import { hasAppPermission } from "@/lib/permissions";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { formUuidList, optionalFormString, optionalFormUuid, requiredFormString, requiredFormUuid } from "@/lib/security/form-data";
+import { getClientIp } from "@/lib/security/origin";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { assertJobsiteInCompany, assertProfilesInCompany } from "@/lib/security/tenant-guards";
 import { sanitizeUploadFileName, validateReportPhoto } from "@/lib/security/uploads";
@@ -421,7 +422,8 @@ export async function signReportAction(formData: FormData) {
     const headerStore = await headers();
     const now = new Date().toISOString();
     const role = signerRole(context.profile.role);
-    const signerIp = headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+    const clientIp = getClientIp(headerStore);
+    const signerIp = clientIp === "unknown" ? null : clientIp;
     const signerUserAgent = headerStore.get("user-agent") ?? null;
     const signatureSignedAt = status === "signed" ? now : null;
     const documentVersion = Number(report.document_version ?? 1);

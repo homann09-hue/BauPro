@@ -7,11 +7,11 @@ import { ShieldCheck, X } from "lucide-react";
 const DISMISS_KEY = "baupro:mfa-recommendation-dismissed";
 
 type MfaRecommendationBannerProps = {
-  canManage: boolean;
+  show: boolean;
   mfaEnabled: boolean;
 };
 
-export function MfaRecommendationBanner({ canManage, mfaEnabled }: MfaRecommendationBannerProps) {
+export function MfaRecommendationBanner({ show, mfaEnabled }: MfaRecommendationBannerProps) {
   const [dismissed, setDismissed] = useState(true);
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export function MfaRecommendationBanner({ canManage, mfaEnabled }: MfaRecommenda
     return () => window.clearTimeout(timer);
   }, []);
 
-  if (!canManage || mfaEnabled || dismissed) return null;
+  if (!show || mfaEnabled || dismissed) return null;
 
   function dismiss() {
     window.localStorage.setItem(DISMISS_KEY, "true");
@@ -38,7 +38,7 @@ export function MfaRecommendationBanner({ canManage, mfaEnabled }: MfaRecommenda
         <div className="min-w-0 flex-1">
           <p className="font-black text-primary-dark">Schütze deinen Account zusätzlich mit Zwei-Faktor-Authentifizierung.</p>
           <p className="mt-1 text-sm leading-6 text-primary-dark/80">
-            Besonders Admin- und Chef-Zugänge sollten neben dem Passwort einen Authenticator-Code nutzen.
+            Besonders Systemadmin- und Chef-Zugänge sollten neben dem Passwort einen Authenticator-Code nutzen.
           </p>
           <Link href="/settings/security" className="mt-3 inline-flex text-sm font-black text-moss hover:text-primary-dark">
             2FA einrichten

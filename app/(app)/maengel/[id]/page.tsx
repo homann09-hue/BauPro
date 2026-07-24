@@ -144,7 +144,7 @@ export default async function DefectDetailPage({
               </div>
               <div>
                 <h2 className="text-lg font-black text-ink">Mangel bearbeiten</h2>
-                <p className="text-sm text-slate-600">Mitarbeiter können Beschreibung und Status pflegen. Kundenfreigabe bleibt Chef/Admin.</p>
+                <p className="text-sm text-slate-600">Mitarbeiter können Beschreibung und Status pflegen. Kundenfreigabe bleibt Chef.</p>
               </div>
             </div>
 

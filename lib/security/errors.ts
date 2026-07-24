@@ -46,6 +46,17 @@ export function safeQueryErrorMessage(
   return fallback;
 }
 
+export function safeErrorStatus(error: unknown) {
+  if (!(error instanceof SafeActionError)) return 500;
+
+  const message = error.message.toLowerCase();
+  if (message.includes("zu viele anfragen") || message.includes("rate limit")) {
+    return 429;
+  }
+
+  return 400;
+}
+
 export function toQuery(value: string) {
   return encodeURIComponent(value);
 }

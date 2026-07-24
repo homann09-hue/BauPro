@@ -7,7 +7,19 @@ import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/error
 import { requiredFormUuid } from "@/lib/security/form-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalString } from "@/lib/utils";
+import { withQueryTimeout } from "@/lib/performance/observability";
 import type { CustomerStatus, CustomerType } from "@/types/app";
+
+const actionRoute = "/app/customer";
+
+function withActionTimeout<T>(action: string, fn: () => Promise<T>): Promise<T> {
+  return withQueryTimeout(fn, {
+    route: actionRoute,
+    action,
+    timeoutMs: 7_000,
+    slowMs: 1_800
+  });
+}
 
 function customerTypeValue(value: FormDataEntryValue | null): CustomerType {
   const type = String(value ?? "privatkunde");
@@ -49,82 +61,88 @@ function customerPayload(formData: FormData) {
 }
 
 export async function createCustomerAction(formData: FormData) {
-  const context = await requirePermission("customers.edit", "/customers");
-  const supabase = await createSupabaseServerClient();
+  return withActionTimeout("createCustomerAction", async () => {
+    const context = await requirePermission("customers.edit", "/customers");
+    const supabase = await createSupabaseServerClient();
 
-  let payload: ReturnType<typeof customerPayload>;
-  try {
-    payload = customerPayload(formData);
-  } catch (error) {
-    redirect(`/customers/new?error=${toQuery(safeErrorMessage(error, "Kunde konnte nicht gespeichert werden."))}`);
-  }
+    let payload: ReturnType<typeof customerPayload>;
+    try {
+      payload = customerPayload(formData);
+    } catch (error) {
+      redirect(`/customers/new?error=${toQuery(safeErrorMessage(error, "Kunde konnte nicht gespeichert werden."))}`);
+    }
 
-  const { data, error } = await supabase
-    .from("customers")
-    .insert({
-      ...payload,
-      company_id: context.companyId,
-      created_by: context.userId
-    })
-    .select("id")
-    .single();
+    const { data, error } = await supabase
+      .from("customers")
+      .insert({
+        ...payload,
+        company_id: context.companyId,
+        created_by: context.userId
+      })
+      .select("id")
+      .single();
 
-  if (error || !data) {
-    redirect(`/customers/new?error=${toQuery("Kunde konnte nicht gespeichert werden.")}`);
-  }
+    if (error || !data) {
+      redirect(`/customers/new?error=${toQuery("Kunde konnte nicht gespeichert werden.")}`);
+    }
 
-  revalidatePath("/customers");
-  redirect(`/customers/${data.id}?success=${toQuery("Kunde wurde angelegt.")}`);
+    revalidatePath("/customers");
+    redirect(`/customers/${data.id}?success=${toQuery("Kunde wurde angelegt.")}`);
+  });
 }
 
 export async function updateCustomerAction(formData: FormData) {
-  const context = await requirePermission("customers.edit", "/customers");
-  const supabase = await createSupabaseServerClient();
-  const id = requiredFormUuid(formData, "id", "Kunde");
+  return withActionTimeout("updateCustomerAction", async () => {
+    const context = await requirePermission("customers.edit", "/customers");
+    const supabase = await createSupabaseServerClient();
+    const id = requiredFormUuid(formData, "id", "Kunde");
 
-  let payload: ReturnType<typeof customerPayload>;
-  try {
-    payload = customerPayload(formData);
-  } catch (error) {
-    redirect(`/customers/${id}/edit?error=${toQuery(safeErrorMessage(error, "Kunde konnte nicht gespeichert werden."))}`);
-  }
+    let payload: ReturnType<typeof customerPayload>;
+    try {
+      payload = customerPayload(formData);
+    } catch (error) {
+      redirect(`/customers/${id}/edit?error=${toQuery(safeErrorMessage(error, "Kunde konnte nicht gespeichert werden."))}`);
+    }
 
-  const { data, error } = await supabase
-    .from("customers")
-    .update(payload)
-    .eq("id", id)
-    .eq("company_id", context.companyId)
-    .select("id")
-    .maybeSingle();
+    const { data, error } = await supabase
+      .from("customers")
+      .update(payload)
+      .eq("id", id)
+      .eq("company_id", context.companyId)
+      .select("id")
+      .maybeSingle();
 
-  if (error || !data) {
-    redirect(`/customers/${id}/edit?error=${toQuery("Kunde konnte nicht gespeichert werden.")}`);
-  }
+    if (error || !data) {
+      redirect(`/customers/${id}/edit?error=${toQuery("Kunde konnte nicht gespeichert werden.")}`);
+    }
 
-  revalidatePath("/customers");
-  revalidatePath(`/customers/${id}`);
-  redirect(`/customers/${id}?success=${toQuery("Kunde wurde aktualisiert.")}`);
+    revalidatePath("/customers");
+    revalidatePath(`/customers/${id}`);
+    redirect(`/customers/${id}?success=${toQuery("Kunde wurde aktualisiert.")}`);
+  });
 }
 
 export async function updateCustomerStatusAction(formData: FormData) {
-  const context = await requirePermission("customers.edit", "/customers");
-  const supabase = await createSupabaseServerClient();
-  const id = requiredFormUuid(formData, "id", "Kunde");
-  const status = customerStatusValue(formData.get("status"));
+  return withActionTimeout("updateCustomerStatusAction", async () => {
+    const context = await requirePermission("customers.edit", "/customers");
+    const supabase = await createSupabaseServerClient();
+    const id = requiredFormUuid(formData, "id", "Kunde");
+    const status = customerStatusValue(formData.get("status"));
 
-  const { data, error } = await supabase
-    .from("customers")
-    .update({ status })
-    .eq("id", id)
-    .eq("company_id", context.companyId)
-    .select("id")
-    .maybeSingle();
+    const { data, error } = await supabase
+      .from("customers")
+      .update({ status })
+      .eq("id", id)
+      .eq("company_id", context.companyId)
+      .select("id")
+      .maybeSingle();
 
-  if (error || !data) {
-    redirect(`/customers/${id}?error=${toQuery("Kundenstatus konnte nicht gespeichert werden.")}`);
-  }
+    if (error || !data) {
+      redirect(`/customers/${id}?error=${toQuery("Kundenstatus konnte nicht gespeichert werden.")}`);
+    }
 
-  revalidatePath("/customers");
-  revalidatePath(`/customers/${id}`);
-  redirect(`/customers/${id}?success=${toQuery(status === "aktiv" ? "Kunde ist aktiv." : "Kunde wurde inaktiv gesetzt.")}`);
+    revalidatePath("/customers");
+    revalidatePath(`/customers/${id}`);
+    redirect(`/customers/${id}?success=${toQuery(status === "aktiv" ? "Kunde ist aktiv." : "Kunde wurde inaktiv gesetzt.")}`);
+  });
 }

@@ -87,6 +87,29 @@ export async function assertVehicleInCompany({
   return data;
 }
 
+export async function assertCustomerInCompany({
+  supabase,
+  companyId,
+  customerId
+}: {
+  supabase: SupabaseServerClient;
+  companyId: string;
+  customerId: string | null;
+}) {
+  if (!customerId) return null;
+
+  const { data, error } = await supabase
+    .from("customers")
+    .select("id")
+    .eq("id", customerId)
+    .eq("company_id", companyId)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (error || !data) throw new SafeActionError("Kunde wurde nicht gefunden.");
+  return data;
+}
+
 export async function assertSupplierInCompany({
   supabase,
   companyId,

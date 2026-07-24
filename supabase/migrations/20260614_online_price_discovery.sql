@@ -1,5 +1,5 @@
 -- BauPro migration: Online Price Discovery.
--- Optionaler Preisindikator fuer Chef/Admin. Keine Scraping-Logik.
+-- Optionaler Preisindikator fuer Chef. Keine Scraping-Logik.
 
 create table if not exists public.online_price_discoveries (
   id uuid primary key default gen_random_uuid(),

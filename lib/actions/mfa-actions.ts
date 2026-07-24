@@ -4,8 +4,9 @@ import { createClient } from "@supabase/supabase-js";
 import QRCode from "qrcode";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireManager } from "@/lib/auth";
+import { requirePrivilegedAccountSecurity } from "@/lib/auth";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
+import { hasVerifiedTotpFactor, isVerifiedTotpFactor } from "@/lib/security/mfa";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requiredString } from "@/lib/utils";
@@ -78,7 +79,7 @@ async function verifyPasswordWithoutPersistingSession(email: string, password: s
 }
 
 export async function listMfaFactorsAction(): Promise<MfaFactorSummary[]> {
-  await requireManager();
+  await requirePrivilegedAccountSecurity();
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.mfa.listFactors();
 
@@ -87,11 +88,11 @@ export async function listMfaFactorsAction(): Promise<MfaFactorSummary[]> {
 }
 
 export async function enrollMfaAction(): Promise<MfaEnrollmentResult> {
-  await requireManager();
+  await requirePrivilegedAccountSecurity();
   const supabase = await createSupabaseServerClient();
   const factors = await supabase.auth.mfa.listFactors();
 
-  if (factors.data?.totp?.length) {
+  if (hasVerifiedTotpFactor(factors.data)) {
     return { ok: false, error: "2FA ist für diesen Account bereits aktiv." };
   }
 
@@ -121,7 +122,7 @@ export async function enrollMfaAction(): Promise<MfaEnrollmentResult> {
 }
 
 export async function verifyMfaEnrollmentAction(formData: FormData) {
-  await requireManager();
+  await requirePrivilegedAccountSecurity();
   const supabase = await createSupabaseServerClient();
 
   try {
@@ -161,11 +162,21 @@ export async function verifyLoginMfaChallengeAction(formData: FormData) {
     redirect("/login?error=Bitte+melde+dich+erneut+an.");
   }
 
+  const { data: loginProfile, error: loginProfileError } = await supabase.from("profiles").select("active").eq("id", user.id).maybeSingle();
+  if (loginProfileError || !loginProfile) {
+    await supabase.auth.signOut();
+    redirect("/login?error=Benutzerprofil+konnte+nicht+geprueft+werden.");
+  }
+  if (loginProfile?.active === false) {
+    await supabase.auth.signOut();
+    redirect("/login?error=Dieses+Benutzerkonto+wurde+deaktiviert.");
+  }
+
   try {
     const factorId = requiredString(formData, "factor_id");
     const code = normalizeTotpCode(formData);
     const factors = await supabase.auth.mfa.listFactors();
-    const factor = factors.data?.totp?.find((entry) => entry.id === factorId);
+    const factor = factors.data?.totp?.find((entry) => entry.id === factorId && isVerifiedTotpFactor(entry));
     if (factors.error || !factor) {
       throw new SafeActionError("2FA-Faktor wurde nicht gefunden.");
     }
@@ -195,7 +206,21 @@ export async function verifyLoginMfaChallengeAction(formData: FormData) {
 
   if (!verifiedUser) redirect("/login");
 
-  const { data: profile } = await supabase.from("profiles").select("company_id, role").eq("id", verifiedUser.id).maybeSingle();
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("company_id, role, active")
+    .eq("id", verifiedUser.id)
+    .maybeSingle();
+  if (profileError || !profile) {
+    await supabase.auth.signOut();
+    redirect("/login?error=Benutzerprofil+konnte+nicht+geprueft+werden.");
+  }
+
+  if (profile?.active === false) {
+    await supabase.auth.signOut();
+    redirect("/login?error=Dieses+Benutzerkonto+wurde+deaktiviert.");
+  }
+
   if (profile?.role === "admin" || profile?.role === "chef") {
     const { data: company } = await supabase
       .from("companies")
@@ -212,7 +237,7 @@ export async function verifyLoginMfaChallengeAction(formData: FormData) {
 }
 
 export async function unenrollMfaAction(formData: FormData) {
-  await requireManager();
+  await requirePrivilegedAccountSecurity();
   const supabase = await createSupabaseServerClient();
 
   try {

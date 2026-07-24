@@ -79,6 +79,14 @@ describe("portal IP rate limiting", () => {
     expect(getClientIp(new Headers())).toBe("unknown");
   });
 
+  it("ignoriert manipulierte oder ungueltige IP-Header fuer Rate-Limit-Keys", () => {
+    expect(getClientIp(new Headers({ "x-forwarded-for": "evil-user-input, 203.0.113.10" }))).toBe("203.0.113.10");
+    expect(getClientIp(new Headers({ "x-forwarded-for": "999.999.999.999", "x-real-ip": "198.51.100.2" }))).toBe("198.51.100.2");
+    expect(getClientIp(new Headers({ "x-forwarded-for": "a".repeat(200), "cf-connecting-ip": "2001:db8::1" }))).toBe("2001:db8::1");
+    expect(getClientIp(new Headers({ "x-vercel-forwarded-for": "203.0.113.99", "x-forwarded-for": "203.0.113.10" }))).toBe("203.0.113.99");
+    expect(getClientIp(new Headers({ "x-forwarded-for": "::::" }))).toBe("unknown");
+  });
+
   it("blockiert die 31. Portal-Anfrage innerhalb einer Minute pro IP", async () => {
     mockUpstash();
     process.env.UPSTASH_REDIS_REST_URL = "https://redis.example.test";
@@ -110,7 +118,7 @@ describe("portal IP rate limiting", () => {
     await expect(checkRateLimit("portal-view:198.51.100.2", 30, 60_000)).rejects.toThrow("Zu viele Anfragen");
   });
 
-  it("macht Rate-Limit und ungueltige Tokens nicht ueber unterschiedliche Portal-Antworten unterscheidbar", () => {
+  it("macht Rate-Limit und ungültige Tokens nicht über unterschiedliche Portal-Antworten unterscheidbar", () => {
     const page = read("app/portal/[token]/page.tsx");
     const pdfRoute = read("app/portal/[token]/work-orders/[id]/pdf/route.ts");
 
@@ -122,6 +130,21 @@ describe("portal IP rate limiting", () => {
     expect(pdfRoute).toContain("await checkRateLimit(`portal-pdf:${clientIp}`, 30, 60_000)");
     expect(pdfRoute.match(/return portalPdfUnavailableResponse\(\)/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
     expect(pdfRoute).toContain("status: 404");
-    expect(pdfRoute).toContain("Portal-Datei ist nicht verfuegbar. Bitte warte einen Moment");
+    expect(pdfRoute).toContain("Portal-Datei ist nicht verfügbar. Bitte warte einen Moment");
+  });
+
+  it("drosselt oeffentliche Kundenportal-Signaturen vor dem JSON-Parsing", () => {
+    const route = read("app/api/customer-portal/work-orders/sign/route.ts");
+
+    const ipLimitIndex = route.indexOf("await checkRateLimit(`portal-sign:ip:${clientIp}`, 25, 60_000)");
+    const jsonIndex = route.indexOf("await request.json()");
+    const tokenHashIndex = route.indexOf("const tokenHash = hashCustomerPortalToken(token)");
+    const tokenLimitIndex = route.indexOf("await checkRateLimit(`portal-sign:token:${tokenHash}`, 5, 60_000)");
+
+    expect(route).toContain("const clientIp = getClientIp(request.headers)");
+    expect(ipLimitIndex).toBeGreaterThanOrEqual(0);
+    expect(jsonIndex).toBeGreaterThan(ipLimitIndex);
+    expect(tokenLimitIndex).toBeGreaterThan(tokenHashIndex);
+    expect(route).toContain("safeErrorStatus(error)");
   });
 });

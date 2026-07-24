@@ -153,7 +153,7 @@ async function createInventoryItemForDelivery({
   unitPrice: number | null;
 }) {
   if (!context.canManage) {
-    throw new SafeActionError("Neue Lagerartikel duerfen nur Chef/Admin anlegen. Bitte Material zuordnen.");
+    throw new SafeActionError("Neue Lagerartikel duerfen nur Chef anlegen. Bitte Material zuordnen.");
   }
 
   const { data, error } = await supabase
@@ -317,7 +317,7 @@ export async function createDeliveryNoteFromPhotoAction(formData: FormData) {
       }
     }
 
-    target = `/materials/delivery-notes/${noteId}?success=${toQuery("Lieferschein wurde erkannt. Bitte pruefen und bestaetigen.")}`;
+    target = `/materials/delivery-notes/${noteId}?success=${toQuery("Lieferschein wurde erkannt. Bitte prüfen und bestätigen.")}`;
   } catch (error) {
     target = `${returnTo}?error=${toQuery(safeErrorMessage(error, "Lieferschein konnte nicht erkannt werden."))}`;
   }
