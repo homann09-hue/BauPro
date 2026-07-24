@@ -4,7 +4,8 @@ import { StatCard } from "@/components/construction-ui";
 import { EmptyState } from "@/components/empty-state";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
-import { requireManager } from "@/lib/auth";
+import { requireAnyPermission } from "@/lib/auth";
+import { hasAppPermission } from "@/lib/permissions";
 import { customerHref, customerStatusFilters, customerTypeFilters, loadCustomerList } from "@/lib/data/customers";
 import { customerDisplayName, customerStatusLabels, customerTypeLabels } from "@/lib/order-labels";
 import { safeQueryErrorMessage } from "@/lib/security/errors";
@@ -16,7 +17,7 @@ export default async function CustomersPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await requireManager();
+  const context = await requireAnyPermission(["customers.view", "customers.edit"], "/dashboard");
   const supabase = await createSupabaseServerClient();
   const params = (await searchParams) ?? {};
   const { error, success } = searchParamMessage(params);
@@ -31,9 +32,9 @@ export default async function CustomersPage({
       <PageHeader
         title="Kunden"
         description="Kundenkartei mit Kontaktdaten, Adressen und direkter Auftragsanlage."
-        actionHref="/customers/new"
-        actionLabel="Neuer Kunde"
-        actionIcon={Plus}
+        actionHref={hasAppPermission(context.profile.role, context.permissions, "customers.edit") ? "/customers/new" : undefined}
+        actionLabel={hasAppPermission(context.profile.role, context.permissions, "customers.edit") ? "Neuer Kunde" : undefined}
+        actionIcon={hasAppPermission(context.profile.role, context.permissions, "customers.edit") ? Plus : undefined}
       />
       <MessageBox error={error || safeQueryErrorMessage(queryError)} success={success} />
 
@@ -43,7 +44,7 @@ export default async function CustomersPage({
         <StatCard icon={UserRound} label="Privatkunden" value={counts.private} tone="neutral" />
       </section>
 
-      <section className="surface mb-5 p-3 sm:p-4">
+      <section className="filter-bar mb-5">
         <form className="grid gap-3 lg:grid-cols-[1fr_auto]" action="/customers">
           {selectedStatus !== "alle" ? <input type="hidden" name="status" value={selectedStatus} /> : null}
           {selectedType !== "alle" ? <input type="hidden" name="type" value={selectedType} /> : null}
@@ -71,10 +72,10 @@ export default async function CustomersPage({
               key={filter.value}
               href={customerHref({ q: search, status: filter.value, type: selectedType })}
               className={cn(
-                "shrink-0 rounded-md border px-3 py-2 text-sm font-black",
+                "filter-chip",
                 selectedStatus === filter.value
-                  ? "border-primary bg-primary text-white"
-                  : "border-line bg-white text-slate-700 hover:border-primary/40"
+                  ? "filter-chip-active"
+                  : ""
               )}
             >
               {filter.label}
@@ -87,10 +88,10 @@ export default async function CustomersPage({
               key={filter.value}
               href={customerHref({ q: search, status: selectedStatus, type: filter.value })}
               className={cn(
-                "shrink-0 rounded-md border px-3 py-2 text-sm font-black",
+                "filter-chip",
                 selectedType === filter.value
-                  ? "border-anthracite bg-anthracite text-white"
-                  : "border-line bg-white text-slate-700 hover:border-primary/40"
+                  ? "border-anthracite bg-anthracite text-white hover:bg-anthracite"
+                  : ""
               )}
             >
               {filter.label}
@@ -118,7 +119,7 @@ export default async function CustomersPage({
               {totalCount} Einträge · Seite {page} von {totalPages}
             </p>
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="mobile-card-list lg:grid-cols-2">
             {customers.map((customer) => (
               <article key={customer.id} className="interactive-surface group overflow-hidden p-0">
                 <div className="h-1.5 bg-primary" />

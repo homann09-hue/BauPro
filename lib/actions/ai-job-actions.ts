@@ -15,25 +15,24 @@ import {
   loadCalculationSettings
 } from "@/lib/ai/job-drafts";
 import { buildOrderMaterialRequirementRows, type OrderDimensionValues } from "@/lib/order-materials";
-import { customerDisplayName } from "@/lib/order-labels";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { safeReturnPath } from "@/lib/security/redirects";
 import { isMissingSchemaError, migrationMissingMessage } from "@/lib/supabase/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { optionalNumber, optionalString, requiredString, toBoolean } from "@/lib/utils";
 import type { AiJobDraftParsed, AiJobDraftPreview, AiJobDraftRow } from "@/lib/ai/types";
-import type { Customer, JobMaterialRequirement, JobsiteStatus, OrderPriority, OrderStatus, OrderType } from "@/types/app";
+import type { Customer, JobMaterialRequirement, OrderPriority, OrderStatus, OrderType } from "@/types/app";
+
+type AtomicOrderCreationRow = {
+  order_id: string;
+  jobsite_id: string;
+  order_number: string;
+};
 
 function tomorrowIsoDate() {
   const date = new Date();
   date.setDate(date.getDate() + 1);
   return date.toISOString().slice(0, 10);
-}
-
-function jobsiteStatusFromOrder(status: OrderStatus): JobsiteStatus {
-  if (status === "in_arbeit") return "aktiv";
-  if (status === "fertig" || status === "abgerechnet") return "abgeschlossen";
-  return "geplant";
 }
 
 function orderTypeValue(value: FormDataEntryValue | null, fallback: OrderType): OrderType {
@@ -52,22 +51,41 @@ function positiveInt(formData: FormData, key: string) {
   return Math.max(0, Math.round(optionalNumber(formData, key) ?? 0));
 }
 
-async function nextOrderNumber(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  companyId: string
-) {
-  const year = new Date().getFullYear();
-  const prefix = `AU-${year}-`;
-  const { data } = await supabase
-    .from("orders")
-    .select("order_number")
-    .eq("company_id", companyId)
-    .like("order_number", `${prefix}%`)
-    .order("order_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const lastNumber = Number(String(data?.order_number ?? "").replace(prefix, "")) || 0;
-  return `${prefix}${String(lastNumber + 1).padStart(4, "0")}`;
+function safeChoice<T extends string>(value: FormDataEntryValue | null, allowed: readonly T[]): T | null {
+  const candidate = String(value ?? "");
+  return allowed.includes(candidate as T) ? (candidate as T) : null;
+}
+
+function structuredJobInput(formData: FormData) {
+  const lines = [
+    optionalString(formData, "customer_name") ? `Kunde: ${optionalString(formData, "customer_name")}` : null,
+    optionalString(formData, "jobsite_address") ? `Baustellenadresse: ${optionalString(formData, "jobsite_address")}` : null,
+    optionalString(formData, "jobsite_name") ? `Baustelle: ${optionalString(formData, "jobsite_name")}` : null,
+    safeChoice(formData.get("order_type"), ["steildach", "flachdach", "reparatur", "dachrinne", "blech", "wartung", "sonstiges"] as const)
+      ? `Dachart: ${safeChoice(formData.get("order_type"), ["steildach", "flachdach", "reparatur", "dachrinne", "blech", "wartung", "sonstiges"] as const)}`
+      : null,
+    safeChoice(formData.get("roof_form"), ["satteldach", "flachdach", "pultdach", "walmdach", "mansarddach", "sonstiges"] as const)
+      ? `Dachform: ${safeChoice(formData.get("roof_form"), ["satteldach", "flachdach", "pultdach", "walmdach", "mansarddach", "sonstiges"] as const)}`
+      : null,
+    safeChoice(formData.get("material_type"), ["tonziegel", "betondachstein", "schiefer", "bitumen", "metall", "gruen", "sonstiges"] as const)
+      ? `Materialtyp: ${safeChoice(formData.get("material_type"), ["tonziegel", "betondachstein", "schiefer", "bitumen", "metall", "gruen", "sonstiges"] as const)}`
+      : null,
+    optionalNumber(formData, "length_m") !== null ? `Länge: ${optionalNumber(formData, "length_m")} m` : null,
+    optionalNumber(formData, "width_m") !== null ? `Breite: ${optionalNumber(formData, "width_m")} m` : null,
+    optionalNumber(formData, "area_m2") !== null ? `Dachfläche: ${optionalNumber(formData, "area_m2")} m2` : null,
+    optionalNumber(formData, "roof_pitch") !== null ? `Dachneigung: ${optionalNumber(formData, "roof_pitch")} Grad` : null,
+    optionalNumber(formData, "ridge_length_m") !== null ? `Firstlänge: ${optionalNumber(formData, "ridge_length_m")} m` : null,
+    optionalNumber(formData, "eaves_length_m") !== null ? `Trauflänge: ${optionalNumber(formData, "eaves_length_m")} m` : null,
+    optionalNumber(formData, "verge_length_m") !== null ? `Ortganglänge: ${optionalNumber(formData, "verge_length_m")} m` : null,
+    optionalNumber(formData, "valley_length_m") !== null ? `Kehlen: ${optionalNumber(formData, "valley_length_m")} m` : null,
+    optionalNumber(formData, "downpipe_length_m") !== null ? `Fallrohrlänge: ${optionalNumber(formData, "downpipe_length_m")} m` : null,
+    optionalNumber(formData, "penetrations_count") !== null ? `Durchdringungen: ${positiveInt(formData, "penetrations_count")}` : null,
+    optionalNumber(formData, "roof_windows_count") !== null ? `Dachfenster: ${positiveInt(formData, "roof_windows_count")}` : null,
+    optionalNumber(formData, "roof_drains_count") !== null ? `Dachabläufe: ${positiveInt(formData, "roof_drains_count")}` : null
+  ].filter(Boolean);
+
+  const raw = optionalString(formData, "raw_input");
+  return [lines.join("\n"), raw ? `Zusatztext/Sprache:\n${raw}` : null].filter(Boolean).join("\n\n").trim();
 }
 
 async function loadDraft({
@@ -88,6 +106,20 @@ async function loadDraft({
 
   if (error || !data) throw new SafeActionError("KI-Auftragsentwurf wurde nicht gefunden.");
   return data as unknown as AiJobDraftRow;
+}
+
+function isMissingRpcError(error: unknown, functionName: string) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; message?: unknown; details?: unknown; hint?: unknown };
+  const text = [candidate.code, candidate.message, candidate.details, candidate.hint]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ");
+
+  return (
+    text.includes("PGRST202") ||
+    (text.includes("schema cache") && text.includes(functionName)) ||
+    (text.includes("function") && text.includes(functionName) && text.includes("does not exist"))
+  );
 }
 
 async function resolveCustomer({
@@ -124,7 +156,7 @@ async function resolveCustomer({
     if (data) return data as unknown as Customer;
   }
 
-  if (!parsed.customer_name) throw new SafeActionError("Kunde fehlt. Bitte Entwurf ergaenzen.");
+  if (!parsed.customer_name) throw new SafeActionError("Kunde fehlt. Bitte Entwurf ergänzen.");
   const parts = parsed.customer_name.split(/\s+/).filter(Boolean);
   const { data, error } = await supabase
     .from("customers")
@@ -276,17 +308,19 @@ async function insertEstimate({
 export async function prepareAiJobDraftAction(formData: FormData) {
   const context = await requireManager();
   const supabase = await createSupabaseServerClient();
-  const input = requiredString(formData, "raw_input");
+  const input = structuredJobInput(formData);
   let target = "/ai/job-wizard";
 
   try {
+    if (!input) throw new SafeActionError("Bitte mindestens Kunde, Baustelle, Maße oder eine Beschreibung eingeben.");
+    if (input.length > 5000) throw new SafeActionError("Eingabe ist zu lang. Bitte auf maximal 5000 Zeichen kuerzen.");
     const settings = await loadCalculationSettings(supabase, context.companyId);
     if (!settings.allow_ai_job_creation) throw new SafeActionError("KI-Auftragserstellung ist in den Einstellungen deaktiviert.");
 
     const result = await createJobDraftFromAI({ supabase, context, input });
     if (!result.ok) {
       throw new SafeActionError(
-        result.disabled ? result.message : "KI-Auftrag konnte nicht vorbereitet werden. Bitte Text pruefen oder spaeter erneut versuchen."
+        result.disabled ? result.message : "KI-Auftrag konnte nicht vorbereitet werden. Bitte Text prüfen oder später erneut versuchen."
       );
     }
 
@@ -391,6 +425,12 @@ export async function updateAiJobDraftPreviewAction(formData: FormData) {
       customer_name: optionalString(formData, "customer_name"),
       title: optionalString(formData, "title") ?? current.title,
       order_type: orderTypeValue(formData.get("order_type"), current.order_type),
+      roof_form:
+        safeChoice(formData.get("roof_form"), ["satteldach", "flachdach", "pultdach", "walmdach", "mansarddach", "sonstiges"] as const) ??
+        current.roof_form,
+      material_type:
+        safeChoice(formData.get("material_type"), ["tonziegel", "betondachstein", "schiefer", "bitumen", "metall", "gruen", "sonstiges"] as const) ??
+        current.material_type,
       priority: priorityValue(formData.get("priority"), current.priority),
       jobsite_name: optionalString(formData, "jobsite_name"),
       jobsite_address: optionalString(formData, "jobsite_address"),
@@ -473,51 +513,37 @@ export async function createOrderFromAiDraftAction(formData: FormData) {
       if (!parsed.dimensions.area_m2 || parsed.dimensions.area_m2 <= 0) throw new SafeActionError("Maße oder Flaeche fehlen.");
 
       const customer = await resolveCustomer({ supabase, companyId: context.companyId, userId: context.userId, preview });
-      const customerName = customerDisplayName(customer);
-      const orderNumber = await nextOrderNumber(supabase, context.companyId);
       const orderStatus: OrderStatus = parsed.missing_fields.length ? "anfrage" : "angebot";
+      const description = parsed.customer_friendly_description || parsed.description || draft.raw_input || "KI-Auftragsentwurf - bitte fachlich prüfen.";
+      const { data: createdRows, error: orderCreateError } = await supabase.rpc("create_order_with_jobsite", {
+        p_company_id: context.companyId,
+        p_customer_id: customer.id,
+        p_title: parsed.title,
+        p_order_type: parsed.order_type,
+        p_status: orderStatus,
+        p_priority: parsed.priority,
+        p_jobsite_address: parsed.jobsite_address,
+        p_start_date: parsed.start_date,
+        p_end_date: parsed.end_date,
+        p_description: description,
+        p_internal_notes: [parsed.internal_notes, parsed.internal_work_instructions, draft.raw_input].filter(Boolean).join("\n\n"),
+        p_assigned_employee_ids: [],
+        p_has_dimensions: true,
+        p_created_by: context.userId
+      });
 
-      const { data: jobsite, error: jobsiteError } = await supabase
-        .from("jobsites")
-        .insert({
-          company_id: context.companyId,
-          name: parsed.jobsite_name ?? parsed.title,
-          customer: customerName,
-          address: parsed.jobsite_address,
-          start_date: parsed.start_date,
-          status: jobsiteStatusFromOrder(orderStatus),
-          notes: parsed.description,
-          assigned_employee_ids: [],
-          created_by: context.userId
-        })
-        .select("id")
-        .single();
-      if (jobsiteError || !jobsite) throw new Error("ai_jobsite_insert_failed");
+      if (orderCreateError) {
+        if (isMissingRpcError(orderCreateError, "create_order_with_jobsite")) {
+          throw new SafeActionError("Datenbank-Update fehlt: Bitte supabase/migrations/20260716_atomic_order_creation.sql ausführen.");
+        }
+        throw new Error("ai_order_atomic_insert_failed");
+      }
 
-      const { data: order, error: orderError } = await supabase
-        .from("orders")
-        .insert({
-          company_id: context.companyId,
-          customer_id: customer.id,
-          jobsite_id: jobsite.id,
-          order_number: orderNumber,
-          title: parsed.title,
-          order_type: parsed.order_type,
-          status: orderStatus,
-          priority: parsed.priority,
-          jobsite_address: parsed.jobsite_address,
-          start_date: parsed.start_date,
-          end_date: parsed.end_date,
-          description: parsed.customer_friendly_description || parsed.description,
-          internal_notes: [parsed.internal_notes, parsed.internal_work_instructions, draft.raw_input].filter(Boolean).join("\n\n"),
-          assigned_employee_ids: [],
-          has_dimensions: true,
-          created_by: context.userId
-        })
-        .select("id")
-        .single();
-      if (orderError || !order) throw new Error("ai_order_insert_failed");
-      createdOrderId = order.id as string;
+      const createdOrder = (Array.isArray(createdRows) ? createdRows[0] : createdRows) as AtomicOrderCreationRow | null;
+      if (!createdOrder?.order_id || !createdOrder.jobsite_id) throw new Error("ai_order_atomic_insert_empty");
+
+      createdOrderId = createdOrder.order_id;
+      const createdJobsiteId = createdOrder.jobsite_id;
 
       const settings = await loadCalculationSettings(supabase, context.companyId);
       const dimensions: OrderDimensionValues = dimensionsFromAiDraft(parsed, settings.default_waste_percent);
@@ -527,7 +553,14 @@ export async function createOrderFromAiDraftAction(formData: FormData) {
           ...dimensions,
           company_id: context.companyId,
           order_id: createdOrderId,
-          notes: `Aus KI-Auftragsentwurf ${draft.id}`,
+          notes: [
+            `Aus KI-Auftragsentwurf ${draft.id}`,
+            parsed.roof_form ? `Dachform: ${parsed.roof_form}` : null,
+            parsed.material_type ? `Materialtyp: ${parsed.material_type}` : null,
+            "Entwurf - fachlich prüfen."
+          ]
+            .filter(Boolean)
+            .join("\n"),
           created_by: context.userId
         })
         .select("id")
@@ -540,9 +573,14 @@ export async function createOrderFromAiDraftAction(formData: FormData) {
         userId: context.userId,
         orderId: createdOrderId,
         dimensionId: dimension.id as string,
-        jobsiteId: jobsite.id as string,
+        jobsiteId: createdJobsiteId,
         orderType: parsed.order_type,
-        dimensions
+        dimensions,
+        includePrices: context.canManage,
+        calculationContext: {
+          roof_form: parsed.roof_form,
+          material_type: parsed.material_type
+        }
       })) as unknown as JobMaterialRequirement[];
 
       if (requirements.length) {
@@ -555,7 +593,7 @@ export async function createOrderFromAiDraftAction(formData: FormData) {
           supabase,
           companyId: context.companyId,
           inventoryItemId: item.inventory_item_id,
-          jobId: jobsite.id as string,
+          jobId: createdJobsiteId,
           quantityNeeded: item.missing_quantity,
           unit: item.unit,
           reason: `KI-Auftrag ${parsed.title}: ${item.material_name} fehlt`
@@ -578,7 +616,7 @@ export async function createOrderFromAiDraftAction(formData: FormData) {
           companyId: context.companyId,
           userId: context.userId,
           orderId: createdOrderId,
-          jobsiteId: jobsite.id as string,
+          jobsiteId: createdJobsiteId,
           title: parsed.title,
           orderType: parsed.order_type,
           requirements,
@@ -630,6 +668,7 @@ export async function updateCalculationSettingsAction(formData: FormData) {
       current.default_profit_markup_percent
     ),
     default_overhead_percent: positiveSetting(optionalNumber(formData, "default_overhead_percent"), current.default_overhead_percent),
+    default_travel_rate_per_km: positiveSetting(optionalNumber(formData, "default_travel_rate_per_km"), current.default_travel_rate_per_km),
     default_travel_flat_rate: positiveSetting(optionalNumber(formData, "default_travel_flat_rate"), current.default_travel_flat_rate),
     allow_ai_job_creation: toBoolean(formData, "allow_ai_job_creation"),
     require_admin_confirmation: toBoolean(formData, "require_admin_confirmation")

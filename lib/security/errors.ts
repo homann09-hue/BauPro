@@ -8,7 +8,7 @@ export class SafeActionError extends Error {
   }
 }
 
-export const DEFAULT_SAFE_ERROR_MESSAGE = "Aktion konnte nicht abgeschlossen werden. Bitte pruefe die Eingaben.";
+export const DEFAULT_SAFE_ERROR_MESSAGE = "Aktion konnte nicht abgeschlossen werden. Bitte prüfe die Eingaben.";
 
 export function safeErrorMessage(error: unknown, fallback = DEFAULT_SAFE_ERROR_MESSAGE) {
   if (error instanceof SafeActionError) return error.message;
@@ -33,17 +33,28 @@ export function safeQueryErrorMessage(
   const text = [error.code, error.message, error.details, error.hint].filter(Boolean).join(" ");
   if (isMissingSchemaError(error)) {
     if (text.includes("weather_summary") || text.includes("weather_temperature_c") || text.includes("weather_precipitation_mm")) {
-      return "Datenbank-Update fehlt: Bitte `supabase/migrations/20260616_weather_fields.sql` oder die Sammel-Migration `supabase/migrations/20260621_schema_gap_fix.sql` ausfuehren.";
+      return "Datenbank-Update fehlt: Bitte `supabase/migrations/20260616_weather_fields.sql` oder die Sammel-Migration `supabase/migrations/20260621_schema_gap_fix.sql` ausführen.";
     }
 
     if (text.includes("archived_at")) {
-      return "Datenbank-Update fehlt: Bitte `supabase/migrations/20260615_saas_hardening.sql` oder die Sammel-Migration `supabase/migrations/20260621_schema_gap_fix.sql` ausfuehren.";
+      return "Datenbank-Update fehlt: Bitte `supabase/migrations/20260615_saas_hardening.sql` oder die Sammel-Migration `supabase/migrations/20260621_schema_gap_fix.sql` ausführen.";
     }
 
-    return "Datenbank-Update fehlt. Bitte die aktuellen Supabase-Migrationen ausfuehren.";
+    return "Datenbank-Update fehlt. Bitte die aktuellen Supabase-Migrationen ausführen.";
   }
 
   return fallback;
+}
+
+export function safeErrorStatus(error: unknown) {
+  if (!(error instanceof SafeActionError)) return 500;
+
+  const message = error.message.toLowerCase();
+  if (message.includes("zu viele anfragen") || message.includes("rate limit")) {
+    return 429;
+  }
+
+  return 400;
 }
 
 export function toQuery(value: string) {

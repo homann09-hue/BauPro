@@ -1,6 +1,7 @@
 import { BellPlus, Send } from "lucide-react";
 import { ContextualHelpTip } from "@/components/help/ContextualHelpTip";
 import { MessageBox } from "@/components/message-box";
+import { FormDraftAutosave } from "@/components/offline/form-draft-autosave";
 import { PageHeader } from "@/components/page-header";
 import { VoiceInputField } from "@/components/voice/VoiceInputField";
 import { reportMaterialNeedAction } from "@/lib/actions/material-alert-actions";
@@ -40,7 +41,7 @@ export default async function MaterialReportPage({
     <>
       <PageHeader
         title="Material melden"
-        description="Fehlendes oder knappes Material direkt an Chef/Admin melden. Preis- und Einkaufsdaten bleiben ausgeblendet."
+        description="Fehlendes oder knappes Material direkt an Chef melden. Preis- und Einkaufsdaten bleiben ausgeblendet."
       />
       <MessageBox error={error} success={success} />
       <ContextualHelpTip featureKey="material_missing_report" returnTo="/material-melden" />
@@ -56,22 +57,31 @@ export default async function MaterialReportPage({
           </div>
         </div>
 
-        <form action={reportMaterialNeedAction} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-4">
+        <FormDraftAutosave
+          formId="material-report-form"
+          storageKey={`baupro:material-report:${context.companyId}:${context.userId}`}
+          offlineActionEndpoint="/api/offline/material-need"
+          description="Materialname, Menge, Baustelle und Hinweis bleiben lokal erhalten, wenn der Empfang beim Absenden weg ist."
+        />
+        </div>
+
+        <form id="material-report-form" action={reportMaterialNeedAction} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <input type="hidden" name="return_to" value="/material-melden" />
           <div className="sm:col-span-2">
             <VoiceInputField label="Material" name="material_name" placeholder="z. B. Unterspannbahn, Schrauben, Rinnenhalter" required />
           </div>
           <label>
             <span className="field-label">Menge</span>
-            <input className="field-input" name="quantity" inputMode="decimal" defaultValue="1" />
+            <input className="field-input min-h-14 text-base" name="quantity" inputMode="decimal" defaultValue="1" />
           </label>
           <label>
             <span className="field-label">Einheit</span>
-            <input className="field-input" name="unit" defaultValue="Stück" />
+            <input className="field-input min-h-14 text-base" name="unit" defaultValue="Stück" />
           </label>
           <label className="sm:col-span-2">
             <span className="field-label">Baustelle</span>
-            <select className="field-input" name="job_id" defaultValue="">
+            <select className="field-input min-h-14 text-base" name="job_id" defaultValue="">
               <option value="">Ohne Zuordnung</option>
               {visibleJobsites.map((jobsite) => (
                 <option key={jobsite.id} value={jobsite.id}>
@@ -91,7 +101,7 @@ export default async function MaterialReportPage({
       </section>
 
       <p className="mt-4 rounded-md border border-line bg-white/80 p-3 text-sm text-slate-600">
-        Chef/Admin sieht die Meldung im Dashboard als Materialwarnung und Einkaufsvorschlag. Mitarbeiter sehen keine EK-/VK-Preise
+        Chef sieht die Meldung im Dashboard als Materialwarnung und Einkaufsvorschlag. Mitarbeiter sehen keine EK-/VK-Preise
         und keine Preisquellen.
       </p>
     </>

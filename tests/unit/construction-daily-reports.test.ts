@@ -37,7 +37,7 @@ describe("construction daily reports", () => {
     expect(actions).toContain("assertProfilesInCompany");
     expect(actions).toContain("context.canOperate");
     expect(actions).toContain("updateReportWorkflowAction");
-    expect(actions).toContain("Nur Chef/Admin darf Bautagesberichte pruefen oder freigeben.");
+    expect(actions).toContain("Keine Berechtigung zum Pruefen oder Freigeben von Bautagesberichten.");
     expect(actions).toContain("Freigegebene Bautagesberichte koennen nicht geaendert werden");
   });
 

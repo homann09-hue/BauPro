@@ -13,14 +13,14 @@ function manualCoordinatesFromForm(formData: FormData) {
   const combined = optionalFormString(formData, "manual_coordinates");
   if (combined) {
     const parsed = parseCoordinatePair(combined);
-    if (!parsed) throw new SafeActionError("Manuelle Koordinaten bitte als Breitengrad, Laengengrad eintragen.");
+    if (!parsed) throw new SafeActionError("Manuelle Koordinaten bitte als Breitengrad, Längengrad eintragen.");
     return parsed;
   }
 
   const latRaw = optionalFormString(formData, "manual_latitude");
   const lngRaw = optionalFormString(formData, "manual_longitude");
   if (!latRaw && !lngRaw) return null;
-  if (!latRaw || !lngRaw) throw new SafeActionError("Bitte Breitengrad und Laengengrad eintragen.");
+  if (!latRaw || !lngRaw) throw new SafeActionError("Bitte Breitengrad und Längengrad eintragen.");
 
   const parsed = parseCoordinatePair(`${latRaw},${lngRaw}`);
   if (!parsed) throw new SafeActionError("Manuelle Koordinaten liegen ausserhalb des gueltigen Bereichs.");
@@ -50,7 +50,7 @@ export async function geocodeJobsiteWeatherLocationAction(formData: FormData) {
         : { ...manualCoordinates, label: "Manuell eingetragene Koordinaten" };
 
     if (!location) {
-      throw new SafeActionError("Koordinaten konnten aus der Adresse nicht ermittelt werden. Bitte PLZ und Ort ergaenzen oder Adresse leicht vereinfacht eintragen.");
+      throw new SafeActionError("Koordinaten konnten aus der Adresse nicht ermittelt werden. Bitte PLZ und Ort ergänzen oder Adresse leicht vereinfacht eintragen.");
     }
 
     const { error } = await supabase

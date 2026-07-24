@@ -8,10 +8,12 @@ import { revalidateDashboardCache } from "@/lib/data/dashboard";
 import { defectDetailSelect } from "@/lib/data/selects";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { enumFormValue, optionalFormString, optionalFormUuid, requiredFormString, requiredFormUuid } from "@/lib/security/form-data";
-import { assertRateLimit } from "@/lib/security/rate-limit";
+import { logServerWarning } from "@/lib/security/logging";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { assertProfilesInCompany } from "@/lib/security/tenant-guards";
 import { sanitizeUploadFileName, validateReportPhoto } from "@/lib/security/uploads";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Defect, DefectPriority, DefectSourceType, DefectStatus, Jobsite } from "@/types/app";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
@@ -94,7 +96,10 @@ async function writeAudit({
   newValues?: Record<string, unknown> | null;
 }) {
   try {
-    await createSupabaseAdminClient().from("company_audit_log").insert({
+    await createScopedSupabaseAdminClient({
+      caller: "actions.defects.writeAudit",
+      reason: "Mangel-Audit wird als unveraenderbare Begleitspur serverseitig geschrieben."
+    }).from("company_audit_log").insert({
       company_id: companyId,
       actor_id: actorId,
       entity_type: "defect",
@@ -104,7 +109,7 @@ async function writeAudit({
       new_values: newValues ?? null
     });
   } catch (error) {
-    console.warn("defect-audit-write-failed", error);
+    logServerWarning("defect-audit-write-failed", error, { companyId, actorId, entityId, action });
   }
 }
 
@@ -158,7 +163,7 @@ export async function createDefectAction(formData: FormData) {
   let jobsiteIdForRevalidate = "";
 
   try {
-    assertRateLimit(`defect-create:${context.companyId}:${context.userId}`, 30, 60_000);
+    await checkRateLimit(`defect-create:${context.companyId}:${context.userId}`, 30, 60_000);
     const jobsiteId = requiredFormUuid(formData, "jobsite_id", "Baustelle");
     jobsiteIdForRevalidate = jobsiteId;
     const jobsite = await loadAccessibleJobsite(supabase, context, jobsiteId);
@@ -310,7 +315,7 @@ export async function uploadDefectPhotoAction(formData: FormData) {
   const returnTo = safeReturnTo(formData, `/maengel/${defectId}`);
 
   try {
-    assertRateLimit(`defect-photo:${context.companyId}:${context.userId}`, 30, 60_000);
+    await checkRateLimit(`defect-photo:${context.companyId}:${context.userId}`, 30, 60_000);
     const defect = await loadDefectForAction(supabase, context, defectId);
     const file = formData.get("photo");
     if (!(file instanceof File) || file.size === 0) throw new SafeActionError("Bitte ein Foto auswaehlen.");

@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - "codex/**"
+  workflow_dispatch:
 
 jobs:
   verify:
@@ -16,27 +17,34 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: sb_secret_ci_dummy
       SUPPLIER_API_ENCRYPTION_KEY: ci-supplier-key-32-byte-minimum
       OPENAI_API_KEY: sk-ci-dummy
+      UPSTASH_REDIS_REST_URL: ""
+      UPSTASH_REDIS_REST_TOKEN: ""
+      CRON_SECRET: ci-cron-secret-dummy
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
+      - name: Pull request quality gate
+        if: github.event_name == 'pull_request'
+        run: npm run check:ci
 
-      - name: Unit and integration tests
-        run: npm run test
+      - name: Branch quality gate
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+        run: npm run check:ci
 
-      - name: Supabase schema hardening check
-        run: npm run db:schema-check
+      - name: Main release gate
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: npm run check:release
 
-      - name: Build
-        run: npm run build
+      - name: Manual full gate
+        if: github.event_name == 'workflow_dispatch'
+        run: npm run check:all

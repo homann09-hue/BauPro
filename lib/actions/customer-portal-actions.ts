@@ -8,7 +8,6 @@ import {
   contentHash,
   createCustomerPortalToken,
   customerPortalExpiresAt,
-  customerPortalUrl,
   hashCustomerPortalToken,
   publicWorkOrderSnapshot
 } from "@/lib/customer-portal/tokens";
@@ -19,18 +18,19 @@ import {
 } from "@/lib/data/selects";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { optionalFormString, requiredFormString, requiredFormUuid } from "@/lib/security/form-data";
-import { publicAppOrigin } from "@/lib/security/origin";
-import { assertRateLimit } from "@/lib/security/rate-limit";
+import { logServerWarning } from "@/lib/security/logging";
+import { getClientIp } from "@/lib/security/origin";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { sanitizeUploadFileName, validateCustomerDocument } from "@/lib/security/uploads";
 import { validateSignatureDataUrl } from "@/lib/signatures/signature";
-import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
+import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { CustomerPortalEventType, CustomerPortalToken, Order, Report, ReportPhoto, WorkOrder } from "@/types/app";
 
-function redirectBack(path: string, message: { success?: string; error?: string; portalToken?: string }) {
+function redirectBack(path: string, message: { success?: string; error?: string }) {
   const params = new URLSearchParams();
   if (message.success) params.set("success", message.success);
   if (message.error) params.set("error", message.error);
-  if (message.portalToken) params.set("portal_token", message.portalToken);
   redirect(`${path}?${params.toString()}`);
 }
 
@@ -66,11 +66,6 @@ function boundedEmail(value: string | null) {
   return email;
 }
 
-async function requestOrigin() {
-  const headerStore = await headers();
-  return publicAppOrigin(headerStore.get("origin"));
-}
-
 async function audit({
   companyId,
   actorId,
@@ -89,7 +84,10 @@ async function audit({
   newValues?: Record<string, unknown> | null;
 }) {
   try {
-    const supabase = createSupabaseAdminClient();
+    const supabase = createScopedSupabaseAdminClient({
+      caller: "actions.customer-portal.audit",
+      reason: "Audit-Log fuer Kundenportal-Aktionen wird serverseitig unabhaengig von Nutzer-RLS geschrieben."
+    });
     await supabase.from("company_audit_log").insert({
       company_id: companyId,
       actor_id: actorId,
@@ -100,7 +98,7 @@ async function audit({
       new_values: newValues ?? null
     });
   } catch (error) {
-    console.warn("audit-log-write-failed", error);
+    logServerWarning("customer-portal-audit-write-failed", error, { companyId, entityType, entityId, action });
   }
 }
 
@@ -121,11 +119,11 @@ async function loadManagedOrder(orderId: string) {
 export async function createCustomerPortalLinkAction(formData: FormData) {
   const orderId = requiredFormUuid(formData, "order_id", "Auftrag");
   const backPath = `/orders/${orderId}`;
-  let result: { success?: string; error?: string; portalToken?: string };
+  let result: { success?: string; error?: string };
 
   try {
     const { context, supabase, order } = await loadManagedOrder(orderId);
-    assertRateLimit(`customer-portal-link:${context.companyId}:${context.userId}`, 10, 60_000);
+    await checkRateLimit(`customer-portal-link:${context.companyId}:${context.userId}`, 10, 60_000);
 
     const token = createCustomerPortalToken();
     const label = optionalFormString(formData, "label") ?? `Kundenlink ${order.order_number}`;
@@ -169,8 +167,7 @@ export async function createCustomerPortalLinkAction(formData: FormData) {
 
     revalidatePath(backPath);
     result = {
-      success: `Kundenlink erstellt: ${customerPortalUrl(await requestOrigin(), token)}`,
-      portalToken: token
+      success: "Kundenlink wurde erstellt. Aus Sicherheitsgruenden wird der volle Link nicht in der Adresszeile gespeichert."
     };
   } catch (error) {
     result = { error: safeErrorMessage(error, "Kundenportal-Link konnte nicht erstellt werden.") };
@@ -361,7 +358,7 @@ export async function createCustomerPortalEventAction(formData: FormData) {
 
   try {
     const { context, supabase, order } = await loadManagedOrder(orderId);
-    assertRateLimit(`customer-portal-event:${context.companyId}:${context.userId}`, 30, 60_000);
+    await checkRateLimit(`customer-portal-event:${context.companyId}:${context.userId}`, 30, 60_000);
     const title = requiredFormString(formData, "title", "Titel");
     const body = optionalFormString(formData, "body");
     const eventType = customerPortalEventType(optionalFormString(formData, "event_type"));
@@ -408,7 +405,7 @@ export async function uploadCustomerDocumentAction(formData: FormData) {
 
   try {
     const { context, supabase, order } = await loadManagedOrder(orderId);
-    assertRateLimit(`customer-document-upload:${context.companyId}:${context.userId}`, 12, 60_000);
+    await checkRateLimit(`customer-document-upload:${context.companyId}:${context.userId}`, 12, 60_000);
 
     const file = formData.get("document");
     if (!(file instanceof File) || file.size <= 0) throw new SafeActionError("Bitte ein Dokument auswaehlen.");
@@ -484,7 +481,7 @@ export async function signWorkOrderFromPortalAction(formData: FormData) {
   let result: { success?: string; error?: string };
 
   try {
-    assertRateLimit(`portal-sign:${hashCustomerPortalToken(token)}`, 8, 60_000);
+    await checkRateLimit(`portal-sign:${hashCustomerPortalToken(token)}`, 8, 60_000);
     const decisionValue = workOrderDecision(decision);
     const signerName = boundedText(requiredFormString(formData, "signer_name", "Name"), "Name", 120) as string;
     const signatureDataUrl = validateSignatureDataUrl(optionalFormString(formData, "signature_data_url"), {
@@ -494,7 +491,10 @@ export async function signWorkOrderFromPortalAction(formData: FormData) {
     if (decisionValue === "reject" && !rejectionReason) {
       throw new SafeActionError("Bitte bei Ablehnung kurz angeben, was angepasst werden soll.");
     }
-    const supabase = createSupabaseAdminClient();
+    const supabase = createScopedSupabaseAdminClient({
+      caller: "actions.customer-portal.signWorkOrderFromPortal",
+      reason: "Oeffentliche Kundenportal-Signatur nutzt Hash-Token statt eingeloggtem Supabase-Nutzer."
+    });
     const tokenHash = hashCustomerPortalToken(token);
 
     const { data: tokenRow } = await supabase
@@ -527,7 +527,8 @@ export async function signWorkOrderFromPortalAction(formData: FormData) {
 
     const headerStore = await headers();
     const now = new Date().toISOString();
-    const signerIp = headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+    const clientIp = getClientIp(headerStore);
+    const signerIp = clientIp === "unknown" ? null : clientIp;
     const signerUserAgent = headerStore.get("user-agent") ?? null;
     const status = decisionValue === "reject" ? "rejected" : "signed";
     const updates: Partial<WorkOrder> = {
@@ -637,12 +638,15 @@ export async function sendCustomerPortalMessageAction(formData: FormData) {
   let result: { success?: string; error?: string };
 
   try {
-    assertRateLimit(`portal-message:${hashCustomerPortalToken(token)}`, 6, 60_000);
+    await checkRateLimit(`portal-message:${hashCustomerPortalToken(token)}`, 6, 60_000);
     requiredFormString(formData, "privacy_ack", "Datenschutzhinweis");
     const senderName = boundedText(requiredFormString(formData, "sender_name", "Name"), "Name", 120) as string;
     const senderEmail = boundedEmail(optionalFormString(formData, "sender_email"));
     const message = boundedText(requiredFormString(formData, "message", "Nachricht"), "Nachricht", 2000) as string;
-    const supabase = createSupabaseAdminClient();
+    const supabase = createScopedSupabaseAdminClient({
+      caller: "actions.customer-portal.sendCustomerPortalMessage",
+      reason: "Oeffentliche Kundenportal-Nachricht nutzt Hash-Token statt eingeloggtem Supabase-Nutzer."
+    });
     const tokenHash = hashCustomerPortalToken(token);
 
     const { data: tokenRow } = await supabase

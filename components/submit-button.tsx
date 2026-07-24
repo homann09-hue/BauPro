@@ -26,9 +26,10 @@ export function SubmitButton({
   const { pending } = useFormStatus();
   const variantClass =
     variant === "secondary" ? "btn-secondary" : variant === "danger" ? "btn-danger" : "btn-primary";
+  const isDisabled = pending || disabled;
 
   return (
-    <button type="submit" disabled={pending || disabled} className={cn(variantClass, className)} name={name} value={value}>
+    <button type="submit" disabled={isDisabled} className={cn(variantClass, className)} name={name} value={value}>
       {pending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
       {pending ? pendingLabel : children}
     </button>

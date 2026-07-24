@@ -12,7 +12,7 @@ import {
   updateVehicleAction
 } from "@/lib/actions/vehicle-actions";
 import { archiveResourceDocumentAction, uploadResourceDocumentAction } from "@/lib/actions/planning-actions";
-import { requireManager } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { legacyMaterialVehicleSelect, profileOptionSelect, resourceDocumentSelect, vehicleMaterialSelect, vehicleOptionSelect } from "@/lib/data/selects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, searchParamMessage } from "@/lib/utils";
@@ -25,7 +25,7 @@ export default async function EditVehiclePage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/fahrzeuge");
   const supabase = await createSupabaseServerClient();
   const { id } = await params;
   const { error, success } = searchParamMessage(await searchParams);

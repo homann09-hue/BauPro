@@ -70,7 +70,7 @@ export function germanSearchVariants(value: string) {
 }
 
 export function postgrestSearchPattern(value: string) {
-  const sanitized = value.replace(/[%_,()]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+  const sanitized = value.replace(/[%_\\,()]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
   return `%${sanitized}%`;
 }
 

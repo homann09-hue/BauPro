@@ -59,7 +59,7 @@ describe("Stripe billing", () => {
 
     expect(stripe).toContain("process.env.STRIPE_SECRET_KEY");
     expect(stripe).toContain("constructWebhookEvent");
-    expect(actions).toContain("requireManager");
+    expect(actions).toContain("requirePlatformAdmin");
     expect(actions).toContain("createCheckoutSession");
     expect(actions).toContain("createPortalSession");
     expect(webhook).toContain("checkout.session.completed");
@@ -70,11 +70,11 @@ describe("Stripe billing", () => {
     expect(billingPage).toContain("Abonnement verwalten");
   });
 
-  it("guards AI usage through billing limits before the in-memory rate limit", () => {
+  it("guards AI usage through billing limits before the Redis rate limit", () => {
     const aiActions = source("lib/actions/ai-actions.ts");
     const plans = source("lib/billing/plans.ts");
     const checkIndex = aiActions.indexOf("await checkAiLimit(supabase, context.companyId)");
-    const rateIndex = aiActions.indexOf("assertRateLimit(`ai:${feature}");
+    const rateIndex = aiActions.indexOf("await checkRateLimit(`ai:${feature}");
 
     expect(checkIndex).toBeGreaterThan(0);
     expect(rateIndex).toBeGreaterThan(checkIndex);

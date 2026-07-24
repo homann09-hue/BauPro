@@ -1,16 +1,27 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+import { originOf } from "@/lib/security/origin";
 
 function isUnsafeMethod(method: string) {
   return method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE";
 }
 
-function buildContentSecurityPolicy(nonce: string) {
-  const scriptSources = [`'self'`, `'nonce-${nonce}'`];
+function isWebhookOrServicePath(pathname: string) {
+  return pathname === "/api/stripe/webhook" || pathname.startsWith("/api/stripe/webhook/");
+}
 
-  if (process.env.NODE_ENV === "development") {
-    // Next/React Fast Refresh braucht im lokalen Dev-Server eval. In Production bleibt unsafe-eval verboten.
+function createNonce() {
+  return crypto.randomUUID();
+}
+
+function buildContentSecurityPolicy(nonce: string) {
+  const isProduction = process.env.NODE_ENV === "production";
+  const scriptSources = ["'self'", `'nonce-${nonce}'`];
+
+  if (!isProduction) {
+    // Im Development/Tests sind manche Next.js-Runtimes noch eval-basiert (z. B. Hot-Reload-Umgebungen).
+    // Damit der eigentliche App-Flow dort stabil bleibt, wird unsafe-eval nur außerhalb der Produktion erlaubt.
     scriptSources.push("'unsafe-eval'");
   }
 
@@ -23,9 +34,10 @@ function buildContentSecurityPolicy(nonce: string) {
     "manifest-src 'self'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
-    "style-src 'self' 'unsafe-inline'",
+    "style-src 'self'",
+    "style-src-elem 'self'",
     `script-src ${scriptSources.join(" ")}`,
-    "connect-src 'self' https://*.supabase.co https://*.sentry.io https://api.openai.com https://api.open-meteo.com https://geocoding-api.open-meteo.com https://nominatim.openstreetmap.org",
+    "connect-src 'self' https://*.supabase.co https://*.sentry.io https://api.openai.com https://api.open-meteo.com https://geocoding-api.open-meteo.com https://nominatim.openstreetmap.org https://vitals.vercel-insights.com",
     "worker-src 'self' blob:"
   ].join("; ");
 }
@@ -37,20 +49,28 @@ function applySecurityHeaders(response: NextResponse, csp: string, nonce: string
 }
 
 export async function proxy(request: NextRequest) {
-  const nonce = crypto.randomUUID();
+  const nonce = createNonce();
   const csp = buildContentSecurityPolicy(nonce);
 
   if (isUnsafeMethod(request.method)) {
-    const origin = request.headers.get("origin");
     const expectedOrigin = new URL(request.url).origin;
+    const requestOrigin = originOf(request.headers.get("origin")) ?? originOf(request.headers.get("referer"));
+    const isServiceRequest = isWebhookOrServicePath(request.nextUrl.pathname);
 
-    if (origin && origin !== expectedOrigin) {
+    if (requestOrigin && requestOrigin !== expectedOrigin) {
+      return applySecurityHeaders(new NextResponse("Anfrage abgelehnt.", { status: 403 }), csp, nonce);
+    }
+
+    if (!requestOrigin && !isServiceRequest && process.env.NODE_ENV === "production") {
       return applySecurityHeaders(new NextResponse("Anfrage abgelehnt.", { status: 403 }), csp, nonce);
     }
   }
 
   const requestHeaders = new Headers(request.headers);
+  // Next.js liest den Nonce aus dem CSP-Request-Header und versieht eigene Runtime-Skripte damit.
+  // App-eigene Inline-Skripte muessen zusaetzlich den `x-nonce` Header aus `headers()` verwenden.
   requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
   requestHeaders.set("Content-Security-Policy", csp);
 
   const response = await updateSession(request, requestHeaders);
@@ -58,5 +78,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"]
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|css|map|json|txt|xml|webmanifest)$).*)"]
 };

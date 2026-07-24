@@ -1,5 +1,6 @@
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { AiUsageStatus } from "@/lib/ai/types";
+import { logServerWarning } from "@/lib/security/logging";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -40,6 +41,6 @@ export async function logAiUsage({
   });
 
   if (error && !isMissingAiTable(error.message)) {
-    console.error("AI usage log failed", error.message);
+    logServerWarning("ai-usage-log-failed", error, { companyId, userId, feature, status });
   }
 }

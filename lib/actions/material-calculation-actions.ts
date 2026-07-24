@@ -20,7 +20,7 @@ import {
   type CalculationInput
 } from "@/lib/material-calculations";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
-import { assertRateLimit } from "@/lib/security/rate-limit";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { safeReturnPath } from "@/lib/security/redirects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { numberOrZero, optionalNumber, optionalString, requiredString } from "@/lib/utils";
@@ -383,7 +383,7 @@ export async function createMaterialCalculationAction(formData: FormData) {
       .filter(notNull);
 
     if (calculatedItems.length === 0) {
-      throw new SafeActionError("Keine Materialmenge berechnet. Bitte Flaeche oder passende Laengen eintragen.");
+      throw new SafeActionError("Keine Materialmenge berechnet. Bitte Fläche oder passende Längen eintragen.");
     }
 
     const useAi = String(formData.get("use_ai") ?? "off") === "on";
@@ -396,7 +396,7 @@ export async function createMaterialCalculationAction(formData: FormData) {
       if (canUseAiFeature(context, aiSettings, "material_calculation")) {
         try {
           await checkAiLimit(supabase, context.companyId);
-          assertRateLimit(`ai:material-calculation:${context.companyId}:${context.userId}`, 20, 60_000);
+          await checkRateLimit(`ai:material-calculation:${context.companyId}:${context.userId}`, 20, 60_000);
 
           const aiInput: RoofMaterialAiInput = {
             roof_type: roofType,

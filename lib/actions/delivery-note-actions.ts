@@ -46,6 +46,26 @@ function ensureOperator(context: AppContext) {
   }
 }
 
+async function findSupplierIdByName({
+  supabase,
+  context,
+  supplierName
+}: {
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  context: AppContext;
+  supplierName: string;
+}) {
+  const { data: existing } = await supabase
+    .from("suppliers")
+    .select("id")
+    .eq("company_id", context.companyId)
+    .or(searchOrFilter(["name"], supplierName))
+    .limit(1)
+    .maybeSingle();
+
+  return (existing?.id as string | undefined) ?? null;
+}
+
 async function findOrCreateSupplier({
   supabase,
   context,
@@ -57,17 +77,10 @@ async function findOrCreateSupplier({
 }) {
   if (!supplierName || !context.canManage) return null;
 
-  const { data: existing } = await supabase
-    .from("suppliers")
-    .select("id")
-    .eq("company_id", context.companyId)
-    .or(searchOrFilter(["name"], supplierName))
-    .limit(1)
-    .maybeSingle();
+  const existingId = await findSupplierIdByName({ supabase, context, supplierName });
+  if (existingId) return existingId;
 
-  if (existing?.id) return existing.id as string;
-
-  const { data: inserted } = await supabase
+  const { data: inserted, error: insertError } = await supabase
     .from("suppliers")
     .insert({
       company_id: context.companyId,
@@ -76,7 +89,15 @@ async function findOrCreateSupplier({
     .select("id")
     .maybeSingle();
 
-  return (inserted?.id as string | undefined) ?? null;
+  if (inserted?.id) return inserted.id as string;
+
+  // Parallele Lieferschein-Erfassung kann denselben Lieferanten gleichzeitig
+  // anlegen. Nach Unique-Konflikt sauber erneut lesen.
+  if (insertError) {
+    return findSupplierIdByName({ supabase, context, supplierName });
+  }
+
+  return null;
 }
 
 async function findMatchingInventoryItem({
@@ -132,7 +153,7 @@ async function createInventoryItemForDelivery({
   unitPrice: number | null;
 }) {
   if (!context.canManage) {
-    throw new SafeActionError("Neue Lagerartikel duerfen nur Chef/Admin anlegen. Bitte Material zuordnen.");
+    throw new SafeActionError("Neue Lagerartikel duerfen nur Chef anlegen. Bitte Material zuordnen.");
   }
 
   const { data, error } = await supabase
@@ -296,7 +317,7 @@ export async function createDeliveryNoteFromPhotoAction(formData: FormData) {
       }
     }
 
-    target = `/materials/delivery-notes/${noteId}?success=${toQuery("Lieferschein wurde erkannt. Bitte pruefen und bestaetigen.")}`;
+    target = `/materials/delivery-notes/${noteId}?success=${toQuery("Lieferschein wurde erkannt. Bitte prüfen und bestätigen.")}`;
   } catch (error) {
     target = `${returnTo}?error=${toQuery(safeErrorMessage(error, "Lieferschein konnte nicht erkannt werden."))}`;
   }

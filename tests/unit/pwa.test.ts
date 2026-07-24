@@ -27,8 +27,8 @@ describe("installable PWA", () => {
     expect(manifest.start_url).toContain("/dashboard");
     expect(manifest.scope).toBe("/");
     expect(manifest.display).toBe("standalone");
-    expect(manifest.theme_color).toBe("#2E7D32");
-    expect(manifest.background_color).toBe("#F8FAFC");
+    expect(manifest.theme_color).toBe("#111110");
+    expect(manifest.background_color).toBe("#111110");
     expect(manifest.icons).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }),
@@ -61,6 +61,16 @@ describe("installable PWA", () => {
     expect(config).toContain('handler: "NetworkOnly"');
     expect(config).toContain("baupro-api-network-only");
     expect(config).toContain('{ url: "/offline", revision: null }');
+    expect(config).toContain('handler: "NetworkFirst"');
+    expect(config).toContain("baupro-app-shell-pages");
+    expect(config).toContain("networkTimeoutSeconds");
+    expect(config).toContain("Die öffentliche Startseite darf nicht aus einem alten PWA-Runtime-Cache kommen");
+    expect(config).toContain("cacheStartUrl: false");
+    expect(config).toContain("dynamicStartUrl: false");
+    expect(config).not.toContain('["/", "/dashboard"');
+    expect(config).not.toContain('{ url: "/dashboard", revision: null }');
+    expect(config).not.toContain('{ url: "/baustellen", revision: null }');
+    expect(config).not.toContain('{ url: "/berichte", revision: null }');
   });
 
   it("sets Apple PWA metadata and safe-area handling", () => {
@@ -76,5 +86,36 @@ describe("installable PWA", () => {
     expect(css).toContain("safe-area-inset-top");
     expect(appShell).toContain("safe-area-inset-bottom");
     expect(offlinePage).toContain("Offline-Modus");
+  });
+
+  it("offers a non-intrusive install prompt only when the browser allows installation", () => {
+    const layout = read("app/layout.tsx");
+    const prompt = read("components/pwa-install-prompt.tsx");
+
+    expect(layout).toContain("<PwaInstallPrompt />");
+    expect(prompt).toContain("beforeinstallprompt");
+    expect(prompt).toContain("event.preventDefault()");
+    expect(prompt).toContain("installPrompt.prompt()");
+    expect(prompt).toContain("installPrompt.userChoice");
+    expect(prompt).toContain("appinstalled");
+    expect(prompt).toContain("isStandaloneMode");
+    expect(prompt).toContain("display-mode: standalone");
+    expect(prompt).toContain("baupro:pwa-install-dismissed-until:v1");
+    expect(prompt).toContain("BauPro als App nutzen");
+    expect(prompt).toContain("Installationshinweis ausblenden");
+  });
+
+  it("renders Vercel telemetry only on Vercel to avoid local 404 console noise", () => {
+    const layout = read("app/layout.tsx");
+    const telemetry = read("components/vercel-telemetry.tsx");
+
+    expect(layout).toContain("<VercelTelemetry />");
+    expect(layout).not.toContain('@vercel/analytics/next');
+    expect(layout).not.toContain('@vercel/speed-insights/next');
+    expect(telemetry).toContain('"use client"');
+    expect(telemetry).toContain("window.location.hostname");
+    expect(telemetry).toContain('hostname === "localhost"');
+    expect(telemetry).toContain("<Analytics />");
+    expect(telemetry).toContain("<SpeedInsights />");
   });
 });

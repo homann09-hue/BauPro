@@ -33,6 +33,9 @@ describe("delivery note recognition", () => {
     expect(listPage).toContain("Datenschutz: Das Foto wird im privaten Firmen-Speicher abgelegt");
     expect(detailPage).toContain("Keine automatische Buchung");
     expect(detailPage).toContain("context.canManage ? (");
+    expect(detailPage).toContain("context.canManage && note?.storage_path");
+    expect(detailPage).toContain("Originalfoto nur für Chef sichtbar");
+    expect(detailPage).toContain("Lieferschein-Fotos können Preise enthalten");
     expect(detailPage).toContain('name="unit_price"');
     expect(detailPage).toContain('name="total_price"');
     expect(detailPage).toContain("Preise sind für Vorarbeiter ausgeblendet");

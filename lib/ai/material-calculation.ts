@@ -105,7 +105,7 @@ export async function suggestRoofMaterialCalculation(input: RoofMaterialAiInput)
       "Pruefe diese regelbasierte BauPro-Materialberechnung. " +
       "Gib nur zusaetzliche Materialpositionen zur Pruefung zurueck, keine Duplikate der vorhandenen Liste. " +
       "Typische Dachdeckerpositionen koennen z. B. Ziegel/Pfannen, Lattung, Konterlattung, Unterspannbahn, Schrauben, Naegel, Firstmaterial, Ortgangmaterial, Rinnenzubehoer oder Anschlussmaterial sein. " +
-      "Alle Mengen muessen nachvollziehbar grob aus Flaeche, Laengen oder Stueckzahlen abgeleitet sein und den Verschnitt beruecksichtigen.\n\n" +
+      "Alle Mengen müssen nachvollziehbar grob aus Fläche, Längen oder Stückzahlen abgeleitet sein und den Verschnitt berücksichtigen.\n\n" +
       JSON.stringify(input, null, 2)
   });
 
@@ -115,7 +115,7 @@ export async function suggestRoofMaterialCalculation(input: RoofMaterialAiInput)
     ...result,
     data: {
       confidence: clamp(result.data.confidence),
-      summary: normalizeText(result.data.summary, "KI-Vorschlag bitte fachlich pruefen."),
+      summary: normalizeText(result.data.summary, "KI-Vorschlag bitte fachlich prüfen."),
       warnings: result.data.warnings.map((warning) => normalizeText(warning, "")).filter(Boolean).slice(0, 8),
       additional_items: result.data.additional_items
         .map((item) => ({

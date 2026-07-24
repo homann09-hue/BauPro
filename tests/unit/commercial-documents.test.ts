@@ -112,8 +112,8 @@ describe("commercial documents", () => {
     expect(source("app/(app)/angebote-rechnungen/[id]/pdf/route.ts")).toContain("buildCommercialDocumentPdf");
     expect(source("app/(app)/angebote-rechnungen/[id]/datev/route.ts")).toContain("buildDatevCsv");
     expect(source("app/(app)/angebote-rechnungen/[id]/xrechnung/route.ts")).toContain("buildXrechnungXml");
-    expect(source("app/(app)/orders/[id]/page.tsx")).toContain("createCommercialDocumentFromOrderAction");
-    expect(source("components/app-shell.tsx")).toContain("/angebote-rechnungen");
+    expect(source("app/(app)/orders/[id]/page.tsx")).toContain("createInvoiceFromOrderAction");
+    expect(source("components/app-shell.tsx")).toContain("/invoices");
   });
 
   it("exports a PDF buffer and deterministic filename", () => {

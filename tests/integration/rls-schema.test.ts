@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { collectTriggerHelperGrantIssues } from "../helpers/supabase-rpc-hardening";
 
 const root = path.resolve(__dirname, "../..");
 const schema = fs.readFileSync(path.join(root, "supabase/schema.sql"), "utf8");
@@ -50,6 +51,39 @@ const deliveryNoteRecognitionMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260702_delivery_note_recognition.sql"),
   "utf8"
 );
+const deliveryNoteOriginalPriceHardeningMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260719_delivery_note_original_price_hardening.sql"),
+  "utf8"
+);
+const publicViewSecurityInvokerMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260720_public_view_security_invoker.sql"),
+  "utf8"
+);
+const internalInvoiceRpcHardeningMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260721_internal_invoice_rpc_hardening.sql"),
+  "utf8"
+);
+const internalInvoiceRpcExplicitRoleRevokeMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260722_internal_invoice_rpc_explicit_role_revoke.sql"),
+  "utf8"
+);
+const commercialDocumentRpcHardeningMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260723_commercial_document_rpc_hardening.sql"),
+  "utf8"
+);
+const invoiceItemsRpcExplicitRoleRevokeMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260724_invoice_items_rpc_explicit_role_revoke.sql"),
+  "utf8"
+);
+const triggerFunctionExecuteHardeningMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260725_trigger_function_execute_hardening.sql"),
+  "utf8"
+);
+const materialMovementAuditTriggerRevokeMigration = fs.readFileSync(
+  path.join(root, "supabase/migrations/20260726_material_movement_audit_trigger_revoke.sql"),
+  "utf8"
+);
+const triggerFunctionHardeningMigrations = `${triggerFunctionExecuteHardeningMigration}\n${materialMovementAuditTriggerRevokeMigration}`;
 const aiRoofMaterialCalculationMigration = fs.readFileSync(
   path.join(root, "supabase/migrations/20260703_ai_roof_material_calculation.sql"),
   "utf8"
@@ -79,6 +113,14 @@ function block(start: string, end: string) {
   return schema.slice(startIndex, endIndex);
 }
 
+function sourceBlock(sourceCode: string, start: string, end: string) {
+  const startIndex = sourceCode.indexOf(start);
+  const endIndex = sourceCode.indexOf(end, startIndex);
+  expect(startIndex).toBeGreaterThanOrEqual(0);
+  expect(endIndex).toBeGreaterThan(startIndex);
+  return sourceCode.slice(startIndex, endIndex);
+}
+
 describe("Supabase RLS and security schema", () => {
   it("documents every Supabase delta migration in the setup guide", () => {
     const migrations = fs.readdirSync(path.join(root, "supabase/migrations")).filter((name) => name.endsWith(".sql")).sort();
@@ -91,13 +133,15 @@ describe("Supabase RLS and security schema", () => {
   it("supports Vorarbeiter but does not grant manager rights", () => {
     expect(schema).toContain("role in ('admin', 'chef', 'vorarbeiter', 'mitarbeiter', 'kunde')");
     const managerFunction = block("create or replace function public.can_manage_company()", "create or replace function public.handle_new_user()");
-    expect(managerFunction).toContain("current_role() in ('admin', 'chef')");
+    expect(managerFunction).toContain("current_role() = 'chef'");
+    expect(schema).toContain("create or replace function public.is_system_admin()");
     expect(managerFunction).not.toContain("vorarbeiter");
     expect(roleHardeningMigration).toContain("notify pgrst, 'reload schema'");
   });
 
   it("keeps employee inventory reads price-free", () => {
-    const publicInventoryView = block("create or replace view public.inventory_items_public as", "grant select on public.inventory_items_public");
+    const publicInventoryView = block("create or replace view public.inventory_items_public", "grant select on public.inventory_items_public");
+    expect(publicInventoryView).toContain("with (security_invoker = true)");
     expect(publicInventoryView).toContain("where i.company_id = public.current_company_id()");
     expect(publicInventoryView).not.toMatch(/\b(purchase_price|sales_price|markup_percent|price_per_unit|price_net|price_gross)\b/);
     expect(schema).toContain('drop policy if exists "read own company inventory items"');
@@ -299,6 +343,18 @@ describe("Supabase RLS and security schema", () => {
     expect(redteamMigration).toContain("r.id::text = (storage.foldername(name))[3]");
   });
 
+  it("binds report photo storage reads to report metadata and assignment rights", () => {
+    const policy = block('create policy "members can read company report photos"', 'drop policy if exists "members can upload company report photos"');
+
+    expect(policy).toContain("(storage.foldername(name))[1] = public.current_company_id()::text");
+    expect(policy).toContain("(storage.foldername(name))[2] = 'reports'");
+    expect(policy).toContain("rp.storage_path = storage.objects.name");
+    expect(policy).toContain("rp.archived_at is null");
+    expect(policy).toContain("r.archived_at is null");
+    expect(policy).toContain("public.can_manage_company()");
+    expect(policy).toContain("auth.uid() = any(r.employee_ids)");
+  });
+
   it("uses atomic inventory RPCs with row locks for stock movement and reservations", () => {
     const adjust = block("create or replace function public.adjust_inventory_stock", "create or replace function public.transfer_inventory_item");
     const transfer = block("create or replace function public.transfer_inventory_item", "create or replace function public.reserve_inventory_item");
@@ -445,6 +501,26 @@ describe("Supabase RLS and security schema", () => {
     }
   });
 
+  it("restricts delivery note original photos because they can contain prices", () => {
+    const migrationPolicy = sourceBlock(
+      deliveryNoteOriginalPriceHardeningMigration,
+      'create policy "managers read delivery note storage"',
+      ");"
+    );
+    const schemaPolicy = sourceBlock(schema, 'create policy "managers read delivery note storage"', ");");
+
+    for (const sql of [migrationPolicy, schemaPolicy]) {
+      expect(sql).toContain("bucket_id = 'delivery-notes'");
+      expect(sql).toContain("(storage.foldername(name))[1] = public.current_company_id()::text");
+      expect(sql).toContain("(storage.foldername(name))[2] = 'delivery-notes'");
+      expect(sql).toContain("public.current_role() in ('admin', 'chef')");
+      expect(sql).not.toContain("vorarbeiter");
+    }
+
+    expect(deliveryNoteOriginalPriceHardeningMigration).toContain('drop policy if exists "operators read delivery note storage"');
+    expect(deliveryNoteOriginalPriceHardeningMigration).toContain('drop policy if exists "managers read delivery note storage"');
+  });
+
   it("adds AI-assisted roof material calculations without exposing prices in public views", () => {
     for (const sql of [schema, aiRoofMaterialCalculationMigration]) {
       expect(sql).toContain("roof_form text");
@@ -465,12 +541,76 @@ describe("Supabase RLS and security schema", () => {
     expect(aiRoofMaterialCalculationMigration).toContain("steildach_schornsteinanschluss");
 
     const publicCalculationView = block(
-      "create or replace view public.job_material_calculation_items_public as",
+      "create or replace view public.job_material_calculation_items_public",
       "grant select on public.job_material_calculation_items_public"
     );
+    expect(publicCalculationView).toContain("with (security_invoker = true)");
     expect(publicCalculationView).toContain("missing_quantity");
     expect(publicCalculationView).toContain("source");
     expect(publicCalculationView).toContain("ai_reason");
     expect(publicCalculationView).not.toMatch(/\b(purchase_price|sales_price|purchase_total|sales_total|margin_total)\b/);
+  });
+
+  it("marks all price-sanitized public views as security invoker", () => {
+    for (const viewName of [
+      "orders_public",
+      "inventory_items_public",
+      "job_material_calculation_items_public",
+      "job_material_requirements_public"
+    ]) {
+      const publicView = block(`create or replace view public.${viewName}`, `grant select on public.${viewName}`);
+      expect(publicView).toContain("with (security_invoker = true)");
+      expect(publicViewSecurityInvokerMigration).toContain(`alter view if exists public.${viewName} set (security_invoker = true)`);
+    }
+  });
+
+  it("keeps internal invoice helper RPCs away from direct authenticated calls", () => {
+    for (const signature of ["generate_invoice_number(uuid, text)", "recalculate_invoice_totals(uuid)"]) {
+      expect(schema).toContain(`revoke all on function public.${signature} from public`);
+      expect(schema).not.toContain(`grant execute on function public.${signature} to authenticated`);
+      expect(internalInvoiceRpcHardeningMigration).toContain(`revoke all on function public.${signature} from public`);
+
+      for (const roleName of ["anon", "authenticated"]) {
+        expect(schema).toContain(`revoke all on function public.${signature} from ${roleName}`);
+        expect(internalInvoiceRpcExplicitRoleRevokeMigration).toContain(`revoke all on function public.${signature} from ${roleName}`);
+      }
+    }
+
+    expect(schema).toContain("grant execute on function public.create_invoice_with_items");
+    expect(schema).toContain("grant execute on function public.update_invoice_with_items");
+  });
+
+  it("keeps raw invoice item insertion behind checked invoice wrappers", () => {
+    for (const roleName of ["public", "anon", "authenticated"]) {
+      expect(schema).toContain(`revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from ${roleName}`);
+      expect(invoiceItemsRpcExplicitRoleRevokeMigration).toContain(
+        `revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from ${roleName}`
+      );
+    }
+
+    expect(schema).not.toContain("grant execute on function public.insert_invoice_items_from_json(uuid, jsonb) to authenticated");
+    expect(schema).toContain("perform public.insert_invoice_items_from_json(created_invoice_id, p_items)");
+    expect(schema).toContain("perform public.insert_invoice_items_from_json(p_invoice_id, p_items)");
+  });
+
+  it("keeps commercial document total recalculation behind table triggers", () => {
+    for (const roleName of ["public", "anon", "authenticated"]) {
+      expect(schema).toContain(`revoke all on function public.recalculate_commercial_document_totals(uuid) from ${roleName}`);
+      expect(commercialDocumentRpcHardeningMigration).toContain(
+        `revoke all on function public.recalculate_commercial_document_totals(uuid) from ${roleName}`
+      );
+    }
+
+    expect(schema).not.toContain("grant execute on function public.recalculate_commercial_document_totals(uuid) to authenticated");
+    expect(schema).toContain("create trigger recalculate_commercial_document_totals_on_items");
+  });
+
+  it("does not expose SECURITY DEFINER trigger helpers as direct RPC endpoints", () => {
+    expect(
+      collectTriggerHelperGrantIssues({
+        schema,
+        migration: triggerFunctionHardeningMigrations
+      })
+    ).toEqual([]);
   });
 });

@@ -1,6 +1,9 @@
 import { getOptionalAppContext } from "@/lib/auth";
 import { calendarTimeEntrySelect } from "@/lib/data/selects";
 import { downloadHeaders } from "@/lib/security/downloads";
+import { safeErrorMessage, safeErrorStatus } from "@/lib/security/errors";
+import { getClientIp } from "@/lib/security/origin";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { parseDailyTimeFilters } from "@/lib/time-daily";
 import { buildDailyTimeCsv, buildDailyTimePdf, dailyTimeFilename } from "@/lib/time-daily-export";
@@ -12,6 +15,7 @@ export async function GET(request: Request) {
   if (!context.canManage) return new Response("Keine Berechtigung", { status: 403 });
 
   try {
+    await checkRateLimit(`daily-time-export:${context.companyId}:${context.userId}:${getClientIp(request.headers)}`, 40, 60_000);
     const url = new URL(request.url);
     const format = url.searchParams.get("format") === "csv" ? "csv" : "pdf";
     const filters = parseDailyTimeFilters(Object.fromEntries(url.searchParams.entries()));
@@ -52,7 +56,6 @@ export async function GET(request: Request) {
       headers: downloadHeaders("application/pdf", dailyTimeFilename(exportData, "pdf"))
     });
   } catch (error) {
-    console.error("daily-time-export-failed", error);
-    return new Response("Tagesstunden-Export konnte nicht erzeugt werden.", { status: 500 });
+    return new Response(safeErrorMessage(error, "Tagesstunden-Export konnte nicht erzeugt werden."), { status: safeErrorStatus(error) });
   }
 }

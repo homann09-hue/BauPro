@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
-import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { logServerWarning } from "@/lib/security/logging";
+import { createScopedSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
 import type {
   CommercialDocument,
@@ -140,6 +141,18 @@ export function hashCustomerPortalToken(token: string) {
   return crypto.createHash("sha256").update(token, "utf8").digest("hex");
 }
 
+// Fallback-Helfer fuer kuenftige Refactors: Nur verwenden, wenn ein Token-Hash
+// ausnahmsweise in Anwendungscode verglichen werden muss. Der normale
+// Kundenportal-Pfad unten nutzt bewusst den Datenbank-Index statt JS-Vergleich.
+export function timingSafeTokenCompare(a: string, b: string): boolean {
+  const left = Buffer.from(a, "utf8");
+  const right = Buffer.from(b, "utf8");
+
+  if (left.length !== right.length) return false;
+
+  return crypto.timingSafeEqual(left, right);
+}
+
 export function customerPortalPath(token: string) {
   return `/portal/${encodeURIComponent(token)}`;
 }
@@ -159,27 +172,40 @@ function isActiveToken(token: Pick<CustomerPortalToken, "expires_at" | "revoked_
   return !token.revoked_at && new Date(token.expires_at).getTime() > Date.now();
 }
 
+function customerPortalAdminClient(caller: string) {
+  return createScopedSupabaseAdminClient({
+    caller,
+    reason: "Kundenportal nutzt Hash-Token und kurzlebige Signed URLs ohne eingeloggten Supabase-Nutzer."
+  });
+}
+
 async function signedReportPhoto(photo: ReportPhoto): Promise<PortalPhoto> {
-  const supabase = createSupabaseAdminClient();
+  const supabase = customerPortalAdminClient("customer-portal.signedReportPhoto");
   const { data } = await supabase.storage.from("report-photos").createSignedUrl(photo.storage_path, 60 * 15);
   return { ...photo, signedUrl: data?.signedUrl };
 }
 
 async function signedCustomerDocument(document: CustomerDocument): Promise<PortalDocument> {
-  const supabase = createSupabaseAdminClient();
+  const supabase = customerPortalAdminClient("customer-portal.signedCustomerDocument");
   const { data } = await supabase.storage.from("customer-documents").createSignedUrl(document.storage_path, 60 * 15);
   return { ...document, signedUrl: data?.signedUrl };
 }
 
 async function signedJobsiteDocument(document: PortalJobsiteDocument): Promise<PortalJobsiteDocument> {
-  const supabase = createSupabaseAdminClient();
+  const supabase = customerPortalAdminClient("customer-portal.signedJobsiteDocument");
   const { data } = await supabase.storage.from("jobsite-documents").createSignedUrl(document.storage_path, 60 * 15);
   return { ...document, signedUrl: data?.signedUrl };
 }
 
-function rowsOrEmpty<T>(result: { data: unknown; error: { message?: string } | null }, label: string): T[] {
+function rowsOrEmpty<T>(
+  result: { data: unknown; error: { message?: string } | null },
+  label: string,
+  options: { logMissingSchema?: boolean } = {}
+): T[] {
   if (result.error) {
-    console.warn(`customer-portal-${label}-load-failed`, result.error.message ?? "unknown");
+    if (options.logMissingSchema !== false || !isMissingSchemaError(result.error)) {
+      logServerWarning("customer-portal-load-section-failed", result.error, { section: label });
+    }
     return [];
   }
 
@@ -229,10 +255,33 @@ function deriveWeatherDelays(events: CustomerPortalEvent[], reports: PortalRepor
   return [...eventDelays, ...reportDelays].slice(0, 6);
 }
 
+/*
+ * Sicherheitsnotiz zum Kundenportal-Token:
+ *
+ * Der Portal-Link enthaelt ein zufaelliges Token. Dieses Token wird niemals im
+ * Klartext gesucht, sondern zuerst per SHA-256 gehasht. Der eigentliche
+ * Vergleich passiert anschliessend ueber Supabase/PostgREST:
+ *
+ *   .eq("token_hash", tokenHash)
+ *
+ * Damit fuehrt Postgres den Lookup ueber die indizierte token_hash-Spalte aus
+ * (B-Tree-Index) und der Anwendungscode macht keinen variablen String-Vergleich
+ * wie `===`, `!==` oder `.includes()`. Das ist fuer diesen Pfad ein angemessener
+ * Schutz gegen Timing-Angriffe, weil Node.js selbst keine Schritt-fuer-Schritt-
+ * Vergleichsdauer fuer Token-Hashes nach aussen preisgibt.
+ *
+ * WARNUNG: Falls dieser Vergleich jemals in Anwendungscode verlagert wird
+ * (z.B. durch Laden aller Tokens und manuellen Abgleich), MUSS
+ * crypto.timingSafeEqual() aus dem node:crypto Modul verwendet werden, niemals
+ * ===, !==, .includes() oder andere zeitvariable String-Vergleiche.
+ *
+ * Fuer solche Ausnahmefaelle steht timingSafeTokenCompare() bereit. Der aktuelle
+ * Hauptpfad soll weiterhin den DB-basierten Hash-Lookup verwenden.
+ */
 export async function loadCustomerPortalData(token: string): Promise<CustomerPortalData | null> {
   if (!token || token.length < 24) return null;
 
-  const supabase = createSupabaseAdminClient();
+  const supabase = customerPortalAdminClient("customer-portal.loadCustomerPortalData");
   const tokenHash = hashCustomerPortalToken(token);
 
   const { data: tokenRow, error: tokenError } = await supabase
@@ -268,7 +317,7 @@ export async function loadCustomerPortalData(token: string): Promise<CustomerPor
   let workOrdersQuery = supabase
     .from("work_orders")
     .select(
-      "id, company_id, customer_id, jobsite_id, order_id, title, description, scope_of_work, price_note, status, version, content_hash, sent_at, viewed_at, signed_at, rejected_at, signer_name, signature_data_url, signature_role, rejection_reason, created_by, created_at, updated_at"
+      "id, company_id, customer_id, jobsite_id, order_id, title, description, scope_of_work, price_note, status, version, content_hash, sent_at, viewed_at, signed_at, rejected_at, signer_name, signature_data_url, rejection_reason, created_by, created_at, updated_at"
     )
     .eq("company_id", portalToken.company_id)
     .eq("customer_id", portalToken.customer_id)
@@ -409,7 +458,9 @@ export async function loadCustomerPortalData(token: string): Promise<CustomerPor
   const reports = rowsOrEmpty<PortalReport>(reportsResult, "reports");
   const photos = await Promise.all(rowsOrEmpty<ReportPhoto>(photosResult, "photos").map(signedReportPhoto));
   const documents = await Promise.all(rowsOrEmpty<CustomerDocument>(documentsResult, "documents").map(signedCustomerDocument));
-  const jobsiteDocuments = await Promise.all(rowsOrEmpty<PortalJobsiteDocument>(jobsiteDocumentsResult, "jobsite-documents").map(signedJobsiteDocument));
+  const jobsiteDocuments = await Promise.all(
+    rowsOrEmpty<PortalJobsiteDocument>(jobsiteDocumentsResult, "jobsite-documents", { logMissingSchema: false }).map(signedJobsiteDocument)
+  );
   const orders = rowsOrEmpty<PortalOrder>(ordersResult, "orders");
   const commercialDocuments = rowsOrEmpty<PortalCommercialDocument>(commercialDocumentsResult, "commercial-documents");
   const messages = rowsOrEmpty<CustomerPortalMessage>(messagesResult, "messages");
@@ -418,13 +469,20 @@ export async function loadCustomerPortalData(token: string): Promise<CustomerPor
 
   const pendingViewedUpdates = workOrders
     .filter((workOrder) => workOrder.status === "sent")
-    .map((workOrder) =>
-      supabase
+    .map((workOrder) => {
+      let updateQuery = supabase
         .from("work_orders")
         .update({ status: "viewed", viewed_at: new Date().toISOString() })
         .eq("id", workOrder.id)
+        .eq("company_id", portalToken.company_id)
+        .eq("customer_id", portalToken.customer_id)
         .eq("status", "sent")
-    );
+        .neq("status", "draft");
+
+      if (portalToken.jobsite_id) updateQuery = updateQuery.eq("jobsite_id", portalToken.jobsite_id);
+
+      return updateQuery;
+    });
   await Promise.allSettled(pendingViewedUpdates);
 
   return {

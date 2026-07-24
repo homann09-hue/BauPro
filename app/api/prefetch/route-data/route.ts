@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getOptionalAppContext } from "@/lib/auth";
+import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
+import { logServerWarning } from "@/lib/security/logging";
+import { getClientIp } from "@/lib/security/origin";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { fetchLiveWeather, selectActiveWeatherJobsite } from "@/lib/weather/live-weather";
+import { selectActiveWeatherJobsite } from "@/lib/weather/live-weather";
 
 const allowedScopes = new Set(["dashboard", "jobsites", "tasks", "planning", "team", "materials", "time", "bring-lists", "weather"]);
 
@@ -27,6 +31,9 @@ export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
 
   try {
+    const clientIp = getClientIp(request.headers);
+    await checkRateLimit(`prefetch:${context.companyId}:${context.userId}:${clientIp}`, 60, 60_000);
+
     if (scope === "jobsites") {
       let query = supabase
         .from("jobsites")
@@ -34,7 +41,7 @@ export async function GET(request: Request) {
         .eq("company_id", context.companyId)
         .in("status", ["geplant", "aktiv"])
         .order("start_date", { ascending: true, nullsFirst: false })
-        .limit(24);
+        .limit(16);
       if (!context.canManage) query = query.contains("assigned_employee_ids", [context.userId]);
       const { data } = await query;
 
@@ -48,7 +55,7 @@ export async function GET(request: Request) {
         .select("id, name, unit, stock, minimum_stock, location_id")
         .eq("company_id", context.companyId)
         .order("name", { ascending: true })
-        .limit(40);
+        .limit(context.canManage ? 24 : 16);
 
       return response({ ok: true, scope, materials: data ?? [] });
     }
@@ -62,7 +69,7 @@ export async function GET(request: Request) {
         .eq("company_id", context.companyId)
         .eq("active", true)
         .order("full_name", { ascending: true })
-        .limit(80);
+        .limit(40);
 
       return response({ ok: true, scope, team: data ?? [] });
     }
@@ -76,7 +83,7 @@ export async function GET(request: Request) {
         .is("archived_at", null)
         .neq("status", "erledigt")
         .order("due_date", { ascending: true, nullsFirst: false })
-        .limit(context.canManage ? 60 : 30);
+        .limit(context.canManage ? 30 : 16);
       if (!context.canManage) query = query.eq("assigned_to", context.userId);
       const { data } = await query;
 
@@ -98,7 +105,7 @@ export async function GET(request: Request) {
         .lte("start_date", endIso)
         .gte("end_date", todayIso)
         .order("start_date", { ascending: true })
-        .limit(context.canManage ? 180 : 40);
+        .limit(context.canManage ? 80 : 24);
       if (!context.canManage) assignmentsQuery = assignmentsQuery.eq("employee_id", context.userId);
 
       const [assignmentsResult, resourcesResult, vehiclesResult] = await Promise.all([
@@ -111,7 +118,7 @@ export async function GET(request: Request) {
               .eq("active", true)
               .is("archived_at", null)
               .order("name", { ascending: true })
-              .limit(80)
+              .limit(40)
           : Promise.resolve({ data: [] }),
         context.canManage
           ? supabase
@@ -120,7 +127,7 @@ export async function GET(request: Request) {
               .eq("company_id", context.companyId)
               .is("archived_at", null)
               .order("name", { ascending: true })
-              .limit(60)
+              .limit(32)
           : Promise.resolve({ data: [] })
       ]);
 
@@ -142,7 +149,7 @@ export async function GET(request: Request) {
         .eq("company_id", context.companyId)
         .gte("date", todayIso)
         .order("date", { ascending: true })
-        .limit(context.canManage ? 80 : 20);
+        .limit(context.canManage ? 24 : 8);
       if (!context.canManage) query = query.eq("employee_id", context.userId);
       const { data } = await query;
 
@@ -157,7 +164,7 @@ export async function GET(request: Request) {
         .eq("company_id", context.companyId)
         .gte("date", todayIso)
         .order("date", { ascending: true })
-        .limit(30);
+        .limit(16);
       if (!context.canManage) query = query.or(`assigned_to.eq.${context.userId},created_by.eq.${context.userId}`);
       const { data } = await query;
 
@@ -175,21 +182,21 @@ export async function GET(request: Request) {
           .eq("company_id", context.companyId)
           .in("status", ["geplant", "aktiv"])
           .order("start_date", { ascending: true, nullsFirst: false })
-          .limit(50),
+          .limit(24),
         supabase
           .from("orders")
           .select("id, jobsite_id, status, priority, start_date, end_date")
           .eq("company_id", context.companyId)
           .in("status", ["geplant", "in_arbeit"])
-          .limit(80),
-        supabase.from("time_entries").select("id, job_id, date, status").eq("company_id", context.companyId).eq("date", todayIso).limit(100),
+          .limit(40),
+        supabase.from("time_entries").select("id, job_id, date, status").eq("company_id", context.companyId).eq("date", todayIso).limit(40),
         supabase
           .from("reports")
           .select("id, jobsite_id, report_date")
           .eq("company_id", context.companyId)
           .is("archived_at", null)
           .eq("report_date", todayIso)
-          .limit(80)
+          .limit(40)
       ]);
 
       const decision = selectActiveWeatherJobsite({
@@ -202,7 +209,6 @@ export async function GET(request: Request) {
       const lat = decision.jobsite?.latitude;
       const lng = decision.jobsite?.longitude;
       const hasCoordinates = typeof lat === "number" && Number.isFinite(lat) && typeof lng === "number" && Number.isFinite(lng);
-      const weather = hasCoordinates ? await fetchLiveWeather({ lat, lng }).catch(() => null) : null;
 
       return response({
         ok: true,
@@ -210,7 +216,8 @@ export async function GET(request: Request) {
         activeJobsite: decision.jobsite,
         score: decision.score,
         reasons: decision.reasons,
-        weather,
+        weather: null,
+        weatherDeferred: hasCoordinates,
         missingCoordinates: Boolean(decision.jobsite && !hasCoordinates)
       });
     }
@@ -236,14 +243,14 @@ export async function GET(request: Request) {
             .contains("assigned_employee_ids", [context.userId]))
         .in("status", ["geplant", "aktiv"])
         .order("start_date", { ascending: true, nullsFirst: false })
-        .limit(12),
+        .limit(8),
       supabase
         .from("reports")
         .select("id, jobsite_id, report_date, created_at")
         .eq("company_id", context.companyId)
         .is("archived_at", null)
         .order("report_date", { ascending: false })
-        .limit(8),
+        .limit(6),
       (context.canManage
         ? supabase
             .from("tasks")
@@ -259,7 +266,7 @@ export async function GET(request: Request) {
             .is("archived_at", null)
             .neq("status", "erledigt"))
         .order("due_date", { ascending: true, nullsFirst: false })
-        .limit(12),
+        .limit(8),
       context.canManage
         ? supabase
             .from("profiles")
@@ -267,7 +274,7 @@ export async function GET(request: Request) {
             .eq("company_id", context.companyId)
             .eq("active", true)
             .order("full_name", { ascending: true })
-            .limit(80)
+            .limit(40)
         : Promise.resolve({ data: [] }),
       (context.canManage
         ? supabase
@@ -280,20 +287,20 @@ export async function GET(request: Request) {
             .eq("company_id", context.companyId)
             .eq("employee_id", context.userId))
         .eq("date", todayIso)
-        .limit(context.canManage ? 120 : 20),
+        .limit(context.canManage ? 40 : 12),
       context.canManage
         ? supabase
             .from("inventory_items")
             .select("id, name, unit, stock, minimum_stock, location_id")
             .eq("company_id", context.companyId)
             .order("name", { ascending: true })
-            .limit(40)
+            .limit(24)
         : supabase
             .from("inventory_items_public")
             .select("id, name, unit, stock, minimum_stock, location_id")
             .eq("company_id", context.companyId)
             .order("name", { ascending: true })
-            .limit(20)
+            .limit(16)
     ]);
 
     return response({
@@ -315,7 +322,14 @@ export async function GET(request: Request) {
       materials: materialResult.data ?? []
     });
   } catch (error) {
-    console.warn("prefetch-route-data-failed", error);
-    return response({ ok: false, scope, message: "Prefetch konnte nicht vorbereitet werden." }, { status: 200 });
+    logServerWarning("prefetch-route-data-failed", error, {
+      companyId: context.companyId,
+      userId: context.userId,
+      scope
+    });
+    return response(
+      { ok: false, scope, message: safeErrorMessage(error, "Prefetch konnte nicht vorbereitet werden.") },
+      { status: error instanceof SafeActionError ? 429 : 200 }
+    );
   }
 }

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireManager } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { resourceStatuses } from "@/lib/resources";
 import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
 import { optionalFormUuid, requiredFormUuid } from "@/lib/security/form-data";
@@ -78,7 +78,7 @@ async function vehicleMetaFromForm({
 }
 
 export async function createVehicleAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/fahrzeuge");
   const supabase = await createSupabaseServerClient();
 
   let data: { id: string } | null = null;
@@ -114,7 +114,7 @@ export async function createVehicleAction(formData: FormData) {
 }
 
 export async function updateVehicleAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/fahrzeuge");
   const supabase = await createSupabaseServerClient();
   const id = requiredFormUuid(formData, "id", "Fahrzeug");
 
@@ -152,7 +152,7 @@ export async function updateVehicleAction(formData: FormData) {
 }
 
 export async function deleteVehicleAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/fahrzeuge");
   const supabase = await createSupabaseServerClient();
   const id = requiredFormUuid(formData, "id", "Fahrzeug");
 
@@ -174,7 +174,7 @@ export async function deleteVehicleAction(formData: FormData) {
 }
 
 export async function addVehicleMaterialAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/fahrzeuge");
   const supabase = await createSupabaseServerClient();
   const vehicleId = requiredFormUuid(formData, "vehicle_id", "Fahrzeug");
   const materialId = requiredFormUuid(formData, "material_id", "Material");
@@ -212,7 +212,7 @@ export async function addVehicleMaterialAction(formData: FormData) {
 }
 
 export async function deleteVehicleMaterialAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("vehicles.manage", "/fahrzeuge");
   const supabase = await createSupabaseServerClient();
   const id = requiredFormUuid(formData, "id", "Fahrzeugmaterial");
   let vehicleId = requiredFormUuid(formData, "vehicle_id", "Fahrzeug");

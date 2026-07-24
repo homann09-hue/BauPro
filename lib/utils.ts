@@ -1,4 +1,5 @@
 import { clsx, type ClassValue } from "clsx";
+import { SafeActionError } from "@/lib/security/errors";
 import type { Role } from "@/types/app";
 
 export function cn(...inputs: ClassValue[]) {
@@ -6,21 +7,37 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function isManager(role?: Role | null) {
-  return role === "admin" || role === "chef";
+  return role === "chef";
+}
+
+export function isAdmin(role?: Role | null) {
+  return role === "admin";
+}
+
+export function isChef(role?: Role | null) {
+  return role === "chef";
 }
 
 export function isForeman(role?: Role | null) {
   return role === "vorarbeiter";
 }
 
+export function isEmployee(role?: Role | null) {
+  return role === "mitarbeiter";
+}
+
+export function isCustomer(role?: Role | null) {
+  return role === "kunde";
+}
+
 export function canOperate(role?: Role | null) {
-  return isManager(role) || isForeman(role);
+  return isChef(role) || isForeman(role);
 }
 
 export function requiredString(formData: FormData, key: string) {
   const value = String(formData.get(key) ?? "").trim();
   if (!value) {
-    throw new Error(`Pflichtfeld fehlt: ${key}`);
+    throw new SafeActionError(`Pflichtfeld fehlt: ${key}`);
   }
 
   return value;

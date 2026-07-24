@@ -15,6 +15,7 @@ import {
   Hammer,
   LockKeyhole,
   MessageSquareText,
+  Navigation,
   PackageCheck,
   PenLine,
   Plus,
@@ -59,6 +60,7 @@ import { formatQuantity } from "@/lib/inventory";
 import { checklistCategoryLabels, checklistProgress, jobsiteChecklistStatusLabels } from "@/lib/checklists";
 import { defectPriorityLabels, defectStatusLabels, isDefectOverdue } from "@/lib/defects";
 import { materialTypeLabels, roofFormLabels, roofTypeLabels } from "@/lib/material-calculations";
+import { googleMapsJobsiteUrl } from "@/lib/maps/google-maps";
 import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, formatDateTime, formatMoney, searchParamMessage } from "@/lib/utils";
@@ -88,7 +90,7 @@ const documentCategoryLabels: Record<JobsiteDocumentCategory, string> = {
   angebot: "Angebot",
   rechnung: "Rechnung",
   lieferschein: "Lieferschein",
-  aufmass: "Aufmass",
+  aufmass: "Aufmaß",
   abnahmeprotokoll: "Abnahmeprotokoll",
   regiebericht: "Regiebericht",
   sicherheitsunterweisung: "Sicherheitsunterweisung",
@@ -394,6 +396,7 @@ export default async function JobsiteDetailPage({
   const totalTimeMinutes = timeEntries.reduce((sum, entry) => sum + Number(entry.net_minutes ?? 0), 0);
   const canUploadDocuments = context.canManage || context.profile.role === "vorarbeiter";
   const canStartChecklist = context.canManage || context.profile.role === "vorarbeiter";
+  const mapsHref = googleMapsJobsiteUrl(jobsite);
 
   return (
     <>
@@ -421,6 +424,14 @@ export default async function JobsiteDetailPage({
           <p className="meta-label">Team</p>
           <p className="mt-1 font-black text-ink">{jobsite.assigned_employee_ids.length} Mitarbeiter</p>
         </div>
+        {mapsHref ? (
+          <div className="sm:col-span-3">
+            <a href={mapsHref} target="_blank" rel="noreferrer" className="btn-secondary w-full sm:w-auto">
+              <Navigation className="h-4 w-4" aria-hidden="true" />
+              In Google Maps öffnen
+            </a>
+          </div>
+        ) : null}
         {jobsite.notes ? <p className="text-sm text-slate-600 sm:col-span-3">{jobsite.notes}</p> : null}
       </section>
 
@@ -455,7 +466,7 @@ export default async function JobsiteDetailPage({
               <h2 className="text-2xl font-black">Alles Wichtige an einem Ort</h2>
               <p className="mt-1 max-w-2xl text-sm text-slate-200">
                 Dokumente, Fotos, Aufgaben, Zeiten und Materialbedarf laufen hier zusammen. Mitarbeiter sehen nur operative Infos,
-                Chef/Admin sieht zusätzlich Preise und kaufmännische Dokumente.
+                Chef sieht zusätzlich Preise und kaufmännische Dokumente.
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
@@ -491,7 +502,7 @@ export default async function JobsiteDetailPage({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="font-black text-ink">Dokumente</h3>
-                  <p className="mt-1 text-sm text-slate-600">Aufmass, Lieferschein, Abnahme, Sicherheitsunterweisung oder Kundendokument.</p>
+                  <p className="mt-1 text-sm text-slate-600">Aufmaß, Lieferschein, Abnahme, Sicherheitsunterweisung oder Kundendokument.</p>
                 </div>
                 {canUploadDocuments ? <Upload className="h-5 w-5 text-moss" aria-hidden="true" /> : <LockKeyhole className="h-5 w-5 text-slate-400" aria-hidden="true" />}
               </div>
@@ -530,7 +541,7 @@ export default async function JobsiteDetailPage({
                 </form>
               ) : (
                 <p className="mt-4 rounded-md bg-fog p-3 text-sm font-semibold text-slate-600">
-                  Dokumentenupload ist für Chef/Admin und Vorarbeiter freigeschaltet.
+                  Dokumentenupload ist für Chef und Vorarbeiter freigeschaltet.
                 </p>
               )}
 
@@ -727,9 +738,12 @@ export default async function JobsiteDetailPage({
                           </div>
                           <StatusBadge value={checklist.status} label={jobsiteChecklistStatusLabels[checklist.status]} />
                         </div>
-                        <div className="mt-3 h-2 rounded-full bg-white">
-                          <div className="h-2 rounded-full bg-primary" style={{ width: `${progress.percent}%` }} />
-                        </div>
+                        <progress
+                          className="bp-progress-inline mt-3 h-2 w-full"
+                          aria-label={`Fortschritt der Checkliste ${checklist.title}`}
+                          value={progress.percent}
+                          max={100}
+                        />
                         {progress.problems > 0 ? (
                           <p className="mt-2 text-xs font-black text-red-700">{progress.problems} Problem(e) als Aufgabe erfasst</p>
                         ) : null}
@@ -901,7 +915,7 @@ export default async function JobsiteDetailPage({
           <MaterialCalculationForm jobsiteId={jobsite.id} defaultWastePercent={Number(settings.waste_percent ?? 20)} />
 
           <details className="surface p-4 sm:p-5">
-            <summary className="cursor-pointer text-sm font-black text-ink">Chef-Einstellungen und Materialregeln</summary>
+            <summary className="cursor-pointer text-sm font-black text-ink">Kalkulationswerte und Materialregeln</summary>
             <form action={updatePricingSettingsAction} className="mt-4 grid gap-3 sm:grid-cols-4">
               <input type="hidden" name="return_to" value={`/baustellen/${jobsite.id}`} />
               <label>
@@ -1138,12 +1152,12 @@ export default async function JobsiteDetailPage({
                       <PackageCheck className="h-4 w-4" aria-hidden="true" />
                       Mitbringliste erstellen
                     </Link>
-                    <Link href="/material" className="btn-secondary">
+                    <Link href="/materials/inventory" className="btn-secondary">
                       <Warehouse className="h-4 w-4" aria-hidden="true" />
                       Lager prüfen
                     </Link>
                     {context.canManage ? (
-                      <Link href="/angebote-rechnungen" className="btn-secondary">
+                      <Link href="/invoices" className="btn-secondary">
                         <ReceiptText className="h-4 w-4" aria-hidden="true" />
                         Angebot/Rechnung
                       </Link>

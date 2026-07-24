@@ -28,6 +28,7 @@ import { formatMissingMaterial } from "@/lib/ai/job-drafts";
 import { requireManager } from "@/lib/auth";
 import { aiJobDraftSelect } from "@/lib/data/selects";
 import { formatQuantity } from "@/lib/inventory";
+import { materialTypeLabels, roofFormLabels } from "@/lib/material-calculations";
 import { orderPriorityLabels, orderTypeLabels } from "@/lib/order-labels";
 import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -52,6 +53,8 @@ const statusLabels: Record<AiJobDraftRow["status"], string> = {
 
 const orderTypes = Object.keys(orderTypeLabels) as OrderType[];
 const priorities = Object.keys(orderPriorityLabels) as OrderPriority[];
+const roofForms = Object.keys(roofFormLabels);
+const materialTypes = Object.keys(materialTypeLabels);
 
 function paramValue(params: SearchParams, key: string) {
   const value = params[key];
@@ -208,6 +211,28 @@ function DraftCorrectionForm({ draft, preview }: { draft: AiJobDraftRow; preview
           </select>
         </label>
         <label>
+          <span className="field-label">Dachform</span>
+          <select className="field-input" name="roof_form" defaultValue={parsed.roof_form ?? ""}>
+            <option value="">Noch offen</option>
+            {roofForms.map((form) => (
+              <option key={form} value={form}>
+                {roofFormLabels[form]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span className="field-label">Materialtyp</span>
+          <select className="field-input" name="material_type" defaultValue={parsed.material_type ?? ""}>
+            <option value="">Noch offen</option>
+            {materialTypes.map((type) => (
+              <option key={type} value={type}>
+                {materialTypeLabels[type]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           <span className="field-label">Priorität</span>
           <select className="field-input" name="priority" defaultValue={parsed.priority}>
             {priorities.map((priority) => (
@@ -319,8 +344,8 @@ export default async function AiJobWizardPage({
   const schemaMissing = isMissingSchemaError(draftResult.error) || isMissingSchemaError(recentResult.error);
   const loadError = schemaMissing
     ? null
-    : safeQueryErrorMessage(draftResult.error, "KI-Auftragsentwuerfe konnten nicht geladen werden.") ??
-      safeQueryErrorMessage(recentResult.error, "KI-Auftragsentwuerfe konnten nicht geladen werden.");
+    : safeQueryErrorMessage(draftResult.error, "KI-Auftragsentwürfe konnten nicht geladen werden.") ??
+      safeQueryErrorMessage(recentResult.error, "KI-Auftragsentwürfe konnten nicht geladen werden.");
   const missingFields = preview ? preview.parsed.missing_fields : [];
   const missingMaterials = preview ? formatMissingMaterial(preview.items) : [];
   const disabledActions = !draft || draft.status === "rejected" || draft.status === "converted_to_job";
@@ -341,14 +366,73 @@ export default async function AiJobWizardPage({
       <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <StepCard step="Schritt 1" title="Auftrag beschreiben" icon={Sparkles}>
           <form action={prepareAiJobDraftAction} className="grid gap-3">
+            <div className="rounded-md border border-line bg-fog p-3">
+              <p className="text-sm font-black text-ink">Geführte Eingabe</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Diese Felder reichen schon für einen regelbasierten Entwurf. Sprache oder Text ergänzt Details.
+              </p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <label>
+                <span className="field-label">Kunde</span>
+                <input className="field-input" name="customer_name" placeholder="z. B. Müller" />
+              </label>
+              <label className="md:col-span-2">
+                <span className="field-label">Baustellenadresse</span>
+                <input className="field-input" name="jobsite_address" placeholder="Straße, PLZ Ort" />
+              </label>
+              <label>
+                <span className="field-label">Baustelle</span>
+                <input className="field-input" name="jobsite_name" placeholder="z. B. Wohnhaus Müller" />
+              </label>
+              <label>
+                <span className="field-label">Dachart</span>
+                <select className="field-input" name="order_type" defaultValue="steildach">
+                  {orderTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {orderTypeLabels[type]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="field-label">Dachform</span>
+                <select className="field-input" name="roof_form" defaultValue="">
+                  <option value="">Noch offen</option>
+                  {roofForms.map((form) => (
+                    <option key={form} value={form}>
+                      {roofFormLabels[form]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="field-label">Materialtyp</span>
+                <select className="field-input" name="material_type" defaultValue="">
+                  <option value="">Noch offen</option>
+                  {materialTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {materialTypeLabels[type]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <NumberInput name="area_m2" label="Dachfläche" suffix="m²" />
+              <NumberInput name="roof_pitch" label="Neigung" suffix="°" />
+              <NumberInput name="ridge_length_m" label="First" suffix="m" />
+              <NumberInput name="eaves_length_m" label="Traufe" suffix="m" />
+              <NumberInput name="verge_length_m" label="Ortgang" suffix="m" />
+              <NumberInput name="valley_length_m" label="Kehlen" suffix="m" />
+              <NumberInput name="downpipe_length_m" label="Rinne/Fallrohr" suffix="m" />
+              <NumberInput name="penetrations_count" label="Durchdringungen" />
+            </div>
             <label>
-              <span className="field-label">Sprache oder Text</span>
+              <span className="field-label">Sprache oder Text ergänzen</span>
               <textarea
                 className="field-input min-h-44"
                 name="raw_input"
                 defaultValue={draft?.raw_input ?? ""}
                 placeholder="Beispiel: Auftrag für Kunde Müller, Garage Flachdach neu abdichten, 6 mal 4 Meter, zwei Abläufe, Attika 20 Meter, nächste Woche."
-                required
               />
               <span className="field-help">Die KI erstellt nur einen Entwurf. Auftrag, Material, Reservierung und Mitbringliste entstehen erst nach Bestätigung.</span>
             </label>
@@ -384,6 +468,9 @@ export default async function AiJobWizardPage({
                 <Info label="Baustelle" value={preview.parsed.jobsite_name ?? preview.parsed.title} />
                 <Info label="Adresse" value={preview.parsed.jobsite_address} />
                 <Info label="Zeitraum" value={preview.parsed.start_date ? formatDate(preview.parsed.start_date) : preview.parsed.timeframe_text} />
+                <Info label="Dachform" value={preview.parsed.roof_form ? roofFormLabels[preview.parsed.roof_form] : null} />
+                <Info label="Materialtyp" value={preview.parsed.material_type ? materialTypeLabels[preview.parsed.material_type] : null} />
+                <Info label="Prüfhinweis" value="Entwurf - fachlich prüfen" />
               </div>
 
               {missingFields.length ? (

@@ -19,13 +19,13 @@ describe("mobile construction workflows", () => {
     const html = renderToString(
       React.createElement(VoiceInputField, {
         name: "activity",
-        label: "Taetigkeit",
+        label: "Tätigkeit",
         defaultValue: "",
         placeholder: "Diktieren oder tippen"
       })
     );
 
-    expect(html).toContain("Taetigkeit");
+    expect(html).toContain("Tätigkeit");
     expect(html).toContain("Diktieren oder tippen");
   });
 
@@ -47,6 +47,61 @@ describe("mobile construction workflows", () => {
     expect(actions).toContain('const status = statusValue(formData.get("status"), canManage);');
   });
 
+  it("exposes the five important construction actions directly in mobile navigation", () => {
+    const shell = source("components/app-shell.tsx");
+
+    for (const item of [
+      '{ href: "/dashboard", label: "Heute", icon: "dashboard" }',
+      '{ href: "/baustellen", label: "Baustellen", icon: "baustellen" }',
+      '{ href: "/time-tracking", label: "Zeiten", icon: "zeiten" }',
+      '{ href: "/material-melden", label: "Material", icon: "materialMelden" }',
+      '{ href: "/berichte", label: "Berichte", icon: "berichte" }'
+    ]) {
+      expect(shell).toContain(item);
+    }
+
+    expect(shell).toContain('{ href: "/materials/inventory", label: "Lager", icon: "lager" }');
+    expect(shell).toContain('{ href: "/settings", label: "Setup", icon: Settings }');
+  });
+
+  it("turns the Heute card into a mobile construction mode", () => {
+    const ui = source("components/construction-ui.tsx");
+    const maps = source("lib/maps/google-maps.ts");
+
+    expect(ui).toContain("Baustellenmodus");
+    expect(ui).toContain("In Google Maps öffnen");
+    expect(maps).toContain("https://www.google.com/maps/search/");
+    expect(ui).toContain("Material fehlt");
+    expect(ui).toContain("Foto hochladen");
+  });
+
+  it("locally saves important mobile form drafts without storing files or passwords", () => {
+    const draftAutosave = source("components/offline/form-draft-autosave.tsx");
+    const timeForm = source("components/forms/time-entry-form.tsx");
+    const reportForm = source("components/forms/report-form.tsx");
+    const materialPage = source("app/(app)/material-melden/page.tsx");
+
+    expect(draftAutosave).toContain("DRAFT_TTL_MS");
+    expect(draftAutosave).toContain("SENSITIVE_FIELD_NAME_PATTERN");
+    expect(draftAutosave).toContain('"file", "password", "hidden"');
+    expect(draftAutosave).toContain("localStorage.setItem");
+    expect(timeForm).toContain("baupro:time-entry");
+    expect(reportForm).toContain("baupro:report");
+    expect(materialPage).toContain("baupro:material-report");
+  });
+
+  it("keeps offline queue bounded and same-origin only", () => {
+    const offlineQueue = source("lib/offline/queue.ts");
+
+    expect(offlineQueue).toContain("OFFLINE_QUEUE_TTL_MS");
+    expect(offlineQueue).toContain("MAX_QUEUE_ITEMS");
+    expect(offlineQueue).toContain("MAX_FILE_BYTES");
+    expect(offlineQueue).toContain("SENSITIVE_FIELD_NAME_PATTERN");
+    expect(offlineQueue).toContain("url.origin !== window.location.origin");
+    expect(offlineQueue).toContain("actionName.startsWith(\"//\")");
+    expect(offlineQueue).toContain("queue.slice(-MAX_QUEUE_ITEMS)");
+  });
+
   it("keeps bring-list voice flow free of price fields and still runs stock alerts", () => {
     const form = source("components/forms/bring-list-form.tsx");
     const actions = source("lib/actions/bring-list-actions.ts");
@@ -60,5 +115,6 @@ describe("mobile construction workflows", () => {
     const page = source("app/(app)/material-melden/page.tsx");
     expect(page).not.toMatch(/purchase_price|sales_price|price_net|price_gross|margin|markup_percent/);
     expect(page).toContain("Preis- und Einkaufsdaten bleiben ausgeblendet");
+    expect(page).toContain("Materialname");
   });
 });

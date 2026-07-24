@@ -1,35 +1,31 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { headers } from "next/headers";
 import {
   BriefcaseBusiness,
   Calculator,
-  ExternalLink,
   FileDown,
   FileSignature,
   FileText,
-  Link2,
   ListChecks,
   LockKeyhole,
   MessageSquareText,
   PackageCheck,
   ReceiptText,
   Send,
-  Warehouse,
   XCircle
 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
+import { CustomerPortalLinkForm } from "@/components/customer-portal/customer-portal-link-form";
+import { WorkOrderDraftForm } from "@/components/customer-portal/work-order-draft-form";
+import { WorkOrderSendButton } from "@/components/customer-portal/work-order-send-button";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
-import { createCommercialDocumentFromOrderAction } from "@/lib/actions/commercial-document-actions";
+import { createInvoiceFromOrderAction } from "@/lib/actions/invoice-actions";
 import { createBringListFromOrderAction } from "@/lib/actions/bring-list-actions";
 import {
   createCustomerPortalEventAction,
-  createCustomerPortalLinkAction,
-  createWorkOrderAction,
   revokeCustomerPortalLinkAction,
-  sendWorkOrderAction,
   uploadCustomerDocumentAction
 } from "@/lib/actions/customer-portal-actions";
 import {
@@ -40,12 +36,10 @@ import {
   updateOrderStatusAction
 } from "@/lib/actions/order-actions";
 import { requireAppContext } from "@/lib/auth";
-import { customerPortalUrl } from "@/lib/customer-portal/tokens";
 import { orderMeasurementItemSelect } from "@/lib/data/selects";
 import { formatQuantity } from "@/lib/inventory";
 import { customerDisplayName, orderPriorityLabels, orderStatusLabels, orderTypeLabels } from "@/lib/order-labels";
 import { aggregateMeasurementItems, orderMeasurementItemTypeLabels } from "@/lib/order-measurements";
-import { publicAppOrigin } from "@/lib/security/origin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatDate, formatDateTime, formatMoney, searchParamMessage } from "@/lib/utils";
 import type {
@@ -95,6 +89,39 @@ type WorkOrderListItem = Pick<
   | "created_at"
   | "updated_at"
 >;
+type OrderCostEstimateRow = {
+  id: string;
+  company_id: string;
+  job_id: string;
+  material_ek_total: number;
+  material_vk_total: number;
+  labor_hours_estimated: number;
+  labor_rate_net: number;
+  labor_total_net: number;
+  overhead_percent: number;
+  overhead_total: number;
+  profit_markup_percent: number;
+  profit_total: number;
+  subtotal_net: number;
+  vat_rate: number;
+  vat_total: number;
+  total_gross: number;
+  price_source_summary: Record<string, unknown> | null;
+  created_at: string;
+  job_estimate_items?: OrderCostEstimateItemRow[];
+};
+type OrderCostEstimateItemRow = {
+  id: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  ek_unit_price: number | null;
+  vk_unit_price: number | null;
+  ek_total: number | null;
+  vk_total: number | null;
+  price_source: string;
+  notes: string | null;
+};
 
 function Info({ label, value }: { label: string; value?: string | number | null }) {
   return (
@@ -122,6 +149,139 @@ function requirementTotals(items: JobMaterialRequirement[]) {
   );
 }
 
+function estimateNumber(value: number | string | null | undefined) {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function estimateSummaryNumber(estimate: OrderCostEstimateRow, key: string) {
+  const rawValue = estimate.price_source_summary?.[key];
+  if (typeof rawValue === "number" || typeof rawValue === "string") return estimateNumber(rawValue);
+  return 0;
+}
+
+function estimateSummaryWarnings(estimate: OrderCostEstimateRow) {
+  const rawValue = estimate.price_source_summary?.roofing_material_warnings;
+  return Array.isArray(rawValue) ? rawValue.filter((item): item is string => typeof item === "string") : [];
+}
+
+function OrderCostEstimatePanel({ estimate }: { estimate: OrderCostEstimateRow | null }) {
+  if (!estimate) {
+    return null;
+  }
+
+  const areaM2 = estimateSummaryNumber(estimate, "area_m2");
+  const materialCostPerM2 = estimateSummaryNumber(estimate, "material_cost_per_m2");
+  const travelKm = estimateSummaryNumber(estimate, "travel_km");
+  const travelTripCount = estimateSummaryNumber(estimate, "travel_trip_count") || 1;
+  const travelBillableKm = estimateSummaryNumber(estimate, "travel_billable_km");
+  const travelRatePerKm = estimateSummaryNumber(estimate, "travel_rate_per_km");
+  const travelFlatRate = estimateSummaryNumber(estimate, "travel_flat_rate");
+  const travelTotal = estimateSummaryNumber(estimate, "travel_total_net");
+  const machineExtraTotal = estimateSummaryNumber(estimate, "machine_extra_total_net");
+  const laborEmployeeCount = estimateSummaryNumber(estimate, "labor_employee_count") || 1;
+  const laborPersonHours = estimateSummaryNumber(estimate, "labor_person_hours") || estimateNumber(estimate.labor_hours_estimated);
+  const internalLaborRate = estimateSummaryNumber(estimate, "internal_labor_rate_net");
+  const laborInternalTotal = estimateSummaryNumber(estimate, "labor_internal_total_net");
+  const laborSalesTotal = estimateSummaryNumber(estimate, "labor_sales_total_net") || estimateNumber(estimate.labor_total_net);
+  const laborMarginTotal = estimateSummaryNumber(estimate, "labor_margin_total");
+  const estimateItems = estimate.job_estimate_items ?? [];
+  const warnings = estimateSummaryWarnings(estimate);
+
+  return (
+    <section className="surface mb-5 p-4 sm:p-5">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="meta-label">Chef-Kalkulation</p>
+          <h2 className="section-title">Direkte Kostenkalkulation</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-600">
+            Gespeichert am {formatDateTime(estimate.created_at)}. Diese Werte sind nur für Chef sichtbar.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 sm:items-end">
+          <div className="rounded-lg bg-mint px-4 py-3 text-right">
+            <p className="meta-label text-primary-dark">Brutto</p>
+            <p className="text-2xl font-black text-primary-dark">{formatMoney(estimateNumber(estimate.total_gross))}</p>
+          </div>
+          <a href={`/orders/${estimate.job_id}/quote.pdf`} className="btn-secondary">
+            <FileDown className="h-4 w-4" aria-hidden="true" />
+            Angebots-PDF herunterladen
+          </a>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Info
+          label="Material netto"
+          value={`${formatMoney(estimateNumber(estimate.material_ek_total))}${areaM2 ? ` · ${formatQuantity(areaM2)} m² à ${formatMoney(materialCostPerM2)}` : ""}`}
+        />
+        <Info
+          label="Arbeitsleistung VK"
+          value={`${formatMoney(laborSalesTotal)} · ${formatQuantity(laborPersonHours)} Personenstunden · ${formatMoney(estimateNumber(estimate.labor_rate_net))}/h`}
+        />
+        <Info
+          label="Interne Lohnkosten"
+          value={`${formatMoney(laborInternalTotal)} · ${formatQuantity(laborEmployeeCount)} Mitarbeiter · ${formatMoney(internalLaborRate)}/h`}
+        />
+        <Info label="Arbeitsmarge" value={formatMoney(laborMarginTotal)} />
+        <Info
+          label="Fahrtkosten netto"
+          value={`${formatMoney(travelTotal)}${travelKm ? ` · ${formatQuantity(travelKm)} km einfach · 2 x ${formatQuantity(travelTripCount)} Fahrten · ${formatQuantity(travelBillableKm)} km à ${formatMoney(travelRatePerKm)}` : ""}${travelFlatRate ? ` · Pauschale ${formatMoney(travelFlatRate)}` : ""}`}
+        />
+        <Info label="Maschinen/Extras netto" value={formatMoney(machineExtraTotal)} />
+        <Info label="Netto gesamt" value={formatMoney(estimateNumber(estimate.subtotal_net))} />
+        <Info label={`MwSt ${formatQuantity(estimateNumber(estimate.vat_rate))} %`} value={formatMoney(estimateNumber(estimate.vat_total))} />
+        <Info label="Brutto gesamt" value={formatMoney(estimateNumber(estimate.total_gross))} />
+        <Info label="Quelle" value="Manuelle Chef-Kalkulation beim Auftrag" />
+      </div>
+
+      {estimateItems.length > 0 ? (
+        <div className="mt-4 rounded-lg border border-line bg-fog p-3">
+          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="meta-label">Dachdecker-Material</p>
+              <h3 className="text-base font-black text-ink">Berechnete Materialpositionen</h3>
+            </div>
+            <p className="text-sm font-black text-primary-dark">{estimateItems.length} Positionen</p>
+          </div>
+          <div className="grid gap-2">
+            {estimateItems.map((item) => (
+              <div key={item.id} className="rounded-md border border-line bg-white p-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="font-black text-ink">{item.description}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      {formatQuantity(estimateNumber(item.quantity))} {item.unit} · {item.price_source}
+                    </p>
+                    {item.notes ? <p className="mt-1 text-xs font-semibold text-slate-500">{item.notes}</p> : null}
+                  </div>
+                  <div className="text-left sm:text-right">
+                    <p className="text-sm font-black text-ink">{item.ek_total === null ? "Preis fehlt" : formatMoney(item.ek_total)}</p>
+                    {item.ek_unit_price !== null ? (
+                      <p className="text-xs font-semibold text-slate-500">{formatMoney(item.ek_unit_price)} / {item.unit}</p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {warnings.length > 0 ? (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <p className="text-sm font-black text-amber-900">Preiswarnungen</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm font-semibold text-amber-800">
+            {warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function CommercialDocumentPanel({
   order,
   materialCount,
@@ -138,17 +298,17 @@ function CommercialDocumentPanel({
           <p className="meta-label">Kaufmännischer Kern</p>
           <h2 className="section-title">Angebot oder Rechnung aus Auftrag erstellen</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-            BauPro übernimmt Materialpositionen, Mengen und VK-Preise aus der Auftragsberechnung. Preise bleiben nur für Chef/Admin sichtbar.
+            BauPro übernimmt Materialpositionen, Mengen und VK-Preise aus der Auftragsberechnung. Preise bleiben nur für Chef sichtbar.
           </p>
         </div>
-        <Link href="/angebote-rechnungen" className="btn-secondary">
+        <Link href="/invoices" className="btn-secondary">
           <ReceiptText className="h-4 w-4" aria-hidden="true" />
           Belege öffnen
         </Link>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr_260px]">
-        <form action={createCommercialDocumentFromOrderAction} className="rounded-lg border border-line bg-fog p-4">
+        <form action={createInvoiceFromOrderAction} className="rounded-lg border border-line bg-fog p-4">
           <input type="hidden" name="order_id" value={order.id} />
           <input type="hidden" name="document_type" value="quote" />
           <p className="font-black text-ink">Angebot vorbereiten</p>
@@ -163,7 +323,7 @@ function CommercialDocumentPanel({
           </button>
         </form>
 
-        <form action={createCommercialDocumentFromOrderAction} className="rounded-lg border border-line bg-fog p-4">
+        <form action={createInvoiceFromOrderAction} className="rounded-lg border border-line bg-fog p-4">
           <input type="hidden" name="order_id" value={order.id} />
           <input type="hidden" name="document_type" value="invoice" />
           <p className="font-black text-ink">Rechnung vorbereiten</p>
@@ -216,18 +376,18 @@ function DimensionField({
 const measurementTypes = Object.keys(orderMeasurementItemTypeLabels) as OrderMeasurementItemType[];
 
 const measurementTypeHelp: Record<OrderMeasurementItemType, string> = {
-  roof_area: "Laenge x Breite, optional mit Dachneigung",
+  roof_area: "Länge x Breite, optional mit Dachneigung",
   deduction_area: "Öffnungen oder Abzüge von der Dachfläche",
   eaves_length: "Traufe in laufenden Metern",
   ridge_length: "First in laufenden Metern",
   verge_length: "Ortgang in laufenden Metern",
   valley_length: "Kehle in laufenden Metern",
   wall_connection_length: "Wandanschluss in laufenden Metern",
-  downpipe_length: "Fallrohrlaenge in laufenden Metern",
+  downpipe_length: "Fallrohrlänge in laufenden Metern",
   roof_window: "Anzahl Dachfenster",
   penetration: "Anzahl Durchdringungen",
   roof_drain: "Anzahl Dachabläufe",
-  emergency_overflow: "Anzahl Notüberlaeufe"
+  emergency_overflow: "Anzahl Notüberläufe"
 };
 
 function measurementResultLabel(item: OrderMeasurementItem) {
@@ -258,7 +418,7 @@ function MeasurementItemsPanel({
     <section className="mt-5 rounded-lg border border-line bg-fog p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="meta-label">Praxis-Aufmass</p>
+          <p className="meta-label">Praxis-Aufmaß</p>
           <h3 className="text-base font-black text-ink">Dachflächen, Abzüge und laufende Meter</h3>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
             Erfasse Positionen wie auf dem Baustellenzettel. BauPro bildet daraus automatisch die Gesamtmaße und berechnet die Materialliste neu.
@@ -294,9 +454,9 @@ function MeasurementItemsPanel({
         </label>
         <label className="sm:col-span-2 xl:col-span-2">
           <span className="field-label">Bezeichnung</span>
-          <input className="field-input" name="label" placeholder="z. B. Hauptdach Suedseite" />
+          <input className="field-input" name="label" placeholder="z. B. Hauptdach Südseite" />
         </label>
-        <DimensionField label="Laenge m" name="length_m" />
+        <DimensionField label="Länge m" name="length_m" />
         <DimensionField label="Breite m" name="width_m" />
         <DimensionField label="Anzahl" name="quantity" value={1} />
         <DimensionField label="Dachneigung °" name="pitch_deg" />
@@ -313,9 +473,9 @@ function MeasurementItemsPanel({
       <div className="mt-4 grid gap-3">
         {items.length === 0 ? (
           <div className="rounded-lg border border-dashed border-line bg-white p-4">
-            <p className="font-black text-ink">Noch kein Aufmass erfasst</p>
+            <p className="font-black text-ink">Noch kein Aufmaß erfasst</p>
             <p className="mt-1 text-sm text-slate-600">
-              Starte mit der ersten Dachfläche. Danach kannst du Öffnungen, Traufen, Firste und Anschlüsse ergaenzen.
+              Starte mit der ersten Dachfläche. Danach kannst du Öffnungen, Traufen, Firste und Anschlüsse ergänzen.
             </p>
           </div>
         ) : (
@@ -331,7 +491,7 @@ function MeasurementItemsPanel({
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4 lg:min-w-[520px]">
                   <div className="rounded-md bg-fog p-2">
-                    <p className="meta-label">Laenge</p>
+                    <p className="meta-label">Länge</p>
                     <p className="font-black text-ink">{item.length_m ? `${formatQuantity(item.length_m)} m` : "-"}</p>
                   </div>
                   <div className="rounded-md bg-fog p-2">
@@ -375,8 +535,6 @@ function CustomerPortalPanel({
   portalMessages,
   customerDocuments,
   workOrders,
-  origin,
-  createdPortalToken,
   nowIso
 }: {
   order: Order;
@@ -385,11 +543,8 @@ function CustomerPortalPanel({
   portalMessages: CustomerPortalMessage[];
   customerDocuments: CustomerDocument[];
   workOrders: WorkOrderListItem[];
-  origin: string;
-  createdPortalToken: string | null;
   nowIso: string;
 }) {
-  const freshLink = createdPortalToken ? customerPortalUrl(origin, createdPortalToken) : null;
   const nowTime = new Date(nowIso).getTime();
 
   return (
@@ -403,44 +558,8 @@ function CustomerPortalPanel({
             Lagerdaten und Teamnotizen bleiben ausgeblendet.
           </p>
         </div>
-        <form
-          action={createCustomerPortalLinkAction}
-          className="grid gap-2 rounded-lg border border-line bg-fog p-3 sm:grid-cols-[1fr_120px_auto] lg:min-w-[520px]"
-          data-testid="portal-link-form"
-        >
-          <input type="hidden" name="order_id" value={order.id} />
-          <label>
-            <span className="field-label">Bezeichnung</span>
-            <input className="field-input" name="label" defaultValue={`Portal ${order.order_number}`} />
-          </label>
-          <label>
-            <span className="field-label">Gültig Tage</span>
-            <select className="field-input" name="expires_days" defaultValue="45">
-              <option value="14">14</option>
-              <option value="30">30</option>
-              <option value="45">45</option>
-              <option value="90">90</option>
-            </select>
-          </label>
-          <button className="btn-primary self-end" type="submit">
-            <Link2 className="h-4 w-4" aria-hidden="true" />
-            Link erzeugen
-          </button>
-        </form>
+        <CustomerPortalLinkForm orderId={order.id} defaultLabel={`Portal ${order.order_number}`} />
       </div>
-
-      {freshLink ? (
-        <div className="mb-4 rounded-lg border border-primary/20 bg-mint p-3">
-          <p className="text-sm font-black text-ink">Neuer Kundenlink, nur jetzt voll sichtbar</p>
-          <div className="mt-2 grid gap-2 lg:grid-cols-[1fr_auto]">
-            <input className="field-input bg-white" readOnly value={freshLink} />
-            <a href={freshLink} target="_blank" rel="noreferrer" className="btn-secondary">
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              Öffnen
-            </a>
-          </div>
-        </div>
-      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="rounded-lg border border-line bg-white p-4">
@@ -497,33 +616,7 @@ function CustomerPortalPanel({
             <h3 className="font-black text-ink">Arbeitsaufträge</h3>
           </div>
 
-          <form action={createWorkOrderAction} className="mb-4 grid gap-3 rounded-lg border border-line bg-fog p-3" data-testid="work-order-form">
-            <input type="hidden" name="order_id" value={order.id} />
-            <label>
-              <span className="field-label">Titel</span>
-              <input className="field-input" name="title" defaultValue={`Arbeitsauftrag ${order.order_number}`} />
-            </label>
-            <label>
-              <span className="field-label">Kurzbeschreibung</span>
-              <input className="field-input" name="description" defaultValue={order.description ?? ""} />
-            </label>
-            <label>
-              <span className="field-label">Leistungsbeschreibung für Kunden</span>
-              <textarea
-                className="field-input min-h-28"
-                name="scope_of_work"
-                defaultValue={order.description ?? "Bitte Leistung, Umfang und Besonderheiten für den Kunden eintragen."}
-              />
-            </label>
-            <label>
-              <span className="field-label">Preis-/Angebotshinweis für Kunden</span>
-              <input className="field-input" name="price_note" placeholder="z. B. gemaess Angebot vom ..." />
-            </label>
-            <button className="btn-secondary justify-self-start" type="submit">
-              <FileSignature className="h-4 w-4" aria-hidden="true" />
-              Entwurf anlegen
-            </button>
-          </form>
+          <WorkOrderDraftForm orderId={order.id} orderNumber={order.order_number} defaultDescription={order.description} />
 
           {workOrders.length === 0 ? (
             <p className="rounded-md border border-dashed border-line p-3 text-sm font-semibold text-slate-600">
@@ -532,7 +625,7 @@ function CustomerPortalPanel({
           ) : (
             <div className="space-y-2">
               {workOrders.map((workOrder) => (
-                <div key={workOrder.id} className="rounded-md border border-line p-3">
+                <div key={workOrder.id} className="rounded-md border border-line p-3" data-testid="work-order-card">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="font-black text-ink">{workOrder.title}</p>
@@ -546,21 +639,14 @@ function CustomerPortalPanel({
                   </div>
                   <p className="mt-2 whitespace-pre-line text-sm text-slate-700">{workOrder.scope_of_work}</p>
                   {workOrder.status === "draft" ? (
-                    <form action={sendWorkOrderAction} className="mt-3">
-                      <input type="hidden" name="order_id" value={order.id} />
-                      <input type="hidden" name="work_order_id" value={workOrder.id} />
-                      <button className="btn-primary min-h-10" type="submit">
-                        <Send className="h-4 w-4" aria-hidden="true" />
-                        Ins Kundenportal senden
-                      </button>
-                    </form>
+                    <WorkOrderSendButton orderId={order.id} workOrderId={workOrder.id} />
                   ) : workOrder.status === "signed" ? (
                     <p className="mt-3 rounded-md bg-mint p-3 text-sm font-semibold text-primary">
                       Unterschrieben von {workOrder.signer_name || "Kunde"} am {formatDateTime(workOrder.signed_at)}.
                     </p>
                   ) : workOrder.status === "rejected" ? (
                     <p className="mt-3 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-700">
-                      Abgelehnt: {workOrder.rejection_reason || "Keine Begruendung angegeben."}
+                      Abgelehnt: {workOrder.rejection_reason || "Keine Begründung angegeben."}
                     </p>
                   ) : null}
                 </div>
@@ -659,7 +745,7 @@ function CustomerPortalPanel({
             <input type="hidden" name="order_id" value={order.id} />
             <label>
               <span className="field-label">Titel im Portal</span>
-              <input className="field-input" name="title" placeholder="z. B. Angebot, Aufmass, Fotodokumentation" />
+              <input className="field-input" name="title" placeholder="z. B. Angebot, Aufmaß, Fotodokumentation" />
             </label>
             <label>
               <span className="field-label">Datei</span>
@@ -705,7 +791,6 @@ export default async function OrderDetailPage({
   const { id } = await params;
   const resolvedSearchParams = await searchParams;
   const { error, success } = searchParamMessage(resolvedSearchParams);
-  const createdPortalToken = typeof resolvedSearchParams?.portal_token === "string" ? resolvedSearchParams.portal_token : null;
   const materialSource = context.canManage ? "job_material_requirements" : "job_material_requirements_public";
   const orderSelect =
     "id, company_id, customer_id, jobsite_id, order_number, title, order_type, status, priority, jobsite_address, start_date, end_date, description, internal_notes, assigned_employee_ids, has_dimensions, created_by, created_at, updated_at, customers(id, company, first_name, last_name, contact_person, phone, email), jobsites(id, name, address, customer)";
@@ -716,6 +801,8 @@ export default async function OrderDetailPage({
   const requirementSelect = context.canManage
     ? "id, company_id, order_id, dimension_id, jobsite_id, rule_id, catalog_item_id, inventory_item_id, material_name, unit, base_quantity, waste_percent, waste_quantity, total_quantity, purchase_price, sales_price, purchase_total, sales_total, margin_total, location_name, stock, minimum_stock, archived_at, created_at"
     : "id, company_id, order_id, dimension_id, jobsite_id, rule_id, catalog_item_id, inventory_item_id, material_name, unit, base_quantity, waste_percent, waste_quantity, total_quantity, location_name, stock, minimum_stock, archived_at, created_at";
+  const estimateSelect =
+    "id, company_id, job_id, material_ek_total, material_vk_total, labor_hours_estimated, labor_rate_net, labor_total_net, overhead_percent, overhead_total, profit_markup_percent, profit_total, subtotal_net, vat_rate, vat_total, total_gross, price_source_summary, created_at, job_estimate_items(id, description, quantity, unit, ek_unit_price, vk_unit_price, ek_total, vk_total, price_source, notes)";
   const measurementQuery = context.canManage
     ? supabase
         .from("order_measurement_items")
@@ -724,8 +811,18 @@ export default async function OrderDetailPage({
         .is("archived_at", null)
         .order("created_at", { ascending: true })
     : Promise.resolve({ data: [], error: null });
+  const estimateQuery = context.canManage
+    ? supabase
+        .from("job_estimates")
+        .select(estimateSelect)
+        .eq("company_id", context.companyId)
+        .eq("job_id", id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : Promise.resolve({ data: null, error: null });
 
-  const [orderResult, dimensionResult, requirementResult, measurementResult] = await Promise.all([
+  const [orderResult, dimensionResult, requirementResult, measurementResult, estimateResult] = await Promise.all([
     context.canManage
       ? supabase
           .from("orders")
@@ -735,7 +832,8 @@ export default async function OrderDetailPage({
       : supabase.from("orders_public").select(publicOrderSelect).eq("id", id).single(),
     supabase.from("job_dimensions").select(dimensionSelect).eq("order_id", id).is("archived_at", null).maybeSingle(),
     supabase.from(materialSource).select(requirementSelect).eq("order_id", id).is("archived_at", null).order("created_at", { ascending: true }),
-    measurementQuery
+    measurementQuery,
+    estimateQuery
   ]);
 
   if (!orderResult.data) {
@@ -746,6 +844,7 @@ export default async function OrderDetailPage({
   const dimension = dimensionResult.data as unknown as JobDimension | null;
   const requirements = (requirementResult.data ?? []) as unknown as Array<JobMaterialRequirement | PublicJobMaterialRequirement>;
   const measurementItems = (measurementResult.data ?? []) as unknown as OrderMeasurementItem[];
+  const costEstimate = (estimateResult.data ?? null) as unknown as OrderCostEstimateRow | null;
   const pricedRequirements = requirements as JobMaterialRequirement[];
   const totals = context.canManage ? requirementTotals(pricedRequirements) : null;
   let portalTokens: PortalTokenListItem[] = [];
@@ -753,11 +852,8 @@ export default async function OrderDetailPage({
   let portalMessages: CustomerPortalMessage[] = [];
   let customerDocuments: CustomerDocument[] = [];
   let workOrders: WorkOrderListItem[] = [];
-  let portalOrigin = "http://localhost:3000";
 
   if (context.canManage) {
-    const headerStore = await headers();
-    portalOrigin = publicAppOrigin(headerStore.get("origin"));
     let tokenQuery = supabase
       .from("customer_portal_tokens")
       .select("id, company_id, customer_id, jobsite_id, label, expires_at, revoked_at, created_by, created_at, last_used_at")
@@ -885,6 +981,8 @@ export default async function OrderDetailPage({
         ) : null}
       </section>
 
+      {context.canManage ? <OrderCostEstimatePanel estimate={costEstimate} /> : null}
+
       {context.canManage ? (
         <CommercialDocumentPanel
           order={order as Order}
@@ -901,8 +999,6 @@ export default async function OrderDetailPage({
           portalMessages={portalMessages}
           customerDocuments={customerDocuments}
           workOrders={workOrders}
-          origin={portalOrigin}
-          createdPortalToken={createdPortalToken}
           nowIso={new Date().toISOString()}
         />
       ) : null}
@@ -1105,20 +1201,30 @@ export default async function OrderDetailPage({
               ))}
             </div>
 
-            <div className="flex flex-col gap-2 border-t border-line bg-fog p-4 sm:flex-row sm:justify-end">
-              <button className="btn-secondary opacity-70" type="button" disabled title="Vorbereitet für die Angebotsstrecke">
-                <PackageCheck className="h-4 w-4" aria-hidden="true" />
-                Übernahme vorbereitet
-              </button>
-              <button className="btn-secondary opacity-70" type="button" disabled title="Reservierung läuft über Mitbringlisten und wird hier später direkt angebunden.">
-                <Warehouse className="h-4 w-4" aria-hidden="true" />
-                Reservierung vorbereitet
-              </button>
-              <button className="btn-secondary opacity-70" type="button" disabled title="PDF wird in der Angebots-/Rechnungsstrecke erzeugt.">
-                <FileDown className="h-4 w-4" aria-hidden="true" />
-                PDF vorbereitet
-              </button>
-            </div>
+            {context.canManage ? (
+              <div className="flex flex-col gap-3 border-t border-line bg-fog p-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm font-semibold text-slate-600">
+                  Materialbedarf kann direkt als Mitbringliste genutzt werden. Reservierung und Lagerabgleich laufen über die Mitbringliste.
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  {"jobsite_id" in order && order.jobsite_id ? (
+                    <form action={createBringListFromOrderAction}>
+                      <input type="hidden" name="order_id" value={order.id} />
+                      <button className="btn-secondary w-full sm:w-auto" type="submit">
+                        <ListChecks className="h-4 w-4" aria-hidden="true" />
+                        Mitbringliste erzeugen
+                      </button>
+                    </form>
+                  ) : null}
+                  {costEstimate ? (
+                    <a className="btn-secondary" href={`/orders/${order.id}/quote.pdf`}>
+                      <FileDown className="h-4 w-4" aria-hidden="true" />
+                      Angebots-PDF
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </article>
         )}
       </section>

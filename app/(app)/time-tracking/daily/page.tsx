@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   CalendarDays,
-  CheckCircle2,
   CloudSun,
   Clock3,
   Download,
@@ -18,10 +17,11 @@ import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { StatCard } from "@/components/construction-ui";
-import { setTimeEntryStatusAction } from "@/lib/actions/time-tracking-actions";
-import { requireManager } from "@/lib/auth";
+import { TimeEntryStatusControls } from "@/components/time-tracking/time-entry-status-controls";
+import { requirePermission } from "@/lib/auth";
 import { timeEntryAuditSelect } from "@/lib/data/selects";
 import { selectTimeEntriesWithWeatherFallback } from "@/lib/data/time-entries";
+import { hasAppPermission } from "@/lib/permissions";
 import { safeQueryErrorMessage } from "@/lib/security/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { parseDailyTimeFilters } from "@/lib/time-daily";
@@ -42,6 +42,10 @@ type DailyTimeEntry = TimeEntry & {
   approved_profile?: Pick<Profile, "id" | "full_name" | "email"> | null;
   audits?: TimeEntryAuditLog[];
 };
+
+const dailyTimeEntryLimit = 200;
+const dailyOptionLimit = 250;
+const dailyAuditLimit = 500;
 
 function buildFilterParams(filters: ReturnType<typeof parseDailyTimeFilters>) {
   const params = new URLSearchParams({
@@ -65,11 +69,12 @@ export default async function DailyTimeTrackingPage({
 }: {
   searchParams?: Promise<SearchParams>;
 }) {
-  const context = await requireManager();
+  const context = await requirePermission("time.team.view", "/time-tracking");
   const supabase = await createSupabaseServerClient();
   const resolvedSearchParams = (await searchParams) ?? {};
   const filters = parseDailyTimeFilters(resolvedSearchParams);
   const { error, success } = searchParamMessage(resolvedSearchParams);
+  const canEditTeamTimes = hasAppPermission(context.profile.role, context.permissions, "time.team.edit");
   const filterParams = buildFilterParams(filters);
   const filterQuery = filterParams.toString();
   const returnTo = `/time-tracking/daily${filterQuery ? `?${filterQuery}` : ""}`;
@@ -83,7 +88,8 @@ export default async function DailyTimeTrackingPage({
         .gte("date", filters.dateFrom)
         .lte("date", filters.dateTo)
         .order("date", { ascending: false })
-        .order("start_time", { ascending: true });
+        .order("start_time", { ascending: true })
+        .limit(dailyTimeEntryLimit);
 
       if (filters.employeeId) entriesQuery = entriesQuery.eq("employee_id", filters.employeeId);
       if (filters.jobId) entriesQuery = entriesQuery.eq("job_id", filters.jobId);
@@ -91,12 +97,19 @@ export default async function DailyTimeTrackingPage({
 
       return entriesQuery;
     }),
-    supabase.from("profiles").select("id, company_id, email, full_name, role, active").eq("company_id", context.companyId).eq("active", true).order("full_name"),
+    supabase
+      .from("profiles")
+      .select("id, company_id, email, full_name, role, active")
+      .eq("company_id", context.companyId)
+      .eq("active", true)
+      .order("full_name")
+      .limit(dailyOptionLimit),
     supabase
       .from("jobsites")
       .select("id, company_id, name, customer, address, start_date, status, notes, assigned_employee_ids, created_at")
       .eq("company_id", context.companyId)
       .order("name", { ascending: true })
+      .limit(dailyOptionLimit)
   ]);
 
   const rawEntries = ((entriesResult.data ?? []) as unknown) as TimeEntry[];
@@ -119,6 +132,7 @@ export default async function DailyTimeTrackingPage({
           .eq("company_id", context.companyId)
           .in("time_entry_id", entryIds)
           .order("created_at", { ascending: false })
+          .limit(dailyAuditLimit)
       : { data: [], error: null };
 
   const auditMap = new Map<string, TimeEntryAuditLog[]>();
@@ -151,12 +165,17 @@ export default async function DailyTimeTrackingPage({
     <>
       <PageHeader
         title="Tagesstunden"
-        description="Taegliche Stunden pro Mitarbeiter prüfen, korrigieren, freigeben und exportieren."
+        description="Tägliche Stunden pro Mitarbeiter prüfen, korrigieren, freigeben und exportieren."
         actionHref="/time/new"
         actionLabel="Arbeitszeit eintragen"
         actionIcon={Plus}
       />
       <MessageBox error={error || queryError} success={success} />
+      {rawEntries.length >= dailyTimeEntryLimit ? (
+        <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+          Es werden die ersten {dailyTimeEntryLimit} Einträge angezeigt. Grenze den Zeitraum oder Mitarbeiter ein, um schneller und genauer zu prüfen.
+        </p>
+      ) : null}
 
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={Clock3} label="Netto im Zeitraum" value={formatMinutesAsHours(netMinutes)} href={returnTo} tone="green" />
@@ -176,7 +195,7 @@ export default async function DailyTimeTrackingPage({
         />
       </div>
 
-      <section className="dashboard-band mb-5">
+      <section className="filter-bar mb-5">
         <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <h2 className="section-title">Filter</h2>
@@ -326,7 +345,7 @@ export default async function DailyTimeTrackingPage({
                       {employee.entries.map((entry) => {
                         const latestAudit = entry.audits?.[0];
                         return (
-                          <div key={entry.id} className="rounded-lg border border-line bg-fog p-4">
+                          <div key={entry.id} data-testid="daily-time-entry" className="rounded-lg border border-line bg-fog p-4">
                             <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
@@ -361,7 +380,7 @@ export default async function DailyTimeTrackingPage({
                               <InfoTile label="Brutto" value={formatMinutesAsHours(entry.gross_minutes)} />
                               <InfoTile
                                 label="Genehmigt von"
-                                value={entry.approved_profile ? employeeName(entry.approved_profile) : entry.approved_at ? "Chef/Admin" : "-"}
+                                value={entry.approved_profile ? employeeName(entry.approved_profile) : entry.approved_at ? "Chef" : "-"}
                               />
                               <InfoTile
                                 label="Audit"
@@ -374,55 +393,14 @@ export default async function DailyTimeTrackingPage({
                             </div>
 
                             <div className="mt-4 flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-                              <Link href={`/time-tracking/${entry.id}/edit`} className="btn-secondary w-full xl:w-auto">
-                                <Pencil className="h-4 w-4" aria-hidden="true" />
-                                Bearbeiten / korrigieren
-                              </Link>
+                              {canEditTeamTimes ? (
+                                <Link href={`/time-tracking/${entry.id}/edit`} className="btn-secondary w-full xl:w-auto">
+                                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                                  Bearbeiten / korrigieren
+                                </Link>
+                              ) : null}
 
-                              <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[620px]">
-                                {entry.status !== "approved" ? (
-                                  <form action={setTimeEntryStatusAction} className="flex flex-col gap-2 sm:flex-row">
-                                    <input type="hidden" name="id" value={entry.id} />
-                                    <input type="hidden" name="status" value="approved" />
-                                    <input type="hidden" name="return_to" value={returnTo} />
-                                    <input
-                                      className="field-input min-h-12 sm:min-w-56"
-                                      name="change_reason"
-                                      placeholder="Kommentar optional"
-                                      defaultValue="Zeit freigegeben"
-                                    />
-                                    <button className="btn-primary sm:min-w-32" type="submit">
-                                      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                                      Genehmigen
-                                    </button>
-                                  </form>
-                                ) : (
-                                  <span className="inline-flex min-h-12 items-center justify-center rounded-md bg-primary/10 px-4 text-sm font-black text-primary-dark">
-                                    Genehmigt
-                                  </span>
-                                )}
-
-                                {entry.status !== "rejected" ? (
-                                  <form action={setTimeEntryStatusAction} className="flex flex-col gap-2 sm:flex-row">
-                                    <input type="hidden" name="id" value={entry.id} />
-                                    <input type="hidden" name="status" value="rejected" />
-                                    <input type="hidden" name="return_to" value={returnTo} />
-                                    <input
-                                      className="field-input min-h-12 sm:min-w-56"
-                                      name="change_reason"
-                                      placeholder="Ablehnungsgrund"
-                                      defaultValue="Zeit abgelehnt"
-                                    />
-                                    <button className="btn-secondary sm:min-w-32" type="submit">
-                                      Ablehnen
-                                    </button>
-                                  </form>
-                                ) : (
-                                  <span className="inline-flex min-h-12 items-center justify-center rounded-md bg-red-50 px-4 text-sm font-black text-danger">
-                                    Abgelehnt
-                                  </span>
-                                )}
-                              </div>
+                              {canEditTeamTimes ? <TimeEntryStatusControls entryId={entry.id} initialStatus={entry.status} returnTo={returnTo} /> : null}
                             </div>
 
                             {entry.audits && entry.audits.length > 1 ? (

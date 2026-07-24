@@ -3,7 +3,7 @@ import { CustomerForm } from "@/components/forms/customer-form";
 import { MessageBox } from "@/components/message-box";
 import { PageHeader } from "@/components/page-header";
 import { updateCustomerAction } from "@/lib/actions/customer-actions";
-import { requireManager } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { customerFormSelect } from "@/lib/data/selects";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { searchParamMessage } from "@/lib/utils";
@@ -17,7 +17,7 @@ export default async function EditCustomerPage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const context = await requireManager();
+  const context = await requirePermission("customers.edit", "/customers");
   const supabase = await createSupabaseServerClient();
   const { id } = await params;
   const { error, success } = searchParamMessage(await searchParams);

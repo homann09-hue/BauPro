@@ -2,10 +2,19 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireManager } from "@/lib/auth";
-import { customerFormSelect, jobDimensionSelect, orderMeasurementItemSelect } from "@/lib/data/selects";
+import { requirePermission } from "@/lib/auth";
+import {
+  customerFormSelect,
+  inventoryItemCalculationSelect,
+  jobDimensionSelect,
+  orderMeasurementItemSelect
+} from "@/lib/data/selects";
 import { calculateArea } from "@/lib/material-calculations";
-import { customerDisplayName } from "@/lib/order-labels";
+import {
+  calculateOrderCostEstimate,
+  orderCostEstimateSummary,
+  type OrderCostEstimateInput
+} from "@/lib/order-cost-estimate";
 import {
   aggregateMeasurementItems,
   calculateMeasurementDraft,
@@ -14,17 +23,56 @@ import {
 } from "@/lib/order-measurements";
 import { buildOrderMaterialRequirementRows, type OrderDimensionValues } from "@/lib/order-materials";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
-import { optionalFormUuid, requiredFormUuid } from "@/lib/security/form-data";
+import { optionalFormUuid, requiredFormString, requiredFormUuid } from "@/lib/security/form-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   formIds,
   numberOrZero,
   optionalDate,
   optionalNumber,
-  optionalString,
-  requiredString
+  optionalString
 } from "@/lib/utils";
-import type { Customer, JobsiteStatus, OrderMeasurementItem, OrderMeasurementItemType, OrderPriority, OrderStatus, OrderType } from "@/types/app";
+import {
+  calculateRoofingMaterialEstimate,
+  roofingTileTypeValue,
+  type RoofingMaterialEstimate,
+  type RoofingMaterialEstimateInput,
+  type RoofingMaterialPriceRow
+} from "@/lib/roofing-material-estimate";
+import type { Customer, OrderMeasurementItem, OrderMeasurementItemType, OrderPriority, OrderStatus, OrderType } from "@/types/app";
+
+const JOB_ESTIMATE_SCHEMA_MISSING_MESSAGE =
+  "Auftrag wurde gespeichert, aber die Kostenkalkulation konnte nicht gespeichert werden: Datenbank-Update fehlt. Bitte supabase/migrations/20260711_ai_job_estimates_gap_fix.sql ausführen.";
+const ORDER_RPC_SCHEMA_MISSING_MESSAGE =
+  "Datenbank-Update fehlt: Bitte supabase/migrations/20260716_atomic_order_creation.sql ausführen.";
+
+type AtomicOrderCreationRow = {
+  order_id: string;
+  jobsite_id: string;
+  order_number: string;
+};
+
+function isMissingSchemaRelationError(error: unknown, relationName: string) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  const message = typeof candidate.message === "string" ? candidate.message : "";
+
+  return candidate.code === "PGRST205" && message.includes("schema cache") && message.includes(relationName);
+}
+
+function isMissingRpcError(error: unknown, functionName: string) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; message?: unknown; details?: unknown; hint?: unknown };
+  const text = [candidate.code, candidate.message, candidate.details, candidate.hint]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ");
+
+  return (
+    text.includes("PGRST202") ||
+    (text.includes("schema cache") && text.includes(functionName)) ||
+    (text.includes("function") && text.includes(functionName) && text.includes("does not exist"))
+  );
+}
 
 function orderTypeValue(value: FormDataEntryValue | null): OrderType {
   const type = String(value ?? "steildach");
@@ -57,6 +105,25 @@ function orderStatusValue(value: FormDataEntryValue | null): OrderStatus {
   return "anfrage";
 }
 
+function requiredOrderStatusValue(formData: FormData): OrderStatus {
+  const rawStatus = requiredFormString(formData, "status", "Status");
+  const status = orderStatusValue(rawStatus);
+  if (status !== rawStatus) {
+    throw new SafeActionError("Bitte einen gueltigen Status fuer den Auftrag waehlen.");
+  }
+
+  return status;
+}
+
+function requiredDateString(formData: FormData, key: string, label: string) {
+  const value = requiredFormString(formData, key, label);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(new Date(`${value}T00:00:00`).getTime())) {
+    throw new SafeActionError(`Bitte ein gueltiges Datum fuer ${label} eintragen.`);
+  }
+
+  return value;
+}
+
 function orderPriorityValue(value: FormDataEntryValue | null): OrderPriority {
   const priority = String(value ?? "normal");
   return priority === "niedrig" || priority === "hoch" ? priority : "normal";
@@ -76,12 +143,6 @@ function newCustomerTypeValue(value: FormDataEntryValue | null) {
   }
 
   return "privatkunde";
-}
-
-function jobsiteStatusFromOrder(status: OrderStatus): JobsiteStatus {
-  if (status === "in_arbeit") return "aktiv";
-  if (status === "fertig" || status === "abgerechnet") return "abgeschlossen";
-  return "geplant";
 }
 
 function intOrZero(formData: FormData, key: string) {
@@ -134,6 +195,169 @@ function dimensionsFromForm(formData: FormData, fallbackWastePercent: number): O
     emergency_overflows_count: intOrZero(formData, "emergency_overflows_count"),
     waste_percent: Math.max(0, waste ?? fallbackWastePercent)
   };
+}
+
+function positiveFormNumber(formData: FormData, key: string) {
+  return Math.max(0, optionalNumber(formData, key) ?? 0);
+}
+
+function orderCostInputFromForm(formData: FormData, areaM2: number): OrderCostEstimateInput {
+  return {
+    areaM2,
+    materialCostPerM2: positiveFormNumber(formData, "material_cost_per_m2"),
+    materialManualTotalNet: positiveFormNumber(formData, "material_manual_total_net"),
+    laborHours: positiveFormNumber(formData, "labor_hours_estimated"),
+    laborEmployeeCount: Math.max(1, Math.round(positiveFormNumber(formData, "labor_employee_count") || 1)),
+    internalLaborRateNet: positiveFormNumber(formData, "internal_labor_rate_net"),
+    laborRateNet: positiveFormNumber(formData, "labor_rate_net"),
+    travelKm: positiveFormNumber(formData, "travel_km"),
+    travelTripCount: Math.max(1, Math.round(positiveFormNumber(formData, "travel_trip_count") || 1)),
+    travelRatePerKm: positiveFormNumber(formData, "travel_rate_per_km"),
+    travelFlatRate: positiveFormNumber(formData, "travel_flat_rate"),
+    machineExtraTotalNet: positiveFormNumber(formData, "machine_extra_total_net"),
+    vatRate: positiveFormNumber(formData, "vat_rate") || 19
+  };
+}
+
+function roofingMaterialInputFromForm(formData: FormData, areaM2: number): RoofingMaterialEstimateInput {
+  return {
+    areaM2,
+    roofPitch: positiveFormNumber(formData, "roof_pitch"),
+    tileType: roofingTileTypeValue(formData.get("tile_type")),
+    eavesLengthM: positiveFormNumber(formData, "eaves_length_m"),
+    ridgeLengthM: positiveFormNumber(formData, "ridge_length_m"),
+    vergeLengthM: positiveFormNumber(formData, "verge_length_m"),
+    valleyLengthM: positiveFormNumber(formData, "valley_length_m"),
+    hipLengthM: positiveFormNumber(formData, "hip_length_m"),
+    wastePercent: positiveFormNumber(formData, "waste_percent") || 15
+  };
+}
+
+function normalizeRoofingMaterialPriceRows(data: unknown): RoofingMaterialPriceRow[] {
+  return (Array.isArray(data) ? data : []).map((row) => {
+    const item = row as Omit<RoofingMaterialPriceRow, "inventory_locations"> & {
+      inventory_locations?: RoofingMaterialPriceRow["inventory_locations"] | RoofingMaterialPriceRow["inventory_locations"][];
+    };
+
+    return {
+      ...item,
+      inventory_locations: Array.isArray(item.inventory_locations)
+        ? item.inventory_locations[0] ?? null
+        : item.inventory_locations ?? null
+    };
+  });
+}
+
+async function calculateRoofingMaterialsFromInventory({
+  supabase,
+  companyId,
+  input
+}: {
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  companyId: string;
+  input: RoofingMaterialEstimateInput;
+}) {
+  const { data, error } = await supabase
+    .from("inventory_items")
+    .select(inventoryItemCalculationSelect)
+    .eq("company_id", companyId)
+    .order("name", { ascending: true });
+
+  if (error) {
+    throw new Error("inventory_price_lookup_failed");
+  }
+
+  return calculateRoofingMaterialEstimate(input, normalizeRoofingMaterialPriceRows(data));
+}
+
+async function saveOrderCostEstimate({
+  supabase,
+  companyId,
+  userId,
+  orderId,
+  input,
+  roofingEstimate
+}: {
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  companyId: string;
+  userId: string;
+  orderId: string;
+  input: OrderCostEstimateInput;
+  roofingEstimate: RoofingMaterialEstimate;
+}) {
+  const estimate = calculateOrderCostEstimate(input);
+  const summary = {
+    ...orderCostEstimateSummary(input, estimate),
+    roofing_material_purchase_total: roofingEstimate.purchaseTotal,
+    roofing_material_sales_total: roofingEstimate.salesTotal,
+    roofing_material_warnings: roofingEstimate.warnings,
+    roofing_material_items: roofingEstimate.items.map((item) => ({
+      key: item.key,
+      material_name: item.materialName,
+      quantity: item.totalQuantity,
+      unit: item.unit,
+      purchase_price: item.purchasePrice,
+      purchase_total: item.purchaseTotal,
+      warning: item.warning
+    }))
+  };
+
+  const { data, error } = await supabase
+    .from("job_estimates")
+    .insert({
+      company_id: companyId,
+      job_id: orderId,
+      material_ek_total: estimate.materialTotalNet,
+      material_vk_total: estimate.materialTotalNet,
+      labor_hours_estimated: input.laborHours,
+      labor_rate_net: input.laborRateNet,
+      labor_total_net: estimate.laborSalesTotalNet,
+      overhead_percent: 0,
+      overhead_total: 0,
+      profit_markup_percent: 0,
+      profit_total: 0,
+      subtotal_net: estimate.subtotalNet,
+      vat_rate: estimate.vatRate,
+      vat_total: estimate.vatTotal,
+      total_gross: estimate.totalGross,
+      price_source_summary: summary,
+      created_by: userId
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    if (isMissingSchemaRelationError(error, "job_estimates")) {
+      throw new SafeActionError(JOB_ESTIMATE_SCHEMA_MISSING_MESSAGE);
+    }
+
+    throw new Error("order_estimate_insert_failed");
+  }
+
+  const rows = roofingEstimate.items.map((item) => ({
+    estimate_id: data.id as string,
+    material_id: item.inventoryItemId,
+    description: item.materialName,
+    quantity: item.totalQuantity,
+    unit: item.unit,
+    ek_unit_price: item.purchasePrice,
+    vk_unit_price: item.salesPrice,
+    ek_total: item.purchaseTotal,
+    vk_total: item.salesTotal,
+    price_source: item.priceSource,
+    notes: item.warning ?? `Grundmenge ${item.baseQuantity} ${item.unit}, Verschnitt ${item.wastePercent} %.`
+  }));
+
+  if (rows.length > 0) {
+    const { error: itemError } = await supabase.from("job_estimate_items").insert(rows);
+    if (itemError) {
+      if (isMissingSchemaRelationError(itemError, "job_estimate_items")) {
+        throw new SafeActionError(JOB_ESTIMATE_SCHEMA_MISSING_MESSAGE);
+      }
+
+      throw new Error("order_estimate_items_insert_failed");
+    }
+  }
 }
 
 async function saveOrderDimensions({
@@ -239,18 +463,18 @@ function measurementDraftFromForm(formData: FormData): MeasurementDraft {
   };
 
   if ((itemType === "roof_area" || itemType === "deduction_area") && (!(draft.length_m && draft.length_m > 0) || !(draft.width_m && draft.width_m > 0))) {
-    throw new SafeActionError("Fuer Flaechen bitte Laenge und Breite groesser 0 eintragen.");
+    throw new SafeActionError("Für Flächen bitte Länge und Breite größer 0 eintragen.");
   }
 
   if (
     ["eaves_length", "ridge_length", "verge_length", "valley_length", "wall_connection_length", "downpipe_length"].includes(itemType) &&
     !(draft.length_m && draft.length_m > 0)
   ) {
-    throw new SafeActionError("Fuer laufende Meter bitte eine Laenge groesser 0 eintragen.");
+    throw new SafeActionError("Für laufende Meter bitte eine Länge größer 0 eintragen.");
   }
 
   if (["roof_window", "penetration", "roof_drain", "emergency_overflow"].includes(itemType) && draft.quantity <= 0) {
-    throw new SafeActionError("Fuer Stueckzahlen bitte eine Anzahl groesser 0 eintragen.");
+    throw new SafeActionError("Für Stückzahlen bitte eine Anzahl größer 0 eintragen.");
   }
 
   return draft;
@@ -262,7 +486,8 @@ async function syncDimensionsFromMeasurements({
   userId,
   orderId,
   orderType,
-  jobsiteId
+  jobsiteId,
+  includePrices
 }: {
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
   companyId: string;
@@ -270,6 +495,7 @@ async function syncDimensionsFromMeasurements({
   orderId: string;
   orderType: OrderType;
   jobsiteId: string | null;
+  includePrices: boolean;
 }) {
   const [{ data: settings }, { data: itemsData, error: itemsError }] = await Promise.all([
     supabase.from("company_pricing_settings").select("waste_percent").eq("company_id", companyId).maybeSingle(),
@@ -307,7 +533,7 @@ async function syncDimensionsFromMeasurements({
     userId,
     orderId,
     dimensions,
-    notes: "Automatisch aus Aufmasspositionen erzeugt."
+    notes: "Automatisch aus Aufmaßpositionen erzeugt."
   });
 
   const { data: updatedOrder, error: updateOrderError } = await supabase
@@ -330,7 +556,8 @@ async function syncDimensionsFromMeasurements({
     dimensionId: dimension.id as string,
     jobsiteId,
     orderType,
-    dimensions
+    dimensions,
+    includePrices
   });
 
   if (requirementRows.length > 0) {
@@ -372,26 +599,6 @@ async function getAssignableEmployeeIds(
   return { ids, error: null as string | null };
 }
 
-async function nextOrderNumber(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  companyId: string
-) {
-  const year = new Date().getFullYear();
-  const prefix = `AU-${year}-`;
-
-  const { data } = await supabase
-    .from("orders")
-    .select("order_number")
-    .eq("company_id", companyId)
-    .like("order_number", `${prefix}%`)
-    .order("order_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const lastNumber = Number(String(data?.order_number ?? "").replace(prefix, "")) || 0;
-  return `${prefix}${String(lastNumber + 1).padStart(4, "0")}`;
-}
-
 async function resolveCustomer(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   formData: FormData,
@@ -399,6 +606,10 @@ async function resolveCustomer(
   userId: string
 ) {
   const selectedCustomerIdRaw = optionalString(formData, "customer_id");
+
+  if (!selectedCustomerIdRaw) {
+    throw new SafeActionError("Bitte einen Kunden auswaehlen oder einen neuen Kunden anlegen.");
+  }
 
   if (selectedCustomerIdRaw && selectedCustomerIdRaw !== "new") {
     const selectedCustomerId = optionalFormUuid(formData, "customer_id", "Kunde");
@@ -451,80 +662,89 @@ async function resolveCustomer(
 }
 
 export async function createOrderAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("orders.create", "/orders");
   const supabase = await createSupabaseServerClient();
   let createdOrderId: string | null = null;
   let materialCalculationWarning: string | null = null;
+  let costEstimateWarning: string | null = null;
 
   try {
     const assignedEmployees = await getAssignableEmployeeIds(supabase, formData, context.companyId);
     if (assignedEmployees.error) throw new SafeActionError(assignedEmployees.error);
 
     const customer = await resolveCustomer(supabase, formData, context.companyId, context.userId);
-    const title = requiredString(formData, "title");
+    const title = requiredFormString(formData, "title", "Auftragstitel");
     const orderType = orderTypeValue(formData.get("order_type"));
-    const status = orderStatusValue(formData.get("status"));
+    const status = requiredOrderStatusValue(formData);
     const priority = orderPriorityValue(formData.get("priority"));
-    const jobsiteAddress =
-      optionalString(formData, "jobsite_address") ??
-      customer.jobsite_address ??
-      customer.billing_address ??
-      (() => {
-        throw new SafeActionError("Bitte eine Baustellenadresse eintragen.");
-      })();
-    const description = optionalString(formData, "description");
-    const orderNumber = await nextOrderNumber(supabase, context.companyId);
-    const customerName = customerDisplayName(customer);
+    const jobsiteAddress = requiredFormString(formData, "jobsite_address", "Baustellenadresse");
+    const description = requiredFormString(formData, "description", "Beschreibung");
+    const startDate = requiredDateString(formData, "start_date", "Startdatum");
     const shouldCreateDimensions = hasDimensionInput(formData);
+    const formAreaM2 = calculateArea(optionalNumber(formData, "length_m"), optionalNumber(formData, "width_m"), optionalNumber(formData, "area_m2"));
+    const roofingMaterialInput = roofingMaterialInputFromForm(formData, formAreaM2);
 
-    const { data: jobsite, error: jobsiteError } = await supabase
-      .from("jobsites")
-      .insert({
-        company_id: context.companyId,
-        name: title,
-        customer: customerName,
-        address: jobsiteAddress,
-        start_date: optionalDate(formData, "start_date"),
-        status: jobsiteStatusFromOrder(status),
-        notes: description,
-        assigned_employee_ids: assignedEmployees.ids,
-        created_by: context.userId
-      })
-      .select("id")
-      .single();
+    const { data: createdRows, error: createOrderError } = await supabase.rpc("create_order_with_jobsite", {
+      p_company_id: context.companyId,
+      p_customer_id: customer.id,
+      p_title: title,
+      p_order_type: orderType,
+      p_status: status,
+      p_priority: priority,
+      p_jobsite_address: jobsiteAddress,
+      p_start_date: startDate,
+      p_end_date: optionalDate(formData, "end_date"),
+      p_description: description,
+      p_internal_notes: optionalString(formData, "internal_notes"),
+      p_assigned_employee_ids: assignedEmployees.ids,
+      p_has_dimensions: shouldCreateDimensions,
+      p_created_by: context.userId
+    });
 
-    if (jobsiteError || !jobsite) {
-      throw new Error("jobsite_insert_failed");
+    if (createOrderError) {
+      if (isMissingRpcError(createOrderError, "create_order_with_jobsite")) {
+        throw new SafeActionError(ORDER_RPC_SCHEMA_MISSING_MESSAGE);
+      }
+      throw new Error("order_atomic_insert_failed");
     }
 
-    const { data: order, error: orderError } = await supabase
-      .from("orders")
-      .insert({
-        company_id: context.companyId,
-        customer_id: customer.id,
-        jobsite_id: jobsite.id,
-        order_number: orderNumber,
-        title,
-        order_type: orderType,
-        status,
-        priority,
-        jobsite_address: jobsiteAddress,
-        start_date: optionalDate(formData, "start_date"),
-        end_date: optionalDate(formData, "end_date"),
-        description,
-        internal_notes: optionalString(formData, "internal_notes"),
-        assigned_employee_ids: assignedEmployees.ids,
-        has_dimensions: shouldCreateDimensions,
-        created_by: context.userId
-      })
-      .select("id")
-      .single();
-
-    if (orderError || !order) {
-      throw new Error("order_insert_failed");
+    const createdOrder = (Array.isArray(createdRows) ? createdRows[0] : createdRows) as AtomicOrderCreationRow | null;
+    if (!createdOrder?.order_id || !createdOrder.jobsite_id) {
+      throw new Error("order_atomic_insert_empty");
     }
 
-    createdOrderId = order.id as string;
+    createdOrderId = createdOrder.order_id;
+    const createdJobsiteId = createdOrder.jobsite_id;
+
+    if (context.canManage) {
+      try {
+        const roofingEstimate = await calculateRoofingMaterialsFromInventory({
+          supabase,
+          companyId: context.companyId,
+          input: roofingMaterialInput
+        });
+        const manualMaterialTotal = positiveFormNumber(formData, "material_manual_total_net");
+        const costInput = orderCostInputFromForm(formData, formAreaM2);
+
+        await saveOrderCostEstimate({
+          supabase,
+          companyId: context.companyId,
+          userId: context.userId,
+          orderId: createdOrderId,
+          input: {
+            ...costInput,
+            materialCostPerM2: manualMaterialTotal > 0 || roofingEstimate.purchaseTotal > 0 ? 0 : costInput.materialCostPerM2,
+            materialManualTotalNet: manualMaterialTotal > 0 ? manualMaterialTotal : roofingEstimate.purchaseTotal
+          },
+          roofingEstimate
+        });
+      } catch (error) {
+        costEstimateWarning = safeErrorMessage(
+          error,
+          "Auftrag wurde gespeichert, aber die Kostenkalkulation konnte noch nicht gespeichert werden."
+        );
+      }
+    }
 
     if (shouldCreateDimensions) {
       const { data: settings } = await supabase
@@ -557,9 +777,10 @@ export async function createOrderAction(formData: FormData) {
           userId: context.userId,
           orderId: createdOrderId,
           dimensionId: dimension.id as string,
-          jobsiteId: jobsite.id as string,
+          jobsiteId: createdJobsiteId,
           orderType,
-          dimensions
+          dimensions,
+          includePrices: context.canManage
         });
 
         if (requirementRows.length > 0) {
@@ -578,15 +799,24 @@ export async function createOrderAction(formData: FormData) {
   revalidatePath("/orders");
   revalidatePath("/customers");
   revalidatePath("/baustellen");
+  const successMessage =
+    costEstimateWarning ??
+    materialCalculationWarning ??
+    (context.canManage
+      ? hasDimensionInput(formData)
+        ? "Auftrag, Maße, Materialbedarf und Kostenkalkulation wurden gespeichert."
+        : "Auftrag und Kostenkalkulation wurden gespeichert."
+      : hasDimensionInput(formData)
+        ? "Auftrag, Maße und Materialbedarf wurden gespeichert."
+        : "Auftrag wurde gespeichert.");
+
   redirect(
-    `/orders/${createdOrderId}?success=${toQuery(
-      materialCalculationWarning ?? (hasDimensionInput(formData) ? "Auftrag, Maße und Materialbedarf wurden gespeichert." : "Auftrag wurde angelegt.")
-    )}`
+    `/orders/${createdOrderId}?success=${toQuery(successMessage)}`
   );
 }
 
 export async function updateOrderDimensionsAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("orders.edit", "/orders");
   const supabase = await createSupabaseServerClient();
   const orderId = requiredFormUuid(formData, "order_id", "Auftrag");
   let materialCalculationWarning: string | null = null;
@@ -644,7 +874,8 @@ export async function updateOrderDimensionsAction(formData: FormData) {
         dimensionId: dimension.id as string,
         jobsiteId: (order.jobsite_id as string | null) ?? null,
         orderType: order.order_type as OrderType,
-        dimensions
+        dimensions,
+        includePrices: context.canManage
       });
 
       if (requirementRows.length > 0) {
@@ -664,7 +895,7 @@ export async function updateOrderDimensionsAction(formData: FormData) {
 }
 
 export async function createOrderMeasurementItemAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("orders.edit", "/orders");
   const supabase = await createSupabaseServerClient();
   const orderId = requiredFormUuid(formData, "order_id", "Auftrag");
 
@@ -706,22 +937,23 @@ export async function createOrderMeasurementItemAction(formData: FormData) {
       userId: context.userId,
       orderId,
       orderType: order.order_type as OrderType,
-      jobsiteId: (order.jobsite_id as string | null) ?? null
+      jobsiteId: (order.jobsite_id as string | null) ?? null,
+      includePrices: context.canManage
     });
   } catch (error) {
-    redirect(`/orders/${orderId}?error=${toQuery(safeErrorMessage(error, "Aufmassposition konnte nicht gespeichert werden."))}`);
+    redirect(`/orders/${orderId}?error=${toQuery(safeErrorMessage(error, "Aufmaßposition konnte nicht gespeichert werden."))}`);
   }
 
   revalidatePath(`/orders/${orderId}`);
   revalidatePath("/orders");
-  redirect(`/orders/${orderId}?success=${toQuery("Aufmass wurde gespeichert und Material neu berechnet.")}`);
+  redirect(`/orders/${orderId}?success=${toQuery("Aufmaß wurde gespeichert und Material neu berechnet.")}`);
 }
 
 export async function archiveOrderMeasurementItemAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("orders.edit", "/orders");
   const supabase = await createSupabaseServerClient();
   const orderId = requiredFormUuid(formData, "order_id", "Auftrag");
-  const itemId = requiredFormUuid(formData, "item_id", "Aufmassposition");
+  const itemId = requiredFormUuid(formData, "item_id", "Aufmaßposition");
 
   try {
     const { data: order } = await supabase
@@ -746,7 +978,7 @@ export async function archiveOrderMeasurementItemAction(formData: FormData) {
       .maybeSingle();
 
     if (archiveError || !archivedItem) {
-      throw new SafeActionError("Aufmassposition wurde nicht gefunden.");
+      throw new SafeActionError("Aufmaßposition wurde nicht gefunden.");
     }
 
     await syncDimensionsFromMeasurements({
@@ -755,19 +987,20 @@ export async function archiveOrderMeasurementItemAction(formData: FormData) {
       userId: context.userId,
       orderId,
       orderType: order.order_type as OrderType,
-      jobsiteId: (order.jobsite_id as string | null) ?? null
+      jobsiteId: (order.jobsite_id as string | null) ?? null,
+      includePrices: context.canManage
     });
   } catch (error) {
-    redirect(`/orders/${orderId}?error=${toQuery(safeErrorMessage(error, "Aufmassposition konnte nicht archiviert werden."))}`);
+    redirect(`/orders/${orderId}?error=${toQuery(safeErrorMessage(error, "Aufmaßposition konnte nicht archiviert werden."))}`);
   }
 
   revalidatePath(`/orders/${orderId}`);
   revalidatePath("/orders");
-  redirect(`/orders/${orderId}?success=${toQuery("Aufmassposition wurde archiviert und Material neu berechnet.")}`);
+  redirect(`/orders/${orderId}?success=${toQuery("Aufmaßposition wurde archiviert und Material neu berechnet.")}`);
 }
 
 export async function recalculateOrderMaterialsAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("orders.edit", "/orders");
   const supabase = await createSupabaseServerClient();
   const orderId = requiredFormUuid(formData, "order_id", "Auftrag");
 
@@ -802,7 +1035,8 @@ export async function recalculateOrderMaterialsAction(formData: FormData) {
       dimensionId: dimensions.id as string,
       jobsiteId: (order.jobsite_id as string | null) ?? null,
       orderType: order.order_type as OrderType,
-      dimensions: dimensions as unknown as OrderDimensionValues
+      dimensions: dimensions as unknown as OrderDimensionValues,
+      includePrices: context.canManage
     });
 
     if (requirementRows.length > 0) {
@@ -818,7 +1052,7 @@ export async function recalculateOrderMaterialsAction(formData: FormData) {
 }
 
 export async function updateOrderStatusAction(formData: FormData) {
-  const context = await requireManager();
+  const context = await requirePermission("orders.edit", "/orders");
   const supabase = await createSupabaseServerClient();
   const orderId = requiredFormUuid(formData, "order_id", "Auftrag");
   const status = orderStatusValue(formData.get("status"));
