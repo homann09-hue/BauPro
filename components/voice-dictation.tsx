@@ -57,7 +57,7 @@ const quickActionTemplates: Record<
   },
   material_alert: {
     label: "Problem melden",
-    helper: "Fehlendes Material oder Engpass direkt an Chef/Admin melden.",
+    helper: "Fehlendes Material oder Engpass direkt an Chef melden.",
     prefix: "Materialmeldung: ",
     icon: BellPlus
   },

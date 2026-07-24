@@ -562,7 +562,7 @@ export async function buildJobDraftPreviewFromParsed({
   const items = await previewItemsFromRequirements({ supabase, companyId: context.companyId, requirements });
   const estimate = calculateJobEstimate({ parsed: normalized, items, settings: calculationSettings });
   const warning = [
-    "Entwurf - fachlich pruefen. Keine automatische Bestellung und keine automatische Rechnung.",
+    "Entwurf - fachlich prüfen. Keine automatische Bestellung und keine automatische Rechnung.",
     "KI kann Fehler machen. Bitte Maße, Materialbedarf und Preise vor Verwendung prüfen.",
     "Kalkulation basiert auf hinterlegten Regeln und Preisen. Vor Angebotsversand prüfen.",
     normalized.missing_fields.length ? `Unvollständig: ${normalized.missing_fields.join(", ")}` : null

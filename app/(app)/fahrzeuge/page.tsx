@@ -29,7 +29,7 @@ export default async function VehiclesPage({
         <EmptyState
           icon={TriangleAlert}
           title="Kein Zugriff"
-          description="Fahrzeuge und Geräte werden von Admin oder Chef verwaltet."
+          description="Fahrzeuge und Geräte werden vom Chef verwaltet."
         />
       </>
     );

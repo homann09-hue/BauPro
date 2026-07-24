@@ -4,6 +4,9 @@ import { describe, expect, it } from "vitest";
 
 const root = path.resolve(__dirname, "../..");
 const privacyExport = fs.readFileSync(path.join(root, "lib/privacy/export.ts"), "utf8");
+const privacyPage = fs.readFileSync(path.join(root, "app/(app)/privacy/page.tsx"), "utf8");
+const ownExportRoute = fs.readFileSync(path.join(root, "app/(app)/privacy/export/route.ts"), "utf8");
+const companyExportRoute = fs.readFileSync(path.join(root, "app/(app)/privacy/company-export/route.ts"), "utf8");
 const priceFieldPattern = /\b(purchase_price|sales_price|markup_percent|price_per_unit|price_net|price_gross|total_price_gross|cheapest_price_gross|average_price_gross)\b/;
 
 function constString(name: string) {
@@ -33,12 +36,34 @@ describe("privacy exports", () => {
     expect(constString("inventoryItemOperationalExportSelect")).not.toMatch(priceFieldPattern);
   });
 
-  it("separates price data into an explicit chef/admin financial export block", () => {
+  it("separates price data into an explicit chef financial export block", () => {
     expect(privacyExport).toContain("restricted_financial_data");
     expect(privacyExport).toContain("restricted_financial_data_contains_prices: true");
+    expect(privacyExport).toContain('access: "system_admin_only"');
     expect(constString("materialPriceExportSelect")).toMatch(/\b(purchase_price|sales_price)\b/);
     expect(constString("inventoryPriceExportSelect")).toMatch(/\b(purchase_price|sales_price|markup_percent)\b/);
     expect(constString("supplierOfferFinancialExportSelect")).toMatch(/\b(price_net|price_gross|total_price_gross)\b/);
     expect(constString("onlinePriceOfferFinancialExportSelect")).toMatch(/\b(price_gross|total_price_gross)\b/);
+  });
+
+  it("rate-limits heavy privacy export routes and avoids cacheable error responses", () => {
+    for (const route of [ownExportRoute, companyExportRoute]) {
+      expect(route).toContain("checkRateLimit");
+      expect(route).toContain("getClientIp(request.headers)");
+      expect(route).toContain('"Cache-Control": "no-store"');
+      expect(route).toContain("safeErrorMessage");
+    }
+
+    expect(ownExportRoute).toContain("privacy-export:own");
+    expect(ownExportRoute).toContain("3, 60_000");
+    expect(companyExportRoute).toContain("privacy-export:company");
+    expect(companyExportRoute).toContain("2, 60_000");
+  });
+
+  it("shows the heavy company export only to system admins", () => {
+    expect(companyExportRoute).toContain("requirePlatformAdmin");
+    expect(privacyPage).toContain("context.isAdmin ? (");
+    expect(privacyPage).not.toContain("context.canManage ? (\n              <a href=\"/privacy/company-export\"");
+    expect(privacyPage).toContain("Systemadministratoren vorbehalten");
   });
 });

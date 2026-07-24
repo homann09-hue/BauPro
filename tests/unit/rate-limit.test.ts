@@ -68,6 +68,10 @@ afterEach(() => {
   vi.resetModules();
 });
 
+function setNodeEnv(value: string) {
+  (process.env as Record<string, string | undefined>).NODE_ENV = value;
+}
+
 describe("Redis rate limiter", () => {
   it("loest nach N Calls aus und initialisiert Redis nur lazy einmal", async () => {
     const { redisInstances } = mockUpstash();
@@ -114,7 +118,7 @@ describe("Redis rate limiter", () => {
   it("laesst bei fehlenden Env-Variablen in Entwicklung bewusst durch und warnt nur einmal", async () => {
     delete process.env.UPSTASH_REDIS_REST_URL;
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
-    process.env.NODE_ENV = "development";
+    setNodeEnv("development");
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
     const { checkRateLimit } = await loadRateLimiter();
@@ -131,7 +135,7 @@ describe("Redis rate limiter", () => {
   it("blockiert in Production hart, wenn Redis fehlt", async () => {
     delete process.env.UPSTASH_REDIS_REST_URL;
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
-    process.env.NODE_ENV = "production";
+    setNodeEnv("production");
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
     const { checkRateLimit } = await loadRateLimiter();

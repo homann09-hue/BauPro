@@ -15,7 +15,6 @@ import {
   orderCostEstimateSummary,
   type OrderCostEstimateInput
 } from "@/lib/order-cost-estimate";
-import { customerDisplayName } from "@/lib/order-labels";
 import {
   aggregateMeasurementItems,
   calculateMeasurementDraft,
@@ -40,7 +39,40 @@ import {
   type RoofingMaterialEstimateInput,
   type RoofingMaterialPriceRow
 } from "@/lib/roofing-material-estimate";
-import type { Customer, JobsiteStatus, OrderMeasurementItem, OrderMeasurementItemType, OrderPriority, OrderStatus, OrderType } from "@/types/app";
+import type { Customer, OrderMeasurementItem, OrderMeasurementItemType, OrderPriority, OrderStatus, OrderType } from "@/types/app";
+
+const JOB_ESTIMATE_SCHEMA_MISSING_MESSAGE =
+  "Auftrag wurde gespeichert, aber die Kostenkalkulation konnte nicht gespeichert werden: Datenbank-Update fehlt. Bitte supabase/migrations/20260711_ai_job_estimates_gap_fix.sql ausführen.";
+const ORDER_RPC_SCHEMA_MISSING_MESSAGE =
+  "Datenbank-Update fehlt: Bitte supabase/migrations/20260716_atomic_order_creation.sql ausführen.";
+
+type AtomicOrderCreationRow = {
+  order_id: string;
+  jobsite_id: string;
+  order_number: string;
+};
+
+function isMissingSchemaRelationError(error: unknown, relationName: string) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  const message = typeof candidate.message === "string" ? candidate.message : "";
+
+  return candidate.code === "PGRST205" && message.includes("schema cache") && message.includes(relationName);
+}
+
+function isMissingRpcError(error: unknown, functionName: string) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; message?: unknown; details?: unknown; hint?: unknown };
+  const text = [candidate.code, candidate.message, candidate.details, candidate.hint]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ");
+
+  return (
+    text.includes("PGRST202") ||
+    (text.includes("schema cache") && text.includes(functionName)) ||
+    (text.includes("function") && text.includes(functionName) && text.includes("does not exist"))
+  );
+}
 
 function orderTypeValue(value: FormDataEntryValue | null): OrderType {
   const type = String(value ?? "steildach");
@@ -111,12 +143,6 @@ function newCustomerTypeValue(value: FormDataEntryValue | null) {
   }
 
   return "privatkunde";
-}
-
-function jobsiteStatusFromOrder(status: OrderStatus): JobsiteStatus {
-  if (status === "in_arbeit") return "aktiv";
-  if (status === "fertig" || status === "abgerechnet") return "abgeschlossen";
-  return "geplant";
 }
 
 function intOrZero(formData: FormData, key: string) {
@@ -301,6 +327,10 @@ async function saveOrderCostEstimate({
     .single();
 
   if (error || !data) {
+    if (isMissingSchemaRelationError(error, "job_estimates")) {
+      throw new SafeActionError(JOB_ESTIMATE_SCHEMA_MISSING_MESSAGE);
+    }
+
     throw new Error("order_estimate_insert_failed");
   }
 
@@ -321,6 +351,10 @@ async function saveOrderCostEstimate({
   if (rows.length > 0) {
     const { error: itemError } = await supabase.from("job_estimate_items").insert(rows);
     if (itemError) {
+      if (isMissingSchemaRelationError(itemError, "job_estimate_items")) {
+        throw new SafeActionError(JOB_ESTIMATE_SCHEMA_MISSING_MESSAGE);
+      }
+
       throw new Error("order_estimate_items_insert_failed");
     }
   }
@@ -429,18 +463,18 @@ function measurementDraftFromForm(formData: FormData): MeasurementDraft {
   };
 
   if ((itemType === "roof_area" || itemType === "deduction_area") && (!(draft.length_m && draft.length_m > 0) || !(draft.width_m && draft.width_m > 0))) {
-    throw new SafeActionError("Fuer Flaechen bitte Laenge und Breite groesser 0 eintragen.");
+    throw new SafeActionError("Für Flächen bitte Länge und Breite größer 0 eintragen.");
   }
 
   if (
     ["eaves_length", "ridge_length", "verge_length", "valley_length", "wall_connection_length", "downpipe_length"].includes(itemType) &&
     !(draft.length_m && draft.length_m > 0)
   ) {
-    throw new SafeActionError("Fuer laufende Meter bitte eine Laenge groesser 0 eintragen.");
+    throw new SafeActionError("Für laufende Meter bitte eine Länge größer 0 eintragen.");
   }
 
   if (["roof_window", "penetration", "roof_drain", "emergency_overflow"].includes(itemType) && draft.quantity <= 0) {
-    throw new SafeActionError("Fuer Stueckzahlen bitte eine Anzahl groesser 0 eintragen.");
+    throw new SafeActionError("Für Stückzahlen bitte eine Anzahl größer 0 eintragen.");
   }
 
   return draft;
@@ -499,7 +533,7 @@ async function syncDimensionsFromMeasurements({
     userId,
     orderId,
     dimensions,
-    notes: "Automatisch aus Aufmasspositionen erzeugt."
+    notes: "Automatisch aus Aufmaßpositionen erzeugt."
   });
 
   const { data: updatedOrder, error: updateOrderError } = await supabase
@@ -563,26 +597,6 @@ async function getAssignableEmployeeIds(
   }
 
   return { ids, error: null as string | null };
-}
-
-async function nextOrderNumber(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  companyId: string
-) {
-  const year = new Date().getFullYear();
-  const prefix = `AU-${year}-`;
-
-  const { data } = await supabase
-    .from("orders")
-    .select("order_number")
-    .eq("company_id", companyId)
-    .like("order_number", `${prefix}%`)
-    .order("order_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const lastNumber = Number(String(data?.order_number ?? "").replace(prefix, "")) || 0;
-  return `${prefix}${String(lastNumber + 1).padStart(4, "0")}`;
 }
 
 async function resolveCustomer(
@@ -666,60 +680,41 @@ export async function createOrderAction(formData: FormData) {
     const jobsiteAddress = requiredFormString(formData, "jobsite_address", "Baustellenadresse");
     const description = requiredFormString(formData, "description", "Beschreibung");
     const startDate = requiredDateString(formData, "start_date", "Startdatum");
-    const orderNumber = await nextOrderNumber(supabase, context.companyId);
-    const customerName = customerDisplayName(customer);
     const shouldCreateDimensions = hasDimensionInput(formData);
     const formAreaM2 = calculateArea(optionalNumber(formData, "length_m"), optionalNumber(formData, "width_m"), optionalNumber(formData, "area_m2"));
     const roofingMaterialInput = roofingMaterialInputFromForm(formData, formAreaM2);
 
-    const { data: jobsite, error: jobsiteError } = await supabase
-      .from("jobsites")
-      .insert({
-        company_id: context.companyId,
-        name: title,
-        customer: customerName,
-        address: jobsiteAddress,
-        start_date: startDate,
-        status: jobsiteStatusFromOrder(status),
-        notes: description,
-        assigned_employee_ids: assignedEmployees.ids,
-        created_by: context.userId
-      })
-      .select("id")
-      .single();
+    const { data: createdRows, error: createOrderError } = await supabase.rpc("create_order_with_jobsite", {
+      p_company_id: context.companyId,
+      p_customer_id: customer.id,
+      p_title: title,
+      p_order_type: orderType,
+      p_status: status,
+      p_priority: priority,
+      p_jobsite_address: jobsiteAddress,
+      p_start_date: startDate,
+      p_end_date: optionalDate(formData, "end_date"),
+      p_description: description,
+      p_internal_notes: optionalString(formData, "internal_notes"),
+      p_assigned_employee_ids: assignedEmployees.ids,
+      p_has_dimensions: shouldCreateDimensions,
+      p_created_by: context.userId
+    });
 
-    if (jobsiteError || !jobsite) {
-      throw new Error("jobsite_insert_failed");
+    if (createOrderError) {
+      if (isMissingRpcError(createOrderError, "create_order_with_jobsite")) {
+        throw new SafeActionError(ORDER_RPC_SCHEMA_MISSING_MESSAGE);
+      }
+      throw new Error("order_atomic_insert_failed");
     }
 
-    const { data: order, error: orderError } = await supabase
-      .from("orders")
-      .insert({
-        company_id: context.companyId,
-        customer_id: customer.id,
-        jobsite_id: jobsite.id,
-        order_number: orderNumber,
-        title,
-        order_type: orderType,
-        status,
-        priority,
-        jobsite_address: jobsiteAddress,
-        start_date: startDate,
-        end_date: optionalDate(formData, "end_date"),
-        description,
-        internal_notes: optionalString(formData, "internal_notes"),
-        assigned_employee_ids: assignedEmployees.ids,
-        has_dimensions: shouldCreateDimensions,
-        created_by: context.userId
-      })
-      .select("id")
-      .single();
-
-    if (orderError || !order) {
-      throw new Error("order_insert_failed");
+    const createdOrder = (Array.isArray(createdRows) ? createdRows[0] : createdRows) as AtomicOrderCreationRow | null;
+    if (!createdOrder?.order_id || !createdOrder.jobsite_id) {
+      throw new Error("order_atomic_insert_empty");
     }
 
-    createdOrderId = order.id as string;
+    createdOrderId = createdOrder.order_id;
+    const createdJobsiteId = createdOrder.jobsite_id;
 
     if (context.canManage) {
       try {
@@ -743,8 +738,11 @@ export async function createOrderAction(formData: FormData) {
           },
           roofingEstimate
         });
-      } catch {
-        costEstimateWarning = "Auftrag wurde gespeichert, aber die Kostenkalkulation konnte noch nicht gespeichert werden.";
+      } catch (error) {
+        costEstimateWarning = safeErrorMessage(
+          error,
+          "Auftrag wurde gespeichert, aber die Kostenkalkulation konnte noch nicht gespeichert werden."
+        );
       }
     }
 
@@ -779,7 +777,7 @@ export async function createOrderAction(formData: FormData) {
           userId: context.userId,
           orderId: createdOrderId,
           dimensionId: dimension.id as string,
-          jobsiteId: jobsite.id as string,
+          jobsiteId: createdJobsiteId,
           orderType,
           dimensions,
           includePrices: context.canManage
@@ -943,19 +941,19 @@ export async function createOrderMeasurementItemAction(formData: FormData) {
       includePrices: context.canManage
     });
   } catch (error) {
-    redirect(`/orders/${orderId}?error=${toQuery(safeErrorMessage(error, "Aufmassposition konnte nicht gespeichert werden."))}`);
+    redirect(`/orders/${orderId}?error=${toQuery(safeErrorMessage(error, "Aufmaßposition konnte nicht gespeichert werden."))}`);
   }
 
   revalidatePath(`/orders/${orderId}`);
   revalidatePath("/orders");
-  redirect(`/orders/${orderId}?success=${toQuery("Aufmass wurde gespeichert und Material neu berechnet.")}`);
+  redirect(`/orders/${orderId}?success=${toQuery("Aufmaß wurde gespeichert und Material neu berechnet.")}`);
 }
 
 export async function archiveOrderMeasurementItemAction(formData: FormData) {
   const context = await requirePermission("orders.edit", "/orders");
   const supabase = await createSupabaseServerClient();
   const orderId = requiredFormUuid(formData, "order_id", "Auftrag");
-  const itemId = requiredFormUuid(formData, "item_id", "Aufmassposition");
+  const itemId = requiredFormUuid(formData, "item_id", "Aufmaßposition");
 
   try {
     const { data: order } = await supabase
@@ -980,7 +978,7 @@ export async function archiveOrderMeasurementItemAction(formData: FormData) {
       .maybeSingle();
 
     if (archiveError || !archivedItem) {
-      throw new SafeActionError("Aufmassposition wurde nicht gefunden.");
+      throw new SafeActionError("Aufmaßposition wurde nicht gefunden.");
     }
 
     await syncDimensionsFromMeasurements({
@@ -993,12 +991,12 @@ export async function archiveOrderMeasurementItemAction(formData: FormData) {
       includePrices: context.canManage
     });
   } catch (error) {
-    redirect(`/orders/${orderId}?error=${toQuery(safeErrorMessage(error, "Aufmassposition konnte nicht archiviert werden."))}`);
+    redirect(`/orders/${orderId}?error=${toQuery(safeErrorMessage(error, "Aufmaßposition konnte nicht archiviert werden."))}`);
   }
 
   revalidatePath(`/orders/${orderId}`);
   revalidatePath("/orders");
-  redirect(`/orders/${orderId}?success=${toQuery("Aufmassposition wurde archiviert und Material neu berechnet.")}`);
+  redirect(`/orders/${orderId}?success=${toQuery("Aufmaßposition wurde archiviert und Material neu berechnet.")}`);
 }
 
 export async function recalculateOrderMaterialsAction(formData: FormData) {

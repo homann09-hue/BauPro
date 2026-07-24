@@ -240,7 +240,7 @@ export default async function MorePage() {
       ? [
           {
             title: "Freigeschaltete Bereiche",
-            description: "Diese Funktionen hat Chef/Admin für dich freigegeben.",
+            description: "Diese Funktionen hat Chef für dich freigegeben.",
             actions: grantedActions
           },
           ...operativeGroups

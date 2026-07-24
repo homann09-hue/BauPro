@@ -58,7 +58,10 @@ function roundQuantity(value: number, unit: string) {
 }
 
 export function calculateArea(length: number | null, width: number | null, area: number | null) {
-  if (length && width) return Math.round(length * width * 100) / 100;
+  if (length !== null && width !== null && Number.isFinite(length) && Number.isFinite(width)) {
+    return Math.round(length * width * 100) / 100;
+  }
+
   return Math.round((area ?? 0) * 100) / 100;
 }
 

@@ -2,6 +2,7 @@ import { revalidateTag, unstable_cache } from "next/cache";
 import type { AppContext } from "@/lib/auth";
 import { loadBringListMaterialStatus, tomorrowIsoDate, type BringListMaterialStatus } from "@/lib/inventory/material-intelligence";
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
+import { postgrestTimeoutResponse, withQueryTimeout } from "@/lib/performance/observability";
 import { fetchLiveWeather, fetchRainViewerFrames, selectActiveWeatherJobsite } from "@/lib/weather/live-weather";
 import type { Jobsite, MaterialAlert, Order, Profile, PurchaseSuggestion, Report, Task, TimeEntry } from "@/types/app";
 
@@ -112,12 +113,21 @@ export async function loadDashboardSummary(supabase: SupabaseServerClient, conte
 
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase.rpc("get_dashboard_summary", {
-        p_company_id: context.companyId,
-        p_user_id: context.userId,
-        p_can_manage: context.canManage,
-        p_today: today
-      });
+      const { data, error } = await withQueryTimeout(
+        () =>
+          supabase.rpc("get_dashboard_summary", {
+            p_company_id: context.companyId,
+            p_user_id: context.userId,
+            p_can_manage: context.canManage,
+            p_today: today
+          }),
+        {
+          route: "dashboard",
+          action: "summary.rpc",
+          timeoutMs: 4_800,
+          fallback: () => postgrestTimeoutResponse("Dashboard-Übersicht konnte nicht rechtzeitig geladen werden.")
+        }
+      );
 
       return normalizeDashboardSummary(data, error);
     },
@@ -153,9 +163,36 @@ export async function loadDashboardDetails(
         Number.isFinite(liveWeatherLng);
 
       const [tomorrowMaterialStatuses, liveWeather, radarFrames] = await Promise.all([
-        context.canManage ? loadBringListMaterialStatus({ supabase, companyId: context.companyId, date: tomorrowIsoDate(), limit: 6 }) : Promise.resolve([]),
-        context.canManage && liveWeatherHasCoordinates ? fetchLiveWeather({ lat: liveWeatherLat, lng: liveWeatherLng }) : Promise.resolve(null),
-        context.canManage && liveWeatherHasCoordinates ? fetchRainViewerFrames().catch(() => []) : Promise.resolve([])
+        context.canManage
+          ? withQueryTimeout(
+              () => loadBringListMaterialStatus({ supabase, companyId: context.companyId, date: tomorrowIsoDate(), limit: 6 }),
+              {
+                route: "dashboard",
+                action: "material-status.tomorrow",
+                timeoutMs: 2_800,
+                fallback: () => []
+              }
+            )
+          : Promise.resolve([]),
+        context.canManage && liveWeatherHasCoordinates
+          ? withQueryTimeout(
+              () => fetchLiveWeather({ lat: liveWeatherLat, lng: liveWeatherLng }),
+              {
+                route: "dashboard",
+                action: "weather.live",
+                timeoutMs: 2_500,
+                fallback: () => null
+              }
+            )
+          : Promise.resolve(null),
+        context.canManage && liveWeatherHasCoordinates
+          ? withQueryTimeout(() => fetchRainViewerFrames(), {
+              route: "dashboard",
+              action: "weather.radar",
+              timeoutMs: 2_400,
+              fallback: () => []
+            })
+          : Promise.resolve([])
       ]);
 
       return {

@@ -1,7 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { prefetchRoutesForRole, prefetchScopesForRole } from "@/lib/performance/prefetch";
+import {
+  PREFETCH_FETCH_TIMEOUT_MS,
+  PREFETCH_PAYLOAD_MAX_CHARS,
+  PREFETCH_ROUTE_LIMIT,
+  PREFETCH_SCOPE_GAP_MS,
+  prefetchRoutesForRole,
+  prefetchScopesForRole
+} from "@/lib/performance/prefetch";
 
 const root = path.resolve(__dirname, "../..");
 
@@ -40,9 +47,7 @@ describe("predictive prefetching", () => {
         "/time-tracking/reports"
       ])
     );
-    expect(prefetchScopesForRole("chef", true)).toEqual(
-      expect.arrayContaining(["dashboard", "jobsites", "time", "materials"])
-    );
+    expect(prefetchScopesForRole("chef", true)).toEqual(["dashboard", "jobsites"]);
     expect(prefetchScopesForRole("chef", true)).not.toContain("weather");
   });
 
@@ -88,6 +93,8 @@ describe("predictive prefetching", () => {
     expect(route).not.toMatch(broadSelectPattern);
     expect(route).not.toMatch(/\b(purchase_price|sales_price|markup_percent|price_net|price_gross|margin_total)\b/);
     expect(route).toContain('scope === "weather"');
+    expect(route).toContain("weatherDeferred");
+    expect(route).not.toContain("fetchLiveWeather");
     expect(route).toContain("!context.canManage");
     expect(route).toContain('.eq("company_id", context.companyId)');
     expect(route).toContain('.is("archived_at", null)');
@@ -99,16 +106,29 @@ describe("predictive prefetching", () => {
     expect(route).toContain('scope === "time"');
     expect(route).toContain('scope === "planning"');
     expect(route).toContain('scope === "team"');
-    expect(route).toContain('.limit(context.canManage ? 180 : 40)');
+    expect(route).toContain('.limit(context.canManage ? 80 : 24)');
   });
 
   it("keeps warm prefetch payloads small and connection-aware in the client", () => {
     const client = source("components/performance/PredictivePrefetch.tsx");
     expect(client).toContain("PREFETCH_PAYLOAD_MAX_CHARS");
+    expect(PREFETCH_PAYLOAD_MAX_CHARS).toBeLessThanOrEqual(48_000);
+    expect(PREFETCH_ROUTE_LIMIT).toBeLessThanOrEqual(4);
+    expect(PREFETCH_SCOPE_GAP_MS).toBeGreaterThanOrEqual(900);
+    expect(PREFETCH_FETCH_TIMEOUT_MS).toBeLessThanOrEqual(2_500);
     expect(client).toContain("cachePrefetchPayload");
     expect(client).toContain("shouldReduceBackgroundWork");
     expect(client).toContain("connection?.saveData");
     expect(client).toContain("effectiveType");
+    expect(client).toContain("AbortController");
+    expect(client).toContain("document.visibilityState");
+    expect(client).toContain("PREFETCH_FETCH_TIMEOUT_MS");
+  });
+
+  it("loads heavy password strength scoring only after password input", () => {
+    const component = source("components/forms/password-strength-indicator.tsx");
+    expect(component).toContain('import("zxcvbn")');
+    expect(component).not.toContain('import zxcvbn from "zxcvbn";');
   });
 
   it("avoids unbounded child-row reads on heavy material pages", () => {
@@ -176,6 +196,8 @@ describe("predictive prefetching", () => {
     const dashboard = source("app/(app)/dashboard/page.tsx");
     const dashboardData = source("lib/data/dashboard.ts");
     const dashboardRpc = source("supabase/migrations/20260619_dashboard_rpc.sql");
+    const dashboardRpcAnonRevoke = source("supabase/migrations/20260727_dashboard_rpc_anon_revoke.sql");
+    const schema = source("supabase/schema.sql");
 
     expect(dashboard).toContain("loadDashboardSummary");
     expect(dashboard).toContain("loadDashboardDetails");
@@ -187,12 +209,16 @@ describe("predictive prefetching", () => {
     expect(dashboardData).toContain("dashboardTag(context.companyId)");
     expect(dashboardRpc).toContain("security definer");
     expect(dashboardRpc).toContain("and p.company_id = p_company_id");
-    expect(dashboardRpc).toContain("v_can_manage := v_role in ('admin', 'chef')");
+    expect(dashboardRpc).toContain("v_can_manage := v_role = 'chef'");
     expect(dashboardRpc).toContain("p_user_id = any(coalesce(j.assigned_employee_ids");
     expect(dashboardRpc).toContain("r.created_by = p_user_id");
     expect(dashboardRpc).toContain("t.assigned_to = p_user_id");
     expect(dashboardRpc).toContain("bl.assigned_to = p_user_id or bl.created_by = p_user_id");
     expect(dashboardRpc).toContain("p.role in ('mitarbeiter', 'vorarbeiter')");
+    expect(dashboardRpc).toContain("revoke all on function public.get_dashboard_summary(uuid, uuid, boolean, date) from anon");
+    expect(dashboardRpcAnonRevoke).toContain("revoke all on function public.get_dashboard_summary(uuid, uuid, boolean, date) from anon");
+    expect(schema).toContain("create or replace function public.get_dashboard_summary");
+    expect(schema).toContain("grant execute on function public.get_dashboard_summary(uuid, uuid, boolean, date) to authenticated");
   });
 
   it("keeps operational list pages tenant- and assignment-scoped for non-managers", () => {
@@ -401,14 +427,31 @@ describe("predictive prefetching", () => {
 
     for (const file of [
       "app/(app)/orders/loading.tsx",
+      "app/(app)/orders/new/loading.tsx",
       "app/(app)/customers/loading.tsx",
+      "app/(app)/customers/new/loading.tsx",
       "app/(app)/berichte/loading.tsx",
+      "app/(app)/berichte/neu/loading.tsx",
       "app/(app)/customers/[id]/loading.tsx",
       "app/(app)/berichte/[id]/loading.tsx",
+      "app/(app)/calendar/loading.tsx",
+      "app/(app)/checklists/loading.tsx",
+      "app/(app)/fahrzeuge/loading.tsx",
+      "app/(app)/invoices/loading.tsx",
+      "app/(app)/maengel/loading.tsx",
+      "app/(app)/materials/catalog/loading.tsx",
+      "app/(app)/materials/control-center/loading.tsx",
+      "app/(app)/materials/live-offers/loading.tsx",
+      "app/(app)/materials/locations/loading.tsx",
+      "app/(app)/materials/low-stock/loading.tsx",
+      "app/(app)/materials/online-discovery/loading.tsx",
+      "app/(app)/settings/loading.tsx",
+      "app/(app)/time-tracking/daily/loading.tsx",
+      "app/(app)/time-tracking/reports/loading.tsx",
       "app/portal/[token]/loading.tsx",
       "app/(app)/dashboard/loading.tsx"
     ]) {
-      expect(source(file), file).toContain("PageSkeleton");
+      expect(source(file), file).toMatch(/PageSkeleton|FormSkeleton/);
     }
   });
 

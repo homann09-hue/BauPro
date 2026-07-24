@@ -6,7 +6,10 @@ import {
   MarketingShell,
   PricingTeaserSection,
   ProblemSolutionSection,
-  SectionIntro
+  RoofStorySection,
+  SectionIntro,
+  UseCaseGrid,
+  WhyBauProSection
 } from "@/components/marketing/marketing-site";
 import { CtaSection } from "@/components/public/cta-section";
 import { FaqSection } from "@/components/public/faq-section";
@@ -14,7 +17,9 @@ import { FeatureGrid } from "@/components/public/feature-grid";
 import { HeroSection } from "@/components/public/hero-section";
 import { SecuritySection } from "@/components/public/security-section";
 import { WorkflowSection } from "@/components/public/workflow-section";
-import { getOptionalAppContext } from "@/lib/auth";
+import { hasActiveSession } from "@/lib/auth";
+import { MessageBox } from "@/components/message-box";
+import { searchParamMessage } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -24,21 +29,30 @@ export const metadata: Metadata = {
     "BauPro ist eine mobile-first SaaS für Dachdecker- und Handwerksbetriebe: Aufträge, Baustellen, Zeiten, Material, Bautagesberichte, Kundenportal und Rollenrechte."
 };
 
-async function getLandingContext() {
+async function hasLandingSession() {
   try {
-    return await getOptionalAppContext();
+    return await hasActiveSession();
   } catch {
-    return null;
+    return false;
   }
 }
 
-export default async function HomePage() {
-  const context = await getLandingContext();
-  const isLoggedIn = Boolean(context);
+export default async function HomePage({
+  searchParams
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const isLoggedIn = await hasLandingSession();
+  const { error, success } = searchParamMessage(await searchParams);
 
   return (
     <MarketingShell isLoggedIn={isLoggedIn}>
       <HeroSection isLoggedIn={isLoggedIn} />
+      <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-6 lg:px-8">
+        <MessageBox error={error} success={success} />
+      </div>
+
+      <WhyBauProSection />
 
       <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <SectionIntro
@@ -47,8 +61,8 @@ export default async function HomePage() {
           description="BauPro bringt die wichtigsten Abläufe eines Handwerksbetriebs in eine gemeinsame Web-App: Auftrag anlegen, Baustelle planen, Mitarbeiter informieren, Zeiten erfassen, Material prüfen und Nachweise sauber ablegen."
         />
         <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="surface p-5 sm:p-6">
-            <h2 className="text-3xl font-normal uppercase leading-none text-ink [font-family:var(--font-display)]">
+          <div className="border border-line bg-surface-container p-5 shadow-lift sm:p-6">
+            <h2 className="text-3xl font-extrabold leading-tight text-ink">
               Für Chefs, die nicht mehr hinter jeder Info herlaufen wollen.
             </h2>
             <p className="mt-4 text-sm font-semibold leading-7 text-ash">
@@ -71,6 +85,19 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      <section id="zielgruppen" className="border-y border-line bg-basalt">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+          <SectionIntro
+            kicker="Für wen geeignet?"
+            title="Für Betriebe mit Baustellen, Teams, Material und Nachweisen"
+            description="BauPro startet mit Dachdeckerprozessen, ist aber bewusst so aufgebaut, dass auch verwandte Gewerke mit mobilen Teams, Lager, Fahrzeugen und Kundenkommunikation davon profitieren."
+          />
+          <UseCaseGrid />
+        </div>
+      </section>
+
+      <RoofStorySection />
 
       <section id="funktionen" className="mx-auto max-w-7xl px-4 pb-14 sm:px-6 lg:px-8">
         <SectionIntro
@@ -102,7 +129,7 @@ export default async function HomePage() {
             <TrustPillar
               icon={ShieldCheck}
               title="Rollenmodell"
-              text="Chef/Admin sieht kaufmännische Daten und Einstellungen. Vorarbeiter arbeitet operativ. Mitarbeiter sieht nur das, was er auf der Baustelle braucht."
+              text="Chef sieht kaufmännische Daten. Systemadmins verwalten Rechte, Sicherheit und Integrationen. Mitarbeiter sehen nur das, was sie auf der Baustelle brauchen."
             />
           </div>
         </div>
@@ -121,8 +148,8 @@ export default async function HomePage() {
 
 function TrustPillar({ icon: Icon, title, text }: { icon: LucideIcon; title: string; text: string }) {
   return (
-    <article className="surface p-5">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center border border-line bg-mint text-primary">
+    <article className="border border-line bg-surface-container p-5">
+      <div className="mb-4 flex h-12 w-12 items-center justify-center border border-line bg-surface-container-high text-ocher">
         <Icon className="h-6 w-6" aria-hidden="true" />
       </div>
       <h2 className="text-2xl font-black text-ink">{title}</h2>
@@ -133,8 +160,8 @@ function TrustPillar({ icon: Icon, title, text }: { icon: LucideIcon; title: str
 
 function MiniProof({ value, label }: { value: string; label: string }) {
   return (
-    <div className="surface flex min-h-36 flex-col justify-between p-4">
-      <p className="text-5xl font-normal uppercase leading-none text-primary [font-family:var(--font-display)]">{value}</p>
+    <div className="flex min-h-36 flex-col justify-between border border-line bg-surface-container p-4 shadow-soft">
+      <p className="text-5xl font-black leading-none text-ocher">{value}</p>
       <p className="text-sm font-black uppercase tracking-[0.14em] text-ash">{label}</p>
     </div>
   );

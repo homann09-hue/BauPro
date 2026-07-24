@@ -1,4 +1,5 @@
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
+import { postgrestTimeoutResponse, withQueryTimeout } from "@/lib/performance/observability";
 import { pageParam, pageRange, searchOrFilter, stringParam, totalPages, type SearchParamsRecord } from "@/lib/data/shared";
 import { reportFormSelect } from "@/lib/data/selects";
 import { isMissingSchemaError } from "@/lib/supabase/errors";
@@ -58,7 +59,15 @@ function isMissingReportEnhancedSchema(error: unknown) {
 }
 
 async function reportEnhancedColumnsAvailable(supabase: SupabaseServerClient) {
-  const { error } = await supabase.from("reports").select("weather_summary, report_status, vehicle_ids").limit(0);
+  const { error } = await withQueryTimeout(
+    () => supabase.from("reports").select("weather_summary, report_status, vehicle_ids").limit(0),
+    {
+      route: "berichte",
+      action: "reports.schema-check",
+      timeoutMs: 1_200,
+      fallback: () => postgrestTimeoutResponse("Timeout bei reports.schema-check")
+    }
+  );
   return !isMissingReportEnhancedSchema(error);
 }
 
@@ -173,13 +182,51 @@ export async function loadReportList({
     approvedCountQuery = approvedCountQuery.eq("created_by", userId);
   }
 
+  const reportsPagePromise = withQueryTimeout(() => reportsQuery, {
+    route: "berichte",
+    action: "reports.page",
+    timeoutMs: 4_700,
+    fallback: () => postgrestTimeoutResponse("Timeout bei reports.page")
+  });
+
   const [reportsResult, totalCountResult, weekCountResult, weatherCountResult, submittedCountResult, approvedCountResult] = await Promise.all([
-    reportsQuery,
-    totalCountQuery,
-    weekCountQuery,
-    hasEnhancedColumns ? weatherCountQuery : Promise.resolve({ count: 0, error: null }),
-    hasEnhancedColumns ? submittedCountQuery : Promise.resolve({ count: 0, error: null }),
-    hasEnhancedColumns ? approvedCountQuery : Promise.resolve({ count: 0, error: null })
+    reportsPagePromise,
+    withQueryTimeout(() => totalCountQuery, {
+      route: "berichte",
+      action: "berichte.count.total",
+      timeoutMs: 2_000,
+      fallback: () => postgrestTimeoutResponse("Timeout bei reports.count.total")
+    }),
+    withQueryTimeout(() => weekCountQuery, {
+      route: "berichte",
+      action: "berichte.count.week",
+      timeoutMs: 2_000,
+      fallback: () => postgrestTimeoutResponse("Timeout bei reports.count.week")
+    }),
+    hasEnhancedColumns
+      ? withQueryTimeout(() => weatherCountQuery, {
+          route: "berichte",
+          action: "berichte.count.weather",
+          timeoutMs: 2_000,
+          fallback: () => postgrestTimeoutResponse("Timeout bei reports.count.weather")
+        })
+      : Promise.resolve({ count: 0, error: null }),
+    hasEnhancedColumns
+      ? withQueryTimeout(() => submittedCountQuery, {
+          route: "berichte",
+          action: "berichte.count.submitted",
+          timeoutMs: 2_000,
+          fallback: () => postgrestTimeoutResponse("Timeout bei reports.count.submitted")
+        })
+      : Promise.resolve({ count: 0, error: null }),
+    hasEnhancedColumns
+      ? withQueryTimeout(() => approvedCountQuery, {
+          route: "berichte",
+          action: "berichte.count.approved",
+          timeoutMs: 2_000,
+          fallback: () => postgrestTimeoutResponse("Timeout bei reports.count.approved")
+        })
+      : Promise.resolve({ count: 0, error: null })
   ]);
 
   const reports = (reportsResult.data ?? []) as unknown as Report[];

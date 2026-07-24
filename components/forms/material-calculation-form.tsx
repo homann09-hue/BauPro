@@ -12,7 +12,10 @@ const roofForms = ["satteldach", "walmdach", "pultdach", "flachdach", "mansardda
 const materialTypes = ["tonziegel", "betondachstein", "schiefer", "bitumen", "metall", "gruen", "sonstiges"];
 
 function decimalValue(value: string) {
-  const parsed = Number(value.replace(",", "."));
+  const normalized = value.replace(",", ".").trim();
+  if (!normalized) return null;
+
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
@@ -31,7 +34,7 @@ export function MaterialCalculationForm({
     const lengthValue = decimalValue(length);
     const widthValue = decimalValue(width);
 
-    if (!lengthValue || !widthValue) return "";
+    if (lengthValue === null || widthValue === null) return "";
     return String(Math.round(lengthValue * widthValue * 100) / 100).replace(".", ",");
   }, [length, width]);
 
@@ -39,7 +42,7 @@ export function MaterialCalculationForm({
     setLength(value);
     const widthValue = decimalValue(width);
     const lengthValue = decimalValue(value);
-    if (lengthValue && widthValue) {
+    if (lengthValue !== null && widthValue !== null) {
       setArea(String(Math.round(lengthValue * widthValue * 100) / 100).replace(".", ","));
     }
   }
@@ -48,7 +51,7 @@ export function MaterialCalculationForm({
     setWidth(value);
     const widthValue = decimalValue(value);
     const lengthValue = decimalValue(length);
-    if (lengthValue && widthValue) {
+    if (lengthValue !== null && widthValue !== null) {
       setArea(String(Math.round(lengthValue * widthValue * 100) / 100).replace(".", ","));
     }
   }
@@ -200,9 +203,6 @@ export function MaterialCalculationForm({
       </label>
 
       <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <button type="button" className="btn-secondary opacity-70" disabled title="Nach dem Speichern kann direkt erneut berechnet werden.">
-          Weitere Berechnung vorbereitet
-        </button>
         <SubmitButton>
           <Calculator className="h-4 w-4" aria-hidden="true" />
           Aus Maßen berechnen

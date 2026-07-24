@@ -9,6 +9,7 @@ import { contentHash } from "@/lib/customer-portal/tokens";
 import { jobsiteDocumentSelect } from "@/lib/data/selects";
 import { SafeActionError, safeErrorMessage, toQuery } from "@/lib/security/errors";
 import { optionalFormString, requiredFormString, requiredFormUuid } from "@/lib/security/form-data";
+import { getClientIp } from "@/lib/security/origin";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { sanitizeUploadFileName, validateCustomerDocument } from "@/lib/security/uploads";
 import { signerRole, validateSignatureDataUrl } from "@/lib/signatures/signature";
@@ -31,7 +32,7 @@ const documentCategoryLabels: Record<JobsiteDocumentCategory, string> = {
   angebot: "Angebot",
   rechnung: "Rechnung",
   lieferschein: "Lieferschein",
-  aufmass: "Aufmass",
+  aufmass: "Aufmaß",
   abnahmeprotokoll: "Abnahmeprotokoll",
   regiebericht: "Regiebericht",
   sicherheitsunterweisung: "Sicherheitsunterweisung",
@@ -101,7 +102,7 @@ async function loadManagedDocument({
   documentId: string;
   jobsiteId: string;
 }) {
-  if (!context.canManage) throw new SafeActionError("Nur Chef/Admin darf dieses Dokument bearbeiten.");
+  if (!context.canManage) throw new SafeActionError("Nur Chef darf dieses Dokument bearbeiten.");
 
   const { data, error } = await supabase
     .from("jobsite_documents")
@@ -166,7 +167,7 @@ export async function uploadJobsiteDocumentAction(formData: FormData) {
   try {
     const jobsite = await loadAccessibleJobsite({ supabase, context, jobsiteId });
     if (!context.canManage && !isForeman(context.profile.role)) {
-      throw new SafeActionError("Nur Chef/Admin oder Vorarbeiter duerfen Baustellendokumente hochladen.");
+      throw new SafeActionError("Nur Chef oder Vorarbeiter duerfen Baustellendokumente hochladen.");
     }
 
     const file = formData.get("document");
@@ -301,7 +302,8 @@ export async function signJobsiteDocumentAction(formData: FormData) {
       signature_data_hash: contentHash(signatureDataUrl)
     };
     const hash = contentHash(snapshot);
-    const signerIp = headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+    const clientIp = getClientIp(headerStore);
+    const signerIp = clientIp === "unknown" ? null : clientIp;
     const signerUserAgent = headerStore.get("user-agent") ?? null;
     const documentType = document.category === "abnahmeprotokoll" ? "acceptance" : "jobsite_document";
     const { data, error } = await supabase

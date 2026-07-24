@@ -1,4 +1,7 @@
+"use client";
+
 import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export function MessageBox({
   error,
@@ -7,6 +10,7 @@ export function MessageBox({
   error?: string | null;
   success?: string | null;
 }) {
+  const router = useRouter();
   if (!error && !success) return null;
 
   const Icon = error ? AlertCircle : CheckCircle2;
@@ -23,12 +27,13 @@ export function MessageBox({
       <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <span>{error || success}</span>
       {error ? (
-        <a
+        <button
+          type="button"
           className="ml-auto shrink-0 rounded-md border border-current/30 px-2 py-1 text-xs font-black hover:bg-white/10"
-          href=""
+          onClick={() => router.refresh()}
         >
           Erneut laden
-        </a>
+        </button>
       ) : null}
     </div>
   );

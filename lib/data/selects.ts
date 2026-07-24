@@ -96,7 +96,7 @@ export const inventoryItemManagerDetailSelect =
   "id, company_id, catalog_item_id, category_id, subcategory_id, location_id, supplier_id, name, unit, stock, minimum_stock, package_unit, manufacturer, article_number, ean, purchase_price, sales_price, markup_percent, sales_unit, price_per_unit, last_price_changed_at, notes, created_by, inventory_locations(id, name, location_type, vehicle_id), material_categories(id, name, slug), material_subcategories(id, name, slug), suppliers(id, name)";
 
 export const inventoryItemCalculationSelect =
-  "id, company_id, catalog_item_id, category_id, subcategory_id, location_id, supplier_id, name, unit, stock, minimum_stock, package_unit, manufacturer, article_number, ean, purchase_price, sales_price, markup_percent, sales_unit, price_per_unit, last_price_changed_at, notes, created_by, inventory_locations(id, name, location_type, vehicle_id)";
+  "id, company_id, catalog_item_id, category_id, subcategory_id, location_id, supplier_id, name, unit, stock, minimum_stock, package_unit, manufacturer, article_number, ean, purchase_price, sales_price, markup_percent, sales_unit, price_per_unit, last_price_changed_at, notes, created_by, inventory_locations(id, name, location_type)";
 
 export const inventoryItemMatchSelect =
   "id, company_id, catalog_item_id, category_id, subcategory_id, location_id, supplier_id, name, unit, stock, minimum_stock, package_unit, manufacturer, article_number, ean, purchase_price, sales_price, markup_percent, sales_unit, price_per_unit, last_price_changed_at, notes, created_by, material_categories(id, name, slug), material_subcategories(id, name, slug), material_catalog(id, search_terms)";

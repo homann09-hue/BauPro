@@ -15,7 +15,7 @@ export function ChecklistTemplateForm() {
           <h2 className="text-lg font-black text-ink">Neue Checklistenvorlage</h2>
           <p className="mt-1 text-sm text-slate-600">
             Ein Punkt pro Zeile. Mit <span className="font-black">#foto</span> am Zeilenanfang wird ein Foto-Nachweis Pflicht.
-            Mit <span className="font-black">|</span> kannst du einen kurzen Hilfetext ergaenzen.
+            Mit <span className="font-black">|</span> kannst du einen kurzen Hilfetext ergänzen.
           </p>
         </div>
       </div>

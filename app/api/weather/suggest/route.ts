@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getOptionalAppContext } from "@/lib/auth";
-import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
+import { SafeActionError, safeErrorMessage, safeErrorStatus } from "@/lib/security/errors";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { emptyWeatherSuggestion, fetchOpenMeteoWeather, geocodeOpenMeteo } from "@/lib/weather/open-meteo";
@@ -136,7 +136,7 @@ export async function POST(request: Request) {
   } catch (error) {
     return json(
       { ok: false, message: safeErrorMessage(error, "Wetter konnte nicht automatisch ermittelt werden.") },
-      { status: error instanceof SafeActionError ? 400 : 500 }
+      { status: safeErrorStatus(error) }
     );
   }
 }

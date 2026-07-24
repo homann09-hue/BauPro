@@ -85,7 +85,7 @@ export function OnboardingWizard({ company, summary, initialStep }: OnboardingWi
     <section className="mx-auto max-w-5xl">
       <div className="surface p-3 sm:p-5">
         <div className="mb-5 h-2 overflow-hidden rounded-full bg-coal">
-          <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+          <progress className="h-2 w-full accent-primary" value={Math.round(progress)} max={100} aria-label="Fortschritt im Onboarding" />
         </div>
 
         <div className="grid gap-2 sm:grid-cols-4">

@@ -12,7 +12,7 @@ function source(file: string) {
 describe("Demo-Modus", () => {
   it("offers a public no-input demo entry from login and /demo", () => {
     const loginPage = source("app/(auth)/login/page.tsx");
-    const demoPage = source("app/(auth)/demo/page.tsx");
+    const demoPage = source("app/demo/page.tsx");
 
     expect(loginPage).toContain('action="/api/auth/demo/start"');
     expect(loginPage).toContain('method="post"');
@@ -20,6 +20,8 @@ describe("Demo-Modus", () => {
     expect(demoPage).toContain("Demo als Chef starten");
     expect(demoPage).toContain("Baustellen, Team, Lager, Zeiten, Bautagesberichte");
     expect(demoPage).toContain('name="return_to" value="/demo"');
+    expect(demoPage).toContain("MarketingShell");
+    expect(demoPage).toContain("Direkt ins Dashboard, keine alte Zwischenseite.");
     expect(demoPage).toContain("Die Demo enthält ausschließlich Beispieldaten");
   });
 
@@ -28,23 +30,39 @@ describe("Demo-Modus", () => {
 
     expect(demoMode).toContain("DEMO_MODE_ENABLED");
     expect(demoMode).toContain("process.env.NODE_ENV !== \"production\"");
-    expect(demoMode).toContain("createSupabaseAdminClient");
+    expect(demoMode).toContain("createScopedSupabaseAdminClient");
     expect(demoMode).toContain("SUPABASE_SERVICE_ROLE_KEY");
     expect(demoMode).toContain("example.invalid");
     expect(demoMode).toContain("ensureDemoModeData");
+    expect(demoMode).toContain("DEMO_RESEED_ON_START");
+    expect(demoMode).toContain("if (!shouldReseedDemoDataOnStart()) return;");
+    expect(demoMode).toContain("hasPreparedDemoData");
+    expect(demoMode).toContain("forceUserSync");
   });
 
-  it("starts the demo by seeding data, signing in and opening the two-minute tour", () => {
+  it("starts the demo by seeding data, signing in and opening the real dashboard", () => {
     const demoStartRoute = source("app/api/auth/demo/start/route.ts");
 
     expect(demoStartRoute).toContain("ensureDemoModeData");
     expect(demoStartRoute).toContain("signInWithPassword");
-    expect(demoStartRoute).toContain("/demo-tour?success=");
+    expect(demoStartRoute).toContain("/dashboard?success=");
+    expect(demoStartRoute).not.toContain("/demo-tour?success=");
     expect(demoStartRoute).toContain("demoStartRateLimitKey");
     expect(demoStartRoute).toContain('process.env.NODE_ENV === "production"');
     expect(demoStartRoute).toContain("await checkRateLimit(demoStartRateLimitKey");
     expect(demoStartRoute).toContain("Demo wurde zu oft gestartet");
+    expect(demoStartRoute).toContain('message.includes("Zu viele Anfragen")');
+    expect(demoStartRoute).toContain("Demo-Schutz konnte nicht geprüft werden. Bitte später erneut versuchen.");
+    expect(demoStartRoute).toContain("demo-route-rate-limit-blocked");
+    expect(demoStartRoute).not.toContain("demo-route-rate-limit-fallback");
+    expect(demoStartRoute).toContain("signInDemoUser");
+    expect(demoStartRoute).toContain("forceUserSync: true");
     expect(demoStartRoute).toContain("redirectWithCookies");
+
+    const authActions = source("lib/actions/auth-actions.ts");
+    expect(authActions).toContain("Demo-Schutz konnte nicht geprüft werden. Bitte später erneut versuchen.");
+    expect(authActions).toContain("demo-rate-limit-blocked");
+    expect(authActions).not.toContain("demo-rate-limit-fallback");
 
     const demoSeed = source("lib/demo/demo-mode.ts");
     expect(demoSeed).toContain("DEMO_CUSTOMER_PORTAL_TOKEN");
@@ -55,12 +73,24 @@ describe("Demo-Modus", () => {
     expect(demoSeed).toContain("customer_summary");
   });
 
-  it("keeps the tour reachable and prefetched for managers", () => {
+  it("rate-limits the public demo start before reading FormData in production", () => {
+    const demoStartRoute = source("app/api/auth/demo/start/route.ts");
+
+    const rateLimitIndex = demoStartRoute.indexOf("await checkRateLimit(demoStartRateLimitKey(request), 30, 60_000)");
+    const formDataIndex = demoStartRoute.indexOf("await request.formData()");
+
+    expect(rateLimitIndex).toBeGreaterThanOrEqual(0);
+    expect(formDataIndex).toBeGreaterThan(rateLimitIndex);
+    expect(demoStartRoute).toContain('const defaultReturnTo = "/demo"');
+    expect(demoStartRoute).toContain("`${defaultReturnTo}?error=${encodeMessage(publicMessage.message)}`");
+  });
+
+  it("keeps the tour reachable without forcing it into the demo start flow", () => {
     const appShell = source("components/app-shell.tsx");
     const tourPage = source("app/(app)/demo-tour/page.tsx");
 
-    expect(appShell).toContain('/demo-tour", label: "Demo-Tour"');
-    expect(prefetchRoutesForRole("chef", true)).toContain("/demo-tour");
+    expect(appShell).not.toContain('/demo-tour", label: "Demo-Tour"');
+    expect(prefetchRoutesForRole("chef", true)).not.toContain("/demo-tour");
     expect(tourPage).toContain("Zeige zuerst Nutzen, nicht Menues.");
     expect(tourPage).toContain("Kundenportal zeigen");
     expect(tourPage).toContain("DEMO_CUSTOMER_PORTAL_TOKEN");

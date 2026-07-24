@@ -16,33 +16,51 @@ import {
 import { getInitials } from "@/lib/utils";
 import type { AppContext } from "@/lib/auth";
 import { AppTopBar } from "@/components/app-top-bar";
+import { CommandPalette, type CommandIconKey, type CommandPaletteAction } from "@/components/command-palette";
 import { NavLink } from "@/components/nav-link";
 import { PredictivePrefetch } from "@/components/performance/PredictivePrefetch";
 import { VoiceDictation } from "@/components/voice-dictation";
 import { hasAppPermission, type PermissionKey } from "@/lib/permissions";
+import { DEMO_COMPANY_NAME } from "@/lib/demo/constants";
 
 type NavItem = Omit<React.ComponentProps<typeof NavLink>, "variant">;
 
-const managerPrimaryNav: NavItem[] = [
+const adminPrimaryNav: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+  { href: "/team", label: "Benutzer", icon: "team" },
+  { href: "/settings", label: "System", icon: "einstellungen" },
+  { href: "/billing", label: "Abrechnung", icon: "angebote" },
+  { href: "/suppliers", label: "Integrationen", icon: "lieferanten" },
+  { href: "/privacy", label: "DSGVO", icon: "datenschutz" }
+];
+
+const adminQuickLinks: NavItem[] = [
+  { href: "/onboarding", label: "Startassistent", icon: "onboarding" },
+  { href: "/team", label: "Rollen/Rechte", icon: "team" },
+  { href: "/settings/security", label: "Sicherheit & 2FA", icon: "datenschutz" },
+  { href: "/debug/system", label: "Systemstatus", icon: "einstellungen" },
+  { href: "/billing", label: "Lizenz & Abo", icon: "angebote" },
+  { href: "/suppliers", label: "API & Lieferanten", icon: "lieferanten" },
+  { href: "/privacy", label: "Datenschutz", icon: "datenschutz" },
+  { href: "/hilfe", label: "Hilfe", icon: "datenschutz" }
+];
+
+const chefPrimaryNav: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   { href: "/baustellen", label: "Baustellen", icon: "baustellen" },
   { href: "/plantafel", label: "Plantafel", icon: "plantafel" },
   { href: "/berichte", label: "Berichte", icon: "berichte" },
   { href: "/materials", label: "Material", icon: "material" },
-  { href: "/team", label: "Team", icon: "team" }
+  { href: "/calendar", label: "Kalender", icon: "kalender" }
 ];
 
-const managerQuickLinks: NavItem[] = [
+const chefQuickLinks: NavItem[] = [
   { href: "/onboarding", label: "Startassistent", icon: "onboarding" },
-  { href: "/demo-tour", label: "Demo-Tour", icon: "warum" },
-  { href: "/warum-baupro", label: "Warum BauPro?", icon: "warum" },
   { href: "/customers", label: "Kunden", icon: "kunden" },
   { href: "/orders", label: "Aufträge", icon: "auftraege" },
   { href: "/fahrzeuge", label: "Fahrzeuge/Geräte", icon: "fahrzeuge" },
   { href: "/checklists", label: "Checklisten", icon: "checklisten" },
   { href: "/maengel", label: "Mängel", icon: "maengel" },
-  { href: "/settings", label: "Einstellungen", icon: "einstellungen" },
-  { href: "/calendar", label: "Kalender", icon: "kalender" },
   { href: "/bring-lists", label: "Mitbringlisten", icon: "mitbringen" },
   { href: "/materials/control-center", label: "Lager-Zentrale", icon: "material" },
   { href: "/time-tracking", label: "Zeiterfassung", icon: "zeiten" },
@@ -51,7 +69,6 @@ const managerQuickLinks: NavItem[] = [
   { href: "/materials/live-offers", label: "Lieferantenpreise", icon: "lieferanten" },
   { href: "/invoices", label: "Angebote/Rechnungen", icon: "angebote" },
   { href: "/ai/job-wizard", label: "Auftrag per KI", icon: "ki" },
-  { href: "/privacy", label: "Datenschutz", icon: "datenschutz" },
   { href: "/hilfe", label: "Hilfe", icon: "datenschutz" }
 ];
 
@@ -74,7 +91,6 @@ const employeePrimaryNav: NavItem[] = [
 ];
 
 const employeeQuickLinks: NavItem[] = [
-  { href: "/warum-baupro", label: "Warum BauPro?", icon: "warum" },
   { href: "/checklists", label: "Checklisten", icon: "checklisten" },
   { href: "/maengel", label: "Mängel", icon: "maengel" },
   { href: "/material-melden", label: "Material melden", icon: "materialMelden" },
@@ -94,7 +110,7 @@ const permissionQuickLinks: Array<NavItem & { permission: PermissionKey }> = [
 ];
 
 const roleLabels = {
-  admin: "Admin",
+  admin: "Systemadmin",
   chef: "Chef",
   vorarbeiter: "Vorarbeiter",
   mitarbeiter: "Mitarbeiter",
@@ -108,15 +124,54 @@ type MobileAction = {
   primary?: boolean;
 };
 
+type CommandActionInput = Omit<CommandPaletteAction, "keywords"> & {
+  keywords?: string[];
+};
+
+function navIconToCommandIcon(icon: NavItem["icon"]): CommandIconKey {
+  const mappedIcons: Partial<Record<NavItem["icon"], CommandIconKey>> = {
+    datenschutz: "sicherheit",
+    lieferanten: "material",
+    materialMelden: "material",
+    onboarding: "ki",
+    plantafel: "kalender",
+    profil: "kunden",
+    stundenzettel: "zeiten"
+  };
+
+  return mappedIcons[icon] ?? (icon as CommandIconKey);
+}
+
 function getShellNavigation(context: AppContext) {
   const can = (permission: PermissionKey) => hasAppPermission(context.profile.role, context.permissions, permission);
   const permittedQuickLinks = permissionQuickLinks
     .filter((item) => can(item.permission))
     .map((item) => ({ href: item.href, label: item.label, icon: item.icon }));
 
-  if (context.canManage) {
+  if (context.isAdmin) {
     return {
-      primaryNav: managerPrimaryNav,
+      primaryNav: adminPrimaryNav,
+      mobileNav: [
+        { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+        { href: "/team", label: "Benutzer", icon: "team" },
+        { href: "/settings", label: "System", icon: "einstellungen" },
+        { href: "/billing", label: "Abo", icon: "angebote" },
+        { href: "/suppliers", label: "API", icon: "lieferanten" },
+        { href: "/mehr", label: "Mehr", icon: "mehr" }
+      ].filter(Boolean) as NavItem[],
+      quickLinks: adminQuickLinks,
+      mobileActions: [
+        { href: "/team", label: "Benutzer", icon: Users, primary: true },
+        { href: "/settings/security", label: "2FA", icon: ShieldCheck },
+        { href: "/settings", label: "Setup", icon: Settings }
+      ] satisfies MobileAction[],
+      notice: "Systemadmin verwaltet firmenübergreifend Benutzer, Rechte, Abrechnung, Integrationen und Sicherheit."
+    };
+  }
+
+  if (context.isChef) {
+    return {
+      primaryNav: chefPrimaryNav,
       mobileNav: [
         { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
         { href: "/baustellen", label: "Baustellen", icon: "baustellen" },
@@ -125,13 +180,13 @@ function getShellNavigation(context: AppContext) {
         { href: "/materials/inventory", label: "Lager", icon: "lager" },
         { href: "/mehr", label: "Mehr", icon: "mehr" }
       ].filter(Boolean) as NavItem[],
-      quickLinks: managerQuickLinks,
+      quickLinks: chefQuickLinks,
       mobileActions: [
         { href: "/orders/new", label: "Auftrag", icon: BriefcaseBusiness, primary: true },
-        { href: "/team", label: "Team", icon: Users },
-        { href: "/settings", label: "Setup", icon: Settings }
+        { href: "/time-tracking/daily", label: "Zeiten", icon: Clock3 },
+        { href: "/materials/inventory", label: "Lager", icon: ClipboardList }
       ] satisfies MobileAction[],
-      notice: "Chef/Admin sieht Preise, Team, Einstellungen und operative Schnellzugriffe."
+      notice: "Chef steuert Baustellen, Aufträge, Material, Team-Einsatz, Zeiten, Angebote und Rechnungen."
     };
   }
 
@@ -174,6 +229,189 @@ function getShellNavigation(context: AppContext) {
   };
 }
 
+function commandAction(action: CommandActionInput): CommandPaletteAction {
+  return {
+    ...action,
+    keywords: action.keywords ?? [action.label, action.description, action.group]
+  };
+}
+
+function quickLinkCommand(item: NavItem): CommandPaletteAction {
+  return commandAction({
+    href: item.href,
+    label: item.label,
+    description: "Direkt zu diesem Bereich springen.",
+    group: "Navigation",
+    icon: navIconToCommandIcon(item.icon)
+  });
+}
+
+function uniqueCommandActions(actions: CommandPaletteAction[]) {
+  const seen = new Set<string>();
+  return actions.filter((action) => {
+    const key = `${action.href}:${action.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getCommandPaletteActions(context: AppContext, quickLinks: NavItem[]): CommandPaletteAction[] {
+  const common = [
+    commandAction({
+      href: "/dashboard",
+      label: context.isChef ? "Betriebsdashboard öffnen" : "Heute öffnen",
+      description: "Zur wichtigsten Übersicht für deinen aktuellen Arbeitstag.",
+      group: "Start",
+      icon: "dashboard",
+      primary: true,
+      keywords: ["dashboard", "heute", "start", "übersicht", "uebersicht"]
+    }),
+    commandAction({
+      href: "/hilfe",
+      label: "Hilfe öffnen",
+      description: "Anleitungen und Hilfetexte für BauPro öffnen.",
+      group: "Hilfe",
+      icon: "hilfe",
+      keywords: ["hilfe", "support", "frage", "anleitung"]
+    })
+  ];
+
+  if (context.isAdmin) {
+    return uniqueCommandActions([
+      ...common,
+      commandAction({
+        href: "/team",
+        label: "Benutzer und Rollen verwalten",
+        description: "Systemadmin-Bereich für Benutzer, Rollen und Rechte.",
+        group: "System",
+        icon: "team",
+        primary: true,
+        keywords: ["benutzer", "rollen", "rechte", "admin", "team"]
+      }),
+      commandAction({
+        href: "/settings/security",
+        label: "Sicherheit und 2FA prüfen",
+        description: "Sicherheitsoptionen und Zwei-Faktor-Authentifizierung öffnen.",
+        group: "System",
+        icon: "sicherheit",
+        keywords: ["sicherheit", "2fa", "mfa", "admin"]
+      }),
+      commandAction({
+        href: "/debug/system",
+        label: "Systemstatus öffnen",
+        description: "Supabase, Profil, Firma und Tabellenstatus prüfen.",
+        group: "System",
+        icon: "einstellungen",
+        keywords: ["debug", "system", "status", "supabase"]
+      }),
+      commandAction({
+        href: "/billing",
+        label: "Lizenz und Abrechnung öffnen",
+        description: "Tarif, Nutzerlimit und Abonnement verwalten.",
+        group: "Abrechnung",
+        icon: "angebote",
+        keywords: ["billing", "abo", "lizenz", "stripe"]
+      }),
+      ...quickLinks.map(quickLinkCommand)
+    ]);
+  }
+
+  if (context.isChef) {
+    return uniqueCommandActions([
+      ...common,
+      commandAction({
+        href: "/orders/new",
+        label: "Neuen Auftrag erstellen",
+        description: "Kunde, Baustelle, Aufmaß und Kalkulation erfassen.",
+        group: "Aufträge",
+        icon: "auftraege",
+        primary: true,
+        keywords: ["auftrag", "neu", "angebot", "kalkulation", "aufmaß", "aufmass"]
+      }),
+      commandAction({
+        href: "/customers/new",
+        label: "Neuen Kunden anlegen",
+        description: "Kundendaten und Baustellenadresse schnell erfassen.",
+        group: "Kunden",
+        icon: "kunden",
+        keywords: ["kunde", "neu", "adresse"]
+      }),
+      commandAction({
+        href: "/baustellen/neu",
+        label: "Neue Baustelle anlegen",
+        description: "Baustelle mit Adresse, Status und Notizen erstellen.",
+        group: "Baustellen",
+        icon: "baustellen",
+        keywords: ["baustelle", "neu", "adresse"]
+      }),
+      commandAction({
+        href: "/time-tracking/daily",
+        label: "Tagesstunden prüfen",
+        description: "Heutige Zeiten je Mitarbeiter prüfen und freigeben.",
+        group: "Zeiten",
+        icon: "zeiten",
+        keywords: ["zeit", "stunden", "freigabe", "tagesstunden"]
+      }),
+      commandAction({
+        href: "/materials/control-center",
+        label: "Lager-Zentrale öffnen",
+        description: "Fehlmengen, Reservierungen und Bestände kontrollieren.",
+        group: "Material",
+        icon: "lager",
+        keywords: ["lager", "material", "fehlmenge", "bestand"]
+      }),
+      commandAction({
+        href: "/ai/job-wizard",
+        label: "Auftrag per KI vorbereiten",
+        description: "Text oder Sprache in Auftragsentwurf und Materialbedarf umwandeln.",
+        group: "KI",
+        icon: "ki",
+        keywords: ["ki", "sprache", "auftrag", "materialbedarf"]
+      }),
+      ...quickLinks.map(quickLinkCommand)
+    ]);
+  }
+
+  return uniqueCommandActions([
+    ...common,
+    commandAction({
+      href: "/time/new",
+      label: "Arbeitszeit eintragen",
+      description: "Heute, Baustelle, Start, Ende und Pause erfassen.",
+      group: "Baustelle",
+      icon: "zeiten",
+      primary: true,
+      keywords: ["zeit", "stunden", "arbeitszeit", "heute"]
+    }),
+    commandAction({
+      href: "/berichte/neu",
+      label: "Tagesbericht schreiben",
+      description: "Arbeiten, Fotos, Wetter, Material und Besonderheiten dokumentieren.",
+      group: "Baustelle",
+      icon: "berichte",
+      keywords: ["bericht", "foto", "tagesbericht", "dokumentieren"]
+    }),
+    commandAction({
+      href: "/material-melden",
+      label: "Material fehlt melden",
+      description: "Fehlendes Material ohne Preisdetails an Chef/Vorarbeiter melden.",
+      group: "Material",
+      icon: "material",
+      keywords: ["material", "fehlt", "melden", "lager"]
+    }),
+    commandAction({
+      href: "/bring-lists",
+      label: "Mitbringlisten öffnen",
+      description: "Material, Werkzeuge und Aufgaben für die Baustelle prüfen.",
+      group: "Baustelle",
+      icon: "mitbringen",
+      keywords: ["mitbringen", "morgen", "liste", "werkzeug"]
+    }),
+    ...quickLinks.map(quickLinkCommand)
+  ]);
+}
+
 export function AppShell({
   context,
   children
@@ -182,7 +420,9 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const { primaryNav, mobileNav, quickLinks, mobileActions, notice } = getShellNavigation(context);
+  const commandActions = getCommandPaletteActions(context, quickLinks);
   const roleLabel = roleLabels[context.profile.role];
+  const isDemoContext = context.companyName === DEMO_COMPANY_NAME;
   const mobileNavGridClass = mobileNav.length === 6 ? "grid-cols-6" : "grid-cols-5";
 
   return (
@@ -243,7 +483,7 @@ export function AppShell({
         </nav>
 
         <div className="mt-auto rounded-lg border border-white/10 bg-white/[0.05] p-3 shadow-sm">
-          <Link href={context.canManage ? "/settings" : "/profile"} className="mb-3 flex items-center gap-3 rounded-md p-1 transition hover:bg-white/10">
+          <Link href={context.isAdmin ? "/settings" : "/profile"} className="mb-3 flex items-center gap-3 rounded-md p-1 transition hover:bg-white/10">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-white">
               {getInitials(context.profile.full_name, context.email)}
             </div>
@@ -275,9 +515,10 @@ export function AppShell({
           roleLabel={roleLabel}
           userEmail={context.email}
           userName={context.profile.full_name}
+          logoutReturnTo={isDemoContext ? "/demo" : "/login"}
         />
 
-        <main className="pb-[calc(11.5rem+env(safe-area-inset-bottom))] lg:pb-0">
+        <main id="main-content" className="pb-[calc(11.5rem+env(safe-area-inset-bottom))] lg:pb-0">
           <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 lg:px-8 lg:py-8">
             {children}
           </div>
@@ -286,6 +527,7 @@ export function AppShell({
 
       <VoiceDictation />
       <PredictivePrefetch role={context.profile.role} canManage={context.canManage} />
+      <CommandPalette actions={commandActions} roleLabel={roleLabel} companyName={context.companyName} />
 
       <Link
         href="/ai-assistant"
