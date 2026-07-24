@@ -16,6 +16,7 @@ import {
   type LucideIcon
 } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
+import { googleMapsJobsiteUrl } from "@/lib/maps/google-maps";
 import { cn, formatDate } from "@/lib/utils";
 import type { Jobsite } from "@/types/app";
 
@@ -195,8 +196,7 @@ export function TodayJobsiteFocus({
     );
   }
 
-  const mapsQuery = jobsite.latitude && jobsite.longitude ? `${jobsite.latitude},${jobsite.longitude}` : jobsite.address;
-  const mapsHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`;
+  const mapsHref = googleMapsJobsiteUrl(jobsite);
   const weatherText =
     jobsite.latitude && jobsite.longitude
       ? "Wettervorschlag wird beim Bericht passend zur Baustelle gespeichert."
@@ -218,10 +218,12 @@ export function TodayJobsiteFocus({
               Baustelle öffnen
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
-            <a href={mapsHref} target="_blank" rel="noreferrer" className="btn-secondary w-full sm:w-auto">
-              <Navigation className="h-4 w-4" aria-hidden="true" />
-              Navigation starten
-            </a>
+            {mapsHref ? (
+              <a href={mapsHref} target="_blank" rel="noreferrer" className="btn-secondary w-full sm:w-auto">
+                <Navigation className="h-4 w-4" aria-hidden="true" />
+                In Google Maps öffnen
+              </a>
+            ) : null}
             <Link href="/bring-lists" className="btn-secondary w-full sm:w-auto">
               Mitbringliste
             </Link>

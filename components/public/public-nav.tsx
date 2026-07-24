@@ -56,11 +56,11 @@ export function PublicNav({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
   const closeMenu = () => setOpen(false);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line/80 bg-coal/90 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-40 border-b border-line/80 bg-coal/95 backdrop-blur-xl">
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex min-h-12 items-center gap-3" onClick={closeMenu}>
-          <Image src="/icons/icon-192.png" alt="" width={36} height={36} className="border border-line bg-surface object-cover" priority />
-          <span className="text-3xl font-normal uppercase tracking-[0.18em] text-white [font-family:var(--font-display)]">BauPro</span>
+          <Image src="/icons/icon-192.png" alt="" width={32} height={32} className="border border-line bg-surface-container object-cover" priority />
+          <span className="text-xl font-extrabold tracking-tight text-white">BauPro</span>
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex" aria-label="Hauptnavigation">
@@ -71,10 +71,10 @@ export function PublicNav({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
 
         <div className="hidden items-center gap-2 sm:flex">
           <ThemeToggle compact />
-          <Link href="/demo" className="btn-secondary min-h-11 px-4 py-2 text-xs">
+          <Link href="/demo" className="inline-flex min-h-11 items-center justify-center bg-ocher px-4 py-2 text-xs font-black uppercase tracking-wide text-coal transition hover:-translate-y-0.5 hover:bg-signal">
             Demo starten
           </Link>
-          <Link href={isLoggedIn ? "/dashboard" : "/login"} className="btn-primary min-h-11 px-4 py-2 text-base">
+          <Link href={isLoggedIn ? "/dashboard" : "/login"} className="inline-flex min-h-11 items-center justify-center border border-white/15 bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-wide text-white transition hover:bg-white/10">
             {isLoggedIn ? "Zum Dashboard" : "Einloggen"}
           </Link>
         </div>
@@ -86,7 +86,7 @@ export function PublicNav({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
           aria-expanded={open}
           aria-controls="public-mobile-menu"
           onClick={() => setOpen((current) => !current)}
-          className="touch-target inline-flex items-center justify-center border border-line bg-surface text-ink shadow-sm transition hover:border-primary/60 focus:outline-none focus:ring-4 focus:ring-primary/25 sm:hidden"
+          className="touch-target inline-flex items-center justify-center border border-line bg-surface-container text-ink shadow-sm transition hover:border-ocher/60 focus:outline-none focus:ring-4 focus:ring-ocher/25 sm:hidden"
         >
           {open ? <X className="h-6 w-6" aria-hidden="true" /> : <Menu className="h-6 w-6" aria-hidden="true" />}
         </button>
@@ -105,12 +105,12 @@ export function PublicNav({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="public-mobile-menu-title"
-            className="ml-auto flex h-dvh w-[min(92vw,390px)] flex-col border-l border-line bg-basalt shadow-lift"
+            className="ml-auto flex h-dvh w-[min(92vw,390px)] flex-col border-l border-line bg-coal shadow-lift"
           >
             <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-4">
               <div>
                 <p className="section-kicker">BauPro</p>
-                <h2 id="public-mobile-menu-title" className="text-3xl font-normal uppercase leading-none text-ink [font-family:var(--font-display)]">
+                <h2 id="public-mobile-menu-title" className="text-3xl font-extrabold leading-none text-white">
                   Menü
                 </h2>
               </div>
@@ -119,7 +119,7 @@ export function PublicNav({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
                 type="button"
                 aria-label="Menü schließen"
                 onClick={closeMenu}
-                className="touch-target inline-flex items-center justify-center border border-line bg-surface text-ink focus:outline-none focus:ring-4 focus:ring-primary/25"
+                className="touch-target inline-flex items-center justify-center border border-line bg-surface-container text-ink focus:outline-none focus:ring-4 focus:ring-ocher/25"
               >
                 <X className="h-6 w-6" aria-hidden="true" />
               </button>
@@ -167,7 +167,10 @@ function PublicNavLink({ href, label, active }: { href: string; label: string; a
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={cn("px-3 py-2 text-sm font-black transition focus:outline-none focus:ring-4 focus:ring-primary/20", active ? "text-white" : "text-white/65 hover:text-white")}
+      className={cn(
+        "px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] transition focus:outline-none focus:ring-4 focus:ring-ocher/20",
+        active ? "text-ocher" : "text-white/62 hover:text-ocher"
+      )}
     >
       {label}
     </Link>
@@ -203,11 +206,11 @@ function MobileNavLink({
       aria-current={active ? "page" : undefined}
       className={cn(
         "flex min-h-14 items-center justify-between border px-4 text-base font-black transition focus:outline-none focus:ring-4 focus:ring-primary/20",
-        active ? "border-primary/50 bg-primary/10 text-ink" : "border-line bg-surface text-ash hover:border-primary/45 hover:text-ink"
+        active ? "border-ocher/60 bg-ocher/10 text-ink" : "border-line bg-surface-container text-ash hover:border-ocher/45 hover:text-ink"
       )}
     >
       <span>{label}</span>
-      <ArrowRight className="h-4 w-4 text-primary" aria-hidden="true" />
+      <ArrowRight className="h-4 w-4 text-ocher" aria-hidden="true" />
     </Link>
   );
 }

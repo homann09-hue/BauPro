@@ -4,7 +4,7 @@ import { MessageBox } from "@/components/message-box";
 import { MfaSettingsPanel } from "@/components/mfa-settings-panel";
 import { PageHeader } from "@/components/page-header";
 import { listMfaFactorsAction } from "@/lib/actions/mfa-actions";
-import { requireManager } from "@/lib/auth";
+import { requirePrivilegedAccountSecurity } from "@/lib/auth";
 import { searchParamMessage } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -14,9 +14,11 @@ export default async function SecuritySettingsPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireManager();
+  const context = await requirePrivilegedAccountSecurity();
   const { error, success } = searchParamMessage(await searchParams);
   const factors = await listMfaFactorsAction();
+  const backHref = context.isAdmin ? "/settings" : "/dashboard";
+  const backLabel = context.isAdmin ? "Zurück zu Einstellungen" : "Zurück zum Dashboard";
 
   return (
     <>
@@ -27,9 +29,9 @@ export default async function SecuritySettingsPage({
       <MessageBox error={error} success={success} />
 
       <div className="mb-4 flex flex-wrap gap-2">
-        <Link href="/settings" className="btn-secondary">
+        <Link href={backHref} className="btn-secondary">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Zurück zu Einstellungen
+          {backLabel}
         </Link>
         <div className="inline-flex min-h-12 items-center gap-2 rounded-md border border-moss/20 bg-mint px-4 py-2 text-sm font-black text-moss">
           <ShieldCheck className="h-4 w-4" aria-hidden="true" />

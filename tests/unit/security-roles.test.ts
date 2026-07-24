@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { hasAppPermission } from "@/lib/permissions";
-import { canOperate, isForeman, isManager } from "@/lib/utils";
+import { canOperate, isAdmin, isChef, isForeman, isManager } from "@/lib/utils";
 import type { Role } from "@/types/app";
 
 const root = path.resolve(__dirname, "../..");
@@ -12,20 +12,24 @@ function source(file: string) {
 }
 
 describe("role permissions", () => {
-  it("keeps pricing/admin rights limited to admin and chef", () => {
+  it("separates the system admin role from the operative chef role", () => {
     const roles: Role[] = ["admin", "chef", "vorarbeiter", "mitarbeiter", "kunde"];
     expect(Object.fromEntries(roles.map((role) => [role, isManager(role)]))).toEqual({
-      admin: true,
+      admin: false,
       chef: true,
       vorarbeiter: false,
       mitarbeiter: false,
       kunde: false
     });
+    expect(isAdmin("admin")).toBe(true);
+    expect(isAdmin("chef")).toBe(false);
+    expect(isChef("chef")).toBe(true);
+    expect(isChef("admin")).toBe(false);
   });
 
   it("grants operative rights to Vorarbeiter without manager pricing rights", () => {
     expect(isForeman("vorarbeiter")).toBe(true);
-    expect(canOperate("admin")).toBe(true);
+    expect(canOperate("admin")).toBe(false);
     expect(canOperate("chef")).toBe(true);
     expect(canOperate("vorarbeiter")).toBe(true);
     expect(canOperate("mitarbeiter")).toBe(false);
@@ -40,22 +44,40 @@ describe("role permissions", () => {
     expect(hasAppPermission("vorarbeiter", ["prices.sales.view"], "prices.sales.view")).toBe(false);
     expect(hasAppPermission("mitarbeiter", ["quotes.view"], "quotes.view")).toBe(false);
     expect(hasAppPermission("vorarbeiter", ["quotes.create"], "quotes.create")).toBe(false);
+    expect(hasAppPermission("chef", [], "prices.purchase.view")).toBe(true);
+    expect(hasAppPermission("chef", [], "prices.sales.view")).toBe(true);
+    expect(hasAppPermission("chef", [], "settings.edit")).toBe(false);
+    expect(hasAppPermission("chef", [], "users.permissions.manage")).toBe(false);
+    expect(hasAppPermission("admin", [], "settings.edit")).toBe(true);
+    expect(hasAppPermission("admin", [], "billing.manage")).toBe(true);
     expect(hasAppPermission("vorarbeiter", [], "settings.edit")).toBe(false);
     expect(hasAppPermission("vorarbeiter", ["settings.edit"], "settings.edit")).toBe(false);
     expect(hasAppPermission("vorarbeiter", [], "users.permissions.manage")).toBe(false);
     expect(hasAppPermission("mitarbeiter", ["users.permissions.manage"], "users.permissions.manage")).toBe(false);
 
     const shell = source("components/app-shell.tsx");
+    expect(shell).toContain("Systemadmin verwaltet firmenübergreifend");
+    expect(shell).toContain("Chef steuert Baustellen, Aufträge, Material");
     expect(shell).toContain("Vorarbeiter sieht operative Baustellen, Zeiten, Berichte und Mitbringlisten ohne Preisdetails.");
     expect(shell).toContain("Mitarbeiter sieht nur zugeordnete Baustellen, eigene Zeiten, Berichte und Mitbringlisten.");
-    expect(shell).toContain("if (context.canManage)");
+    expect(shell).toContain("if (context.isAdmin)");
+    expect(shell).toContain("if (context.isChef)");
   });
 
-  it("protects Chef-only pages server-side instead of only hiding navigation", () => {
-    const guardedManagerPages = [
+  it("protects system pages with requirePlatformAdmin and operative pages with manager checks", () => {
+    const guardedAdminPages = [
       "app/(app)/billing/page.tsx",
       "app/(app)/team/page.tsx",
       "app/(app)/suppliers/page.tsx",
+      "app/(app)/settings/page.tsx",
+      "app/(app)/debug/system/page.tsx"
+    ];
+
+    for (const file of guardedAdminPages) {
+      expect(source(file), file).toContain("requirePlatformAdmin");
+    }
+
+    const guardedOperationalPages = [
       "app/(app)/materials/control-center/page.tsx",
       "app/(app)/materials/live-offers/page.tsx",
       "app/(app)/materials/online-discovery/page.tsx",
@@ -65,13 +87,114 @@ describe("role permissions", () => {
       "app/(app)/ai/job-wizard/page.tsx"
     ];
 
-    for (const file of guardedManagerPages) {
+    for (const file of guardedOperationalPages) {
       expect(source(file), file).toContain("requireManager");
     }
 
-    const settingsPage = source("app/(app)/settings/page.tsx");
-    expect(settingsPage).toContain('requirePermission("settings.edit"');
+    expect(source("app/(app)/settings/security/page.tsx")).toContain("requirePrivilegedAccountSecurity");
+    expect(source("lib/actions/mfa-actions.ts")).toContain("requirePrivilegedAccountSecurity");
+    expect(source("lib/auth.ts")).toContain("export async function requirePrivilegedAccountSecurity()");
+    expect(source("lib/auth.ts")).toContain("!context.isAdmin && !context.isChef");
+    expect(source("lib/actions/auth-actions.ts")).toContain("role: \"chef\"");
     expect(hasAppPermission("mitarbeiter", ["settings.edit"], "settings.edit")).toBe(false);
     expect(hasAppPermission("vorarbeiter", ["settings.edit"], "settings.edit")).toBe(false);
+  });
+
+  it("blocks deactivated profiles before permissions or MFA are loaded", () => {
+    const auth = source("lib/auth.ts");
+    const activeGuardIndex = auth.indexOf("if (typedProfile.active === false)");
+    const permissionLoadIndex = auth.indexOf("const [permissionsResult, factorsResult]");
+    const contextReturnIndex = auth.indexOf("return {", activeGuardIndex);
+
+    expect(auth).toContain("active, companies");
+    expect(activeGuardIndex).toBeGreaterThan(-1);
+    expect(activeGuardIndex).toBeLessThan(permissionLoadIndex);
+    expect(activeGuardIndex).toBeLessThan(contextReturnIndex);
+  });
+
+  it("blocks deactivated profiles during login and MFA entrypoints", () => {
+    const apiLogin = source("app/api/auth/login/route.ts");
+    const actionLogin = source("lib/actions/auth-actions.ts");
+    const mfaPage = source("app/(auth)/login/mfa-challenge/page.tsx");
+    const mfaActions = source("lib/actions/mfa-actions.ts");
+
+    for (const file of [apiLogin, actionLogin]) {
+      expect(file).toContain("id, company_id, role, active");
+      expect(file).toContain("loginProfile.active === false");
+      expect(file).toContain("Dieses Benutzerkonto wurde deaktiviert.");
+      expect(file).toContain("supabase.auth.signOut()");
+    }
+
+    for (const file of [mfaPage, mfaActions]) {
+      expect(file).toContain("active");
+      expect(file).toContain("Dieses+Benutzerkonto+wurde+deaktiviert.");
+      expect(file).toContain("Benutzerprofil+konnte+nicht+geprueft+werden.");
+      expect(file).toContain("supabase.auth.signOut()");
+    }
+  });
+
+  it("vermeidet alte Chef/Admin-Mischtexte in operativen App-Bereichen", () => {
+    const checkedFiles = [
+      "app/(app)/fahrzeuge/page.tsx",
+      "app/(app)/materials/catalog/page.tsx",
+      "app/(app)/materials/import/page.tsx",
+      "app/(app)/materials/locations/page.tsx",
+      "app/(app)/materials/low-stock/page.tsx"
+    ];
+
+    for (const file of checkedFiles) {
+      expect(source(file), file).not.toMatch(/Admin oder Chef|Chef\/Admin|Admin\/Chef/);
+    }
+  });
+
+  it("documents platform-admin cross-company RLS without opening operative tenant data", () => {
+    const migration = source("supabase/migrations/20260715_platform_system_admin.sql");
+    const schema = source("supabase/schema.sql");
+    const teamPage = source("app/(app)/team/page.tsx");
+    const authActions = source("lib/actions/auth-actions.ts");
+
+    for (const sourceText of [migration, schema]) {
+      expect(sourceText).toContain('create policy "systemadmins read all companies"');
+      expect(sourceText).toContain('create policy "systemadmins read all profiles"');
+      expect(sourceText).toContain('create policy "systemadmins update profiles"');
+      expect(sourceText).toContain('create policy "systemadmins read company audit log"');
+      expect(sourceText).toContain("public.current_role() = 'chef'");
+      expect(sourceText).toContain("public.current_role() = 'admin'");
+      expect(sourceText).toContain("Operative Firmendaten wie Baustellen, Kunden, Lager und Preise bleiben");
+    }
+
+    expect(migration).not.toContain('create policy "systemadmins read all customers"');
+    expect(migration).not.toContain('create policy "systemadmins read all jobsites"');
+    expect(migration).not.toContain('create policy "systemadmins read all inventory');
+    expect(teamPage).toContain('supabase.from("companies").select("id, name")');
+    expect(teamPage).toContain('name="company_id"');
+    expect(authActions).toContain("targetCompanyIdFromForm");
+    expect(authActions).toContain("async function assertTargetCompanyExists");
+    expect(authActions).toContain("await checkUserLimit(supabase, targetCompanyId)");
+  });
+
+  it("validates cross-company team targets before privileged auth writes", () => {
+    const authActions = source("lib/actions/auth-actions.ts");
+    const createEmployeeIndex = authActions.indexOf("export async function createEmployeeAction");
+    const companyCheckIndex = authActions.indexOf("await assertTargetCompanyExists(supabase, targetCompanyId)", createEmployeeIndex);
+    const userLimitIndex = authActions.indexOf("await checkUserLimit(supabase, targetCompanyId)", createEmployeeIndex);
+    const authCreateIndex = authActions.indexOf("admin.auth.admin.createUser", createEmployeeIndex);
+    const updateEmployeeIndex = authActions.indexOf("export async function updateEmployeeAction");
+    const updateCompanyCheckIndex = authActions.indexOf("await assertTargetCompanyExists(supabase, targetCompanyId)", updateEmployeeIndex);
+    const profileUpdateIndex = authActions.indexOf(".update({ full_name: fullName, role: finalRole, active })", updateEmployeeIndex);
+    const authMetadataSyncIndex = authActions.indexOf("admin.auth.admin.updateUserById(id", updateEmployeeIndex);
+
+    expect(createEmployeeIndex).toBeGreaterThan(-1);
+    expect(companyCheckIndex).toBeGreaterThan(createEmployeeIndex);
+    expect(companyCheckIndex).toBeLessThan(userLimitIndex);
+    expect(userLimitIndex).toBeLessThan(authCreateIndex);
+    expect(updateCompanyCheckIndex).toBeGreaterThan(updateEmployeeIndex);
+    expect(profileUpdateIndex).toBeGreaterThan(updateEmployeeIndex);
+    expect(authMetadataSyncIndex).toBeGreaterThan(profileUpdateIndex);
+    expect(authActions).toContain('caller: "actions.auth.updateEmployeeAction"');
+    expect(authActions).toContain("baupro_company_id: targetCompanyId");
+    expect(authActions).toContain("baupro_role: finalRole");
+    expect(authActions).toContain('.select("id")');
+    expect(authActions).toContain("if (error || !updatedProfile)");
   });
 });

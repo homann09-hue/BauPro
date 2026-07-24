@@ -33,33 +33,33 @@ export type HelpTipDefinition = {
 export const helpTips: HelpTipDefinition[] = [
   {
     featureKey: "why_baupro_time",
-    title: "Warum BauPro? Zeit sparen",
+    title: "BauPro Nutzen: Zeit sparen",
     body: "Stunden, Berichte, Fotos, Materialmeldungen und Mitbringlisten entstehen direkt im Arbeitsfluss statt später im Büro.",
     audience: "all",
-    category: "Warum BauPro?",
+    category: "BauPro Nutzen",
     steps: ["Dashboard öffnen", "Tagesstunden prüfen", "Bericht oder Mitbringliste zeigen", "PDF/CSV-Export als Ergebnis nennen"]
   },
   {
     featureKey: "why_baupro_money",
-    title: "Warum BauPro? Kosten senken",
-    body: "Materialwarnungen, Lagerabgleich, Einkaufsvorschlaege und Chef-Preise helfen, Fehlfahrten, Expresskaeufe und Margeverlust zu reduzieren.",
+    title: "BauPro Nutzen: Kosten senken",
+    body: "Materialwarnungen, Lagerabgleich, Einkaufsvorschläge und Chef-Preise helfen, Fehlfahrten, Expresskäufe und Margeverlust zu reduzieren.",
     audience: "manager",
-    category: "Warum BauPro?",
-    steps: ["Material-Zentrale zeigen", "Knappe Artikel öffnen", "Mitbringliste für morgen erklaeren", "Preisfelder nur Chef/Admin zeigen"]
+    category: "BauPro Nutzen",
+    steps: ["Material-Zentrale zeigen", "Knappe Artikel öffnen", "Mitbringliste für morgen erklären", "Preisfelder nur Chef zeigen"]
   },
   {
     featureKey: "why_baupro_errors",
-    title: "Warum BauPro? Fehler vermeiden",
-    body: "Rollenrechte, Pflichtfelder, Status, Freigaben, Wetterwerte und Audit-Spuren machen Betriebsdaten vollstaendiger und kontrollierbarer.",
+    title: "BauPro Nutzen: Fehler vermeiden",
+    body: "Rollenrechte, Pflichtfelder, Status, Freigaben, Wetterwerte und Audit-Spuren machen Betriebsdaten vollständiger und kontrollierbarer.",
     audience: "all",
-    category: "Warum BauPro?"
+    category: "BauPro Nutzen"
   },
   {
     featureKey: "why_baupro_automation",
-    title: "Warum BauPro? Automatisieren",
+    title: "BauPro Nutzen: Automatisieren",
     body: "Auftragsmaße berechnen Materialbedarf, Mitbringlisten prüfen Bestand, Zeiten erzeugen Stundenzettel und Diktate werden zu Entwürfen.",
     audience: "all",
-    category: "Warum BauPro?"
+    category: "BauPro Nutzen"
   },
   {
     featureKey: "bring_list_use",
@@ -144,23 +144,26 @@ export const helpTips: HelpTipDefinition[] = [
   {
     featureKey: "purchase_suggestion",
     title: "Einkaufsvorschläge",
-    body: "Wenn Material fehlt, erstellt BauPro Vorschläge für Chef/Admin. Preise bleiben für Mitarbeiter ausgeblendet.",
+    body: "Wenn Material fehlt, erstellt BauPro Vorschläge für Chef. Preise bleiben für Mitarbeiter ausgeblendet.",
     audience: "manager",
     category: "Einkauf"
   },
   {
     featureKey: "material_control_center",
     title: "Material Control Center",
-    body: "Hier sieht Chef/Admin, welche Mitbringlisten für morgen kritisch sind, was reserviert ist und was gekauft werden muss.",
+    body: "Hier sieht Chef, welche Mitbringlisten für morgen kritisch sind, was reserviert ist und was gekauft werden muss.",
     audience: "manager",
     category: "Lager"
   }
 ];
 
 export function canSeeHelpTip(role: Role, audience: HelpAudience) {
-  const isManager = role === "admin" || role === "chef";
-  if (audience === "manager") return isManager;
-  if (audience === "worker") return !isManager;
+  const isAdminRole = role === "admin";
+  const isChefRole = role === "chef";
+  const isChefOrAdmin = isAdminRole || isChefRole;
+
+  if (audience === "manager") return isChefOrAdmin;
+  if (audience === "worker") return !isChefOrAdmin;
   return true;
 }
 

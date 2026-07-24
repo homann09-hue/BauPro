@@ -22,16 +22,64 @@ export const planningStatusLabels: Record<PlanningAssignmentStatus, string> = {
   weiterbildung: "Weiterbildung"
 };
 
-export const planningStatusColors: Record<PlanningAssignmentStatus, { badge: string; block: string; dot: string }> = {
-  geplant: { badge: "bg-blue-50 text-blue-700", block: "border-blue-200 bg-blue-50 text-blue-950", dot: "bg-info" },
-  aktiv: { badge: "bg-mint text-primary", block: "border-primary/20 bg-mint text-primary-dark", dot: "bg-primary" },
-  erledigt: { badge: "bg-slate-100 text-slate-700", block: "border-slate-200 bg-slate-50 text-slate-700", dot: "bg-slate-400" },
-  verschoben: { badge: "bg-amber-50 text-amber-800", block: "border-amber-200 bg-amber-50 text-amber-950", dot: "bg-warning" },
-  krank: { badge: "bg-red-50 text-red-700", block: "border-red-200 bg-red-50 text-red-900", dot: "bg-danger" },
-  urlaub: { badge: "bg-sky-50 text-sky-700", block: "border-sky-200 bg-sky-50 text-sky-900", dot: "bg-sky-500" },
-  werkstatt: { badge: "bg-stone-100 text-stone-700", block: "border-stone-200 bg-stone-50 text-stone-800", dot: "bg-stone-500" },
-  defekt: { badge: "bg-red-50 text-red-700", block: "border-red-200 bg-red-50 text-red-900", dot: "bg-danger" },
-  weiterbildung: { badge: "bg-purple-50 text-purple-700", block: "border-purple-200 bg-purple-50 text-purple-900", dot: "bg-purple-500" }
+export const planningStatusColors: Record<
+  PlanningAssignmentStatus,
+  { badge: string; block: string; dot: string; stripe: string }
+> = {
+  geplant: {
+    badge: "bg-blue-50 text-blue-700",
+    block: "border-blue-200 bg-blue-50 text-blue-950",
+    dot: "bg-info",
+    stripe: "border-l-blue-500"
+  },
+  aktiv: {
+    badge: "bg-mint text-primary",
+    block: "border-primary/20 bg-mint text-primary-dark",
+    dot: "bg-primary",
+    stripe: "border-l-primary"
+  },
+  erledigt: {
+    badge: "bg-slate-100 text-slate-700",
+    block: "border-slate-200 bg-slate-50 text-slate-700",
+    dot: "bg-slate-400",
+    stripe: "border-l-slate-400"
+  },
+  verschoben: {
+    badge: "bg-amber-50 text-amber-800",
+    block: "border-amber-200 bg-amber-50 text-amber-950",
+    dot: "bg-warning",
+    stripe: "border-l-amber-500"
+  },
+  krank: {
+    badge: "bg-red-50 text-red-700",
+    block: "border-red-200 bg-red-50 text-red-900",
+    dot: "bg-danger",
+    stripe: "border-l-red-500"
+  },
+  urlaub: {
+    badge: "bg-sky-50 text-sky-700",
+    block: "border-sky-200 bg-sky-50 text-sky-900",
+    dot: "bg-sky-500",
+    stripe: "border-l-sky-500"
+  },
+  werkstatt: {
+    badge: "bg-stone-100 text-stone-700",
+    block: "border-stone-200 bg-stone-50 text-stone-800",
+    dot: "bg-stone-500",
+    stripe: "border-l-stone-500"
+  },
+  defekt: {
+    badge: "bg-red-50 text-red-700",
+    block: "border-red-200 bg-red-50 text-red-900",
+    dot: "bg-danger",
+    stripe: "border-l-red-600"
+  },
+  weiterbildung: {
+    badge: "bg-purple-50 text-purple-700",
+    block: "border-purple-200 bg-purple-50 text-purple-900",
+    dot: "bg-purple-500",
+    stripe: "border-l-purple-500"
+  }
 };
 
 export type PlanningRow = {

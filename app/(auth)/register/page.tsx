@@ -15,10 +15,10 @@ export default async function RegisterPage({
   return (
     <div>
       <p className="section-kicker mb-7">Start in 2 Minuten</p>
-      <h1 className="text-5xl font-normal uppercase leading-none tracking-wide text-ink [font-family:var(--font-display)]">
+      <h1 className="text-5xl font-extrabold leading-tight tracking-tight text-ink">
         Firmenaccount
       </h1>
-      <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+      <p className="mt-2 text-sm font-semibold leading-6 text-ash">
         Der erste Nutzer wird Admin. Danach richtest du Team, Baustellen und Demo-Daten ein.
       </p>
 
@@ -51,14 +51,14 @@ export default async function RegisterPage({
           <SubmitButton className="w-full">Account erstellen</SubmitButton>
         </form>
 
-        <p className="mt-7 flex justify-between gap-4 border-t border-line pt-5 text-sm text-slate-600">
+        <p className="mt-7 flex justify-between gap-4 border-t border-line pt-5 text-sm text-ash">
           <span>Erst ohne Eingabe testen?</span>
           <Link href="/demo" className="font-semibold text-primary">
             Demo starten →
           </Link>
         </p>
 
-        <p className="mt-3 flex justify-between gap-4 text-sm text-slate-600">
+        <p className="mt-3 flex justify-between gap-4 text-sm text-ash">
           <span>Bereits registriert?</span>
           <Link href="/login" className="font-semibold text-primary">
             Einloggen →

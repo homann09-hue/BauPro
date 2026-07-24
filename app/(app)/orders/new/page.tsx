@@ -16,6 +16,10 @@ import type { RoofingMaterialPriceRow } from "@/lib/roofing-material-estimate";
 import { searchParamMessage } from "@/lib/utils";
 import type { CompanyPricingSettings, Customer, Profile } from "@/types/app";
 
+const customerOptionLimit = 120;
+const employeeOptionLimit = 120;
+const materialPriceOptionLimit = 250;
+
 function defaultCustomerId(params: Record<string, string | string[] | undefined>) {
   const value = params.customer_id;
   return typeof value === "string" ? value : undefined;
@@ -29,6 +33,7 @@ export default async function NewOrderPage({
   const context = await requirePermission("orders.create", "/orders");
   const supabase = await createSupabaseServerClient();
   const params = (await searchParams) ?? {};
+  const requestedCustomerId = defaultCustomerId(params);
   const { error, success } = searchParamMessage(params);
   const canSeeAnyPrices =
     hasAppPermission(context.profile.role, context.permissions, "prices.purchase.view") ||
@@ -41,14 +46,16 @@ export default async function NewOrderPage({
       .select(customerFormSelect)
       .eq("company_id", context.companyId)
       .eq("status", "aktiv")
-      .order("updated_at", { ascending: false }),
+      .order("updated_at", { ascending: false })
+      .limit(customerOptionLimit),
     supabase
       .from("profiles")
       .select(profileOptionSelect)
       .eq("company_id", context.companyId)
       .eq("active", true)
       .in("role", ["mitarbeiter", "vorarbeiter"])
-      .order("full_name"),
+      .order("full_name")
+      .limit(employeeOptionLimit),
     supabase
       .from("company_pricing_settings")
       .select(companyPricingSettingsSelect)
@@ -67,8 +74,20 @@ export default async function NewOrderPage({
           .select(inventoryItemCalculationSelect)
           .eq("company_id", context.companyId)
           .order("name", { ascending: true })
+          .limit(materialPriceOptionLimit)
       : Promise.resolve({ data: [], error: null })
   ]);
+  const customerRows = [...((customersResult.data ?? []) as Customer[])];
+  if (requestedCustomerId && !customerRows.some((customer) => customer.id === requestedCustomerId)) {
+    const { data: requestedCustomer } = await supabase
+      .from("customers")
+      .select(customerFormSelect)
+      .eq("company_id", context.companyId)
+      .eq("id", requestedCustomerId)
+      .maybeSingle();
+    if (requestedCustomer) customerRows.unshift(requestedCustomer as Customer);
+  }
+
   const queryError =
     safeQueryErrorMessage(customersResult.error) ||
     safeQueryErrorMessage(employeesResult.error) ||
@@ -101,9 +120,9 @@ export default async function NewOrderPage({
       />
       <MessageBox error={error || queryError} success={success} />
       <OrderWizardForm
-        customers={(customersResult.data ?? []) as Customer[]}
+        customers={customerRows}
         employees={(employeesResult.data ?? []) as Profile[]}
-        defaultCustomerId={defaultCustomerId(params)}
+        defaultCustomerId={requestedCustomerId}
         defaultWastePercent={Number(settings.waste_percent ?? 20)}
         canManage={context.canManage}
         materialPriceOptions={materialPriceOptions}

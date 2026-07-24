@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getOptionalAppContext } from "@/lib/auth";
 import { calendarRangeAround, loadCalendarEvents } from "@/lib/data/calendar-events";
-import { SafeActionError, safeErrorMessage } from "@/lib/security/errors";
+import { safeErrorMessage, safeErrorStatus } from "@/lib/security/errors";
 import { getClientIp } from "@/lib/security/origin";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
   } catch (error) {
     return json(
       { ok: false, message: safeErrorMessage(error, "Kalenderdaten konnten nicht geladen werden.") },
-      { status: error instanceof SafeActionError ? 400 : 500 }
+      { status: safeErrorStatus(error) }
     );
   }
 }

@@ -1,4 +1,5 @@
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
+import { postgrestTimeoutResponse, withQueryTimeout } from "@/lib/performance/observability";
 import { pageParam, pageRange, searchOrFilter, stringParam, totalPages, type SearchParamsRecord } from "@/lib/data/shared";
 import type { Customer, CustomerStatus, CustomerType } from "@/types/app";
 
@@ -88,10 +89,36 @@ export async function loadCustomerList({
   }
 
   const [customersResult, activeCountResult, commercialCountResult, privateCountResult] = await Promise.all([
-    customersQuery,
-    supabase.from("customers").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "aktiv"),
-    supabase.from("customers").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("customer_type", "gewerbekunde"),
-    supabase.from("customers").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("customer_type", "privatkunde")
+    withQueryTimeout(() => customersQuery, {
+      route: "customers",
+      action: "customers.page",
+      timeoutMs: 4_500,
+      fallback: () => postgrestTimeoutResponse("Timeout bei customer.list")
+    }),
+    withQueryTimeout(() => supabase.from("customers").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("status", "aktiv"), {
+      route: "customers",
+      action: "customers.count.active",
+      timeoutMs: 1_900,
+      fallback: () => postgrestTimeoutResponse("Timeout bei customer.count.active")
+    }),
+    withQueryTimeout(
+      () => supabase.from("customers").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("customer_type", "gewerbekunde"),
+      {
+        route: "customers",
+        action: "customers.count.gewerbekunde",
+        timeoutMs: 1_900,
+        fallback: () => postgrestTimeoutResponse("Timeout bei customer.count.gewerkegkunde")
+      }
+    ),
+    withQueryTimeout(
+      () => supabase.from("customers").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("customer_type", "privatkunde"),
+      {
+        route: "customers",
+        action: "customers.count.privatkunde",
+        timeoutMs: 1_900,
+        fallback: () => postgrestTimeoutResponse("Timeout bei customer.count.privatkunde")
+      }
+    )
   ]);
 
   const customers = (customersResult.data ?? []) as unknown as Customer[];

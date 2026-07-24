@@ -1170,7 +1170,17 @@ stable
 security definer
 set search_path = public
 as $$
-  select coalesce(public.current_role() in ('admin', 'chef'), false)
+  select coalesce(public.current_role() = 'chef', false)
+$$;
+
+create or replace function public.is_system_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(public.current_role() = 'admin', false)
 $$;
 
 create or replace function public.handle_new_user()
@@ -1182,9 +1192,19 @@ as $$
 declare
   target_company_id uuid;
   requested_role text;
+  app_company_id text;
+  app_server_created boolean;
 begin
-  target_company_id := nullif(new.raw_user_meta_data->>'company_id', '')::uuid;
-  requested_role := coalesce(nullif(new.raw_user_meta_data->>'role', ''), 'admin');
+  app_server_created := coalesce((new.raw_app_meta_data->>'baupro_server_created')::boolean, false);
+  app_company_id := nullif(new.raw_app_meta_data->>'baupro_company_id', '');
+
+  if app_server_created and app_company_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    target_company_id := app_company_id::uuid;
+    requested_role := coalesce(nullif(new.raw_app_meta_data->>'baupro_role', ''), 'mitarbeiter');
+  else
+    target_company_id := null;
+    requested_role := 'chef';
+  end if;
 
   if requested_role not in ('admin', 'chef', 'vorarbeiter', 'mitarbeiter', 'kunde') then
     requested_role := 'mitarbeiter';
@@ -1195,7 +1215,7 @@ begin
     values (coalesce(nullif(new.raw_user_meta_data->>'company_name', ''), 'Meine Firma'), new.id)
     returning id into target_company_id;
 
-    requested_role := 'admin';
+    requested_role := 'chef';
   end if;
 
   insert into public.profiles (id, company_id, email, full_name, role)
@@ -1258,7 +1278,7 @@ begin
   returning id into target_company_id;
 
   insert into public.profiles (id, company_id, email, full_name, role, active)
-  values (auth.uid(), target_company_id, user_email, user_full_name, 'admin', true)
+  values (auth.uid(), target_company_id, user_email, user_full_name, 'chef', true)
   returning * into existing_profile;
 
   return existing_profile;
@@ -2118,7 +2138,9 @@ on public.job_material_requirements for delete
 to authenticated
 using (company_id = public.current_company_id() and public.can_manage_company());
 
-create or replace view public.orders_public as
+create or replace view public.orders_public
+with (security_invoker = true)
+as
 select
   o.id,
   o.company_id,
@@ -2152,7 +2174,9 @@ where o.company_id = public.current_company_id()
 
 grant select on public.orders_public to authenticated;
 
-create or replace view public.inventory_items_public as
+create or replace view public.inventory_items_public
+with (security_invoker = true)
+as
 select
   i.id,
   i.company_id,
@@ -2182,7 +2206,9 @@ where i.company_id = public.current_company_id();
 
 grant select on public.inventory_items_public to authenticated;
 
-create or replace view public.job_material_calculation_items_public as
+create or replace view public.job_material_calculation_items_public
+with (security_invoker = true)
+as
 select
   item.id,
   item.company_id,
@@ -2216,7 +2242,9 @@ where item.company_id = public.current_company_id()
 
 grant select on public.job_material_calculation_items_public to authenticated;
 
-create or replace view public.job_material_requirements_public as
+create or replace view public.job_material_requirements_public
+with (security_invoker = true)
+as
 select
   item.id,
   item.company_id,
@@ -3187,7 +3215,9 @@ create index if not exists job_dimensions_archived_idx on public.job_dimensions(
 create index if not exists job_material_requirements_archived_idx on public.job_material_requirements(company_id, archived_at, order_id);
 create index if not exists vehicle_materials_archived_idx on public.vehicle_materials(company_id, archived_at, vehicle_id);
 
-create or replace view public.job_material_requirements_public as
+create or replace view public.job_material_requirements_public
+with (security_invoker = true)
+as
 select
   item.id,
   item.company_id,
@@ -3521,7 +3551,9 @@ create trigger recalculate_commercial_document_totals_on_items
 after insert or update or delete on public.commercial_document_items
 for each row execute function public.recalculate_commercial_document_totals_trigger();
 
-grant execute on function public.recalculate_commercial_document_totals(uuid) to authenticated;
+revoke all on function public.recalculate_commercial_document_totals(uuid) from public;
+revoke all on function public.recalculate_commercial_document_totals(uuid) from anon;
+revoke all on function public.recalculate_commercial_document_totals(uuid) from authenticated;
 
 select pg_notify('pgrst', 'reload schema');
 
@@ -7697,14 +7729,15 @@ using (company_id = public.current_company_id() and public.can_manage_company())
 with check (company_id = public.current_company_id() and public.can_manage_company());
 
 drop policy if exists "operators read delivery note storage" on storage.objects;
-create policy "operators read delivery note storage"
+drop policy if exists "managers read delivery note storage" on storage.objects;
+create policy "managers read delivery note storage"
 on storage.objects for select
 to authenticated
 using (
   bucket_id = 'delivery-notes'
   and (storage.foldername(name))[1] = public.current_company_id()::text
   and (storage.foldername(name))[2] = 'delivery-notes'
-  and public.current_role() in ('admin', 'chef', 'vorarbeiter')
+  and public.current_role() in ('admin', 'chef')
 );
 
 drop policy if exists "operators upload delivery note storage" on storage.objects;
@@ -9098,15 +9131,15 @@ comment on table public.company_audit_log is
   'Audit-Log fuer kritische Aktionen. Datenschutz-/Firmenexporte loggen nur Metadaten, keine exportierten personenbezogenen Inhalte.';
 
 comment on column public.materials.purchase_price is
-  'EK-Preis: darf nur ueber Chef/Admin-Views, Server Actions oder eingeschraenkte Firmenexports sichtbar sein.';
+  'EK-Preis: darf nur ueber Chef-Views, Server Actions oder eingeschraenkte Firmenexports sichtbar sein.';
 comment on column public.materials.sales_price is
-  'VK-Preis: darf nur ueber Chef/Admin-Views, Server Actions oder eingeschraenkte Firmenexports sichtbar sein.';
+  'VK-Preis: darf nur ueber Chef-Views, Server Actions oder eingeschraenkte Firmenexports sichtbar sein.';
 comment on column public.inventory_items.purchase_price is
   'EK-Preis: darf niemals an Mitarbeiter-, Vorarbeiter- oder Kundenportal-Responses ausgeliefert werden.';
 comment on column public.inventory_items.sales_price is
   'VK-Preis: darf niemals an Mitarbeiter-, Vorarbeiter- oder Kundenportal-Responses ausgeliefert werden.';
 comment on column public.inventory_items.markup_percent is
-  'Marge/Aufschlag: nur fuer Chef/Admin, nicht fuer Mitarbeiter/Vorarbeiter/Kundenportal.';
+  'Marge/Aufschlag: nur fuer Chef, nicht fuer Mitarbeiter/Vorarbeiter/Kundenportal.';
 
 create table if not exists public.invoices (
   id uuid primary key default gen_random_uuid(),
@@ -9347,8 +9380,12 @@ create trigger recalculate_invoice_totals_on_items
 after insert or update or delete on public.invoice_items
 for each row execute function public.recalculate_invoice_totals_trigger();
 
-grant execute on function public.generate_invoice_number(uuid, text) to authenticated;
-grant execute on function public.recalculate_invoice_totals(uuid) to authenticated;
+revoke all on function public.generate_invoice_number(uuid, text) from public;
+revoke all on function public.recalculate_invoice_totals(uuid) from public;
+revoke all on function public.generate_invoice_number(uuid, text) from anon;
+revoke all on function public.generate_invoice_number(uuid, text) from authenticated;
+revoke all on function public.recalculate_invoice_totals(uuid) from anon;
+revoke all on function public.recalculate_invoice_totals(uuid) from authenticated;
 
 create or replace function public.insert_invoice_items_from_json(p_invoice_id uuid, p_items jsonb)
 returns void
@@ -9593,6 +9630,8 @@ as $$
 $$;
 
 revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from public;
+revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from anon;
+revoke all on function public.insert_invoice_items_from_json(uuid, jsonb) from authenticated;
 grant execute on function public.create_invoice_with_items(uuid, uuid, uuid, text, date, date, numeric, text, uuid, jsonb) to authenticated;
 grant execute on function public.update_invoice_with_items(uuid, uuid, uuid, uuid, text, date, date, numeric, text, jsonb) to authenticated;
 grant execute on function public.get_invoice_stats(uuid) to authenticated;
@@ -9604,5 +9643,947 @@ where active is true;
 create unique index if not exists time_reports_company_employee_period_unique_idx
 on public.time_reports (company_id, coalesce(employee_id, '00000000-0000-0000-0000-000000000000'::uuid), year, month)
 where status <> 'archived';
+
+-- BauPro platform system-admin hardening.
+--
+-- admin = firmenuebergreifender BauPro-Systemadministrator.
+-- chef = operative Betriebsleitung einer einzelnen Firma.
+--
+-- Systemadmins duerfen Firmen-/Benutzer-/Rechte-/Audit-Metadaten ueber Firmen hinweg
+-- verwalten. Operative Firmendaten wie Baustellen, Kunden, Lager und Preise bleiben
+-- weiterhin ueber die bestehenden Chef-/Mitarbeiter-Policies firmenscharf begrenzt.
+
+create or replace function public.is_system_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(public.current_role() = 'admin', false)
+$$;
+
+create or replace function public.can_manage_company()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(public.current_role() = 'chef', false)
+$$;
+
+drop policy if exists "systemadmins read all companies" on public.companies;
+create policy "systemadmins read all companies"
+on public.companies for select
+to authenticated
+using (public.is_system_admin());
+
+drop policy if exists "systemadmins create companies" on public.companies;
+create policy "systemadmins create companies"
+on public.companies for insert
+to authenticated
+with check (public.is_system_admin());
+
+drop policy if exists "systemadmins update all companies" on public.companies;
+create policy "systemadmins update all companies"
+on public.companies for update
+to authenticated
+using (public.is_system_admin())
+with check (public.is_system_admin());
+
+drop policy if exists "systemadmins read all profiles" on public.profiles;
+create policy "systemadmins read all profiles"
+on public.profiles for select
+to authenticated
+using (public.is_system_admin());
+
+drop policy if exists "systemadmins insert profiles" on public.profiles;
+create policy "systemadmins insert profiles"
+on public.profiles for insert
+to authenticated
+with check (public.is_system_admin());
+
+drop policy if exists "systemadmins update profiles" on public.profiles;
+create policy "systemadmins update profiles"
+on public.profiles for update
+to authenticated
+using (public.is_system_admin())
+with check (public.is_system_admin());
+
+create table if not exists public.employee_permissions (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  profile_id uuid not null references public.profiles(id) on delete cascade,
+  permission_key text not null check (
+    permission_key in (
+      'orders.view',
+      'orders.create',
+      'orders.edit',
+      'orders.delete',
+      'customers.view',
+      'customers.edit',
+      'customer_requests.view',
+      'customer_requests.edit',
+      'inventory.view',
+      'inventory.edit',
+      'materials.order',
+      'time.team.view',
+      'time.team.edit',
+      'photos.upload',
+      'photos.delete',
+      'reports.create',
+      'reports.approve',
+      'vehicles.manage'
+    )
+  ),
+  granted boolean not null default true,
+  updated_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (company_id, profile_id, permission_key)
+);
+
+create table if not exists public.employee_permission_audit_log (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  actor_id uuid references public.profiles(id) on delete set null,
+  target_profile_id uuid not null references public.profiles(id) on delete cascade,
+  old_values jsonb not null default '{}'::jsonb,
+  new_values jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists employee_permissions_profile_idx
+  on public.employee_permissions(company_id, profile_id);
+
+create index if not exists employee_permissions_key_idx
+  on public.employee_permissions(company_id, permission_key)
+  where granted = true;
+
+create index if not exists employee_permission_audit_company_created_idx
+  on public.employee_permission_audit_log(company_id, created_at desc);
+
+alter table public.employee_permissions enable row level security;
+alter table public.employee_permissions force row level security;
+alter table public.employee_permission_audit_log enable row level security;
+alter table public.employee_permission_audit_log force row level security;
+
+create or replace function public.assert_employee_permission_change_allowed()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_company_id uuid;
+  target_profile_id uuid;
+  target_role text;
+begin
+  if tg_op = 'DELETE' then
+    target_company_id := old.company_id;
+    target_profile_id := old.profile_id;
+  else
+    target_company_id := new.company_id;
+    target_profile_id := new.profile_id;
+  end if;
+
+  if not public.is_system_admin() then
+    raise exception 'Keine Berechtigung fuer diese Rechteaenderung.';
+  end if;
+
+  if target_profile_id = auth.uid() then
+    raise exception 'Eigene Rechte koennen nicht geaendert werden.';
+  end if;
+
+  select role
+    into target_role
+  from public.profiles
+  where id = target_profile_id
+    and company_id = target_company_id;
+
+  if target_role is null then
+    raise exception 'Mitarbeiter wurde nicht gefunden.';
+  end if;
+
+  if target_role in ('admin', 'chef') then
+    raise exception 'Systemadmin- und Chef-Rollen koennen nicht ueber Mitarbeiterrechte geaendert werden.';
+  end if;
+
+  if tg_op in ('INSERT', 'UPDATE') then
+    new.company_id := target_company_id;
+    new.updated_by := auth.uid();
+    new.updated_at := now();
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists guard_employee_permission_changes on public.employee_permissions;
+create trigger guard_employee_permission_changes
+before insert or update or delete on public.employee_permissions
+for each row execute function public.assert_employee_permission_change_allowed();
+
+create or replace function public.has_employee_permission(p_permission_key text, p_profile_id uuid default auth.uid())
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select case
+    when p_permission_key in (
+      'settings.edit',
+      'users.permissions.manage',
+      'billing.manage',
+      'features.manage',
+      'integrations.manage',
+      'security.manage',
+      'privacy.manage',
+      'api.manage'
+    ) then public.is_system_admin()
+    when p_permission_key in (
+      'quotes.view',
+      'quotes.create',
+      'prices.purchase.view',
+      'prices.sales.view'
+    ) then public.can_manage_company()
+    when public.current_role() = 'chef' then true
+    else exists (
+      select 1
+      from public.employee_permissions ep
+      where ep.company_id = public.current_company_id()
+        and ep.profile_id = coalesce(p_profile_id, auth.uid())
+        and ep.permission_key = p_permission_key
+        and ep.granted = true
+    )
+  end;
+$$;
+
+grant execute on function public.has_employee_permission(text, uuid) to authenticated;
+
+drop policy if exists "read own or managed employee permissions" on public.employee_permissions;
+drop policy if exists "read own or systemadmin employee permissions" on public.employee_permissions;
+create policy "read own or systemadmin employee permissions"
+on public.employee_permissions for select
+to authenticated
+using (
+  public.is_system_admin()
+  or (company_id = public.current_company_id() and profile_id = auth.uid())
+);
+
+drop policy if exists "managers insert employee permissions" on public.employee_permissions;
+drop policy if exists "systemadmins insert employee permissions" on public.employee_permissions;
+create policy "systemadmins insert employee permissions"
+on public.employee_permissions for insert
+to authenticated
+with check (public.is_system_admin());
+
+drop policy if exists "managers update employee permissions" on public.employee_permissions;
+drop policy if exists "systemadmins update employee permissions" on public.employee_permissions;
+create policy "systemadmins update employee permissions"
+on public.employee_permissions for update
+to authenticated
+using (public.is_system_admin())
+with check (public.is_system_admin());
+
+drop policy if exists "managers delete employee permissions" on public.employee_permissions;
+drop policy if exists "systemadmins delete employee permissions" on public.employee_permissions;
+create policy "systemadmins delete employee permissions"
+on public.employee_permissions for delete
+to authenticated
+using (public.is_system_admin());
+
+drop policy if exists "managers read employee permission audit" on public.employee_permission_audit_log;
+drop policy if exists "systemadmins read employee permission audit" on public.employee_permission_audit_log;
+create policy "systemadmins read employee permission audit"
+on public.employee_permission_audit_log for select
+to authenticated
+using (public.is_system_admin());
+
+drop policy if exists "managers create employee permission audit" on public.employee_permission_audit_log;
+drop policy if exists "systemadmins create employee permission audit" on public.employee_permission_audit_log;
+create policy "systemadmins create employee permission audit"
+on public.employee_permission_audit_log for insert
+to authenticated
+with check (public.is_system_admin());
+
+drop policy if exists "systemadmins read company audit log" on public.company_audit_log;
+create policy "systemadmins read company audit log"
+on public.company_audit_log for select
+to authenticated
+using (public.is_system_admin());
+
+drop policy if exists "systemadmins create company audit log" on public.company_audit_log;
+create policy "systemadmins create company audit log"
+on public.company_audit_log for insert
+to authenticated
+with check (public.is_system_admin());
+
+drop policy if exists "systemadmins read privacy requests" on public.privacy_requests;
+create policy "systemadmins read privacy requests"
+on public.privacy_requests for select
+to authenticated
+using (public.is_system_admin());
+
+drop policy if exists "systemadmins update privacy requests" on public.privacy_requests;
+create policy "systemadmins update privacy requests"
+on public.privacy_requests for update
+to authenticated
+using (public.is_system_admin())
+with check (public.is_system_admin());
+
+comment on function public.is_system_admin() is
+  'BauPro-Plattformrolle: admin verwaltet Firmen, Nutzer, Rechte, Abrechnung, Integrationen, Datenschutz und Systemstatus firmenuebergreifend.';
+
+comment on function public.can_manage_company() is
+  'Operative Firmenleitung: chef verwaltet Baustellen, Kunden, Material, Zeiten, Kalkulation, Angebote und Rechnungen innerhalb der eigenen Firma.';
+
+-- BauPro: Auftragsanlage atomar machen.
+-- Dieser Block muss auch im vollständigen Schema stehen, damit frische
+-- Installationen denselben Stand wie die Delta-Migrationen haben.
+create or replace function public.generate_order_number(p_company_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_year text := to_char(now(), 'YYYY');
+  prefix text := 'AU-' || current_year || '-';
+  last_number integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Nicht angemeldet.';
+  end if;
+
+  if p_company_id is null or p_company_id <> public.current_company_id() then
+    raise exception 'Keine Berechtigung fuer diese Firma.';
+  end if;
+
+  if not public.has_employee_permission('orders.create') then
+    raise exception 'Keine Berechtigung zum Erstellen von Auftraegen.';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('baupro-order-number:' || p_company_id::text || ':' || current_year));
+
+  select coalesce(max(nullif(regexp_replace(order_number, '^' || prefix, ''), '')::integer), 0)
+    into last_number
+  from public.orders
+  where company_id = p_company_id
+    and order_number ~ ('^' || prefix || '[0-9]+$');
+
+  return prefix || lpad((last_number + 1)::text, 4, '0');
+end;
+$$;
+
+grant execute on function public.generate_order_number(uuid) to authenticated;
+
+create or replace function public.create_order_with_jobsite(
+  p_company_id uuid,
+  p_customer_id uuid,
+  p_title text,
+  p_order_type text,
+  p_status text,
+  p_priority text,
+  p_jobsite_address text,
+  p_start_date date,
+  p_end_date date,
+  p_description text,
+  p_internal_notes text,
+  p_assigned_employee_ids uuid[],
+  p_has_dimensions boolean,
+  p_created_by uuid
+)
+returns table(order_id uuid, jobsite_id uuid, order_number text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  safe_assigned_employee_ids uuid[] := coalesce(p_assigned_employee_ids, '{}'::uuid[]);
+  resolved_customer_name text;
+  generated_order_number text;
+  created_jobsite_id uuid;
+  created_order_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'Nicht angemeldet.';
+  end if;
+
+  if p_company_id is null or p_company_id <> public.current_company_id() then
+    raise exception 'Keine Berechtigung fuer diese Firma.';
+  end if;
+
+  if p_created_by is distinct from auth.uid() then
+    raise exception 'Auftrag kann nur fuer den angemeldeten Nutzer erstellt werden.';
+  end if;
+
+  if not public.has_employee_permission('orders.create') then
+    raise exception 'Keine Berechtigung zum Erstellen von Auftraegen.';
+  end if;
+
+  if coalesce(length(trim(p_title)), 0) = 0 then
+    raise exception 'Auftragstitel fehlt.';
+  end if;
+
+  if coalesce(length(trim(p_jobsite_address)), 0) = 0 then
+    raise exception 'Baustellenadresse fehlt.';
+  end if;
+
+  if coalesce(length(trim(p_description)), 0) = 0 then
+    raise exception 'Beschreibung fehlt.';
+  end if;
+
+  if p_order_type not in ('steildach', 'flachdach', 'reparatur', 'dachrinne', 'blech', 'wartung', 'sonstiges') then
+    raise exception 'Ungueltige Auftragsart.';
+  end if;
+
+  if p_status not in ('anfrage', 'angebot', 'geplant', 'in_arbeit', 'fertig', 'abgerechnet') then
+    raise exception 'Ungueltiger Auftragsstatus.';
+  end if;
+
+  if p_priority not in ('niedrig', 'normal', 'hoch') then
+    raise exception 'Ungueltige Prioritaet.';
+  end if;
+
+  select coalesce(nullif(company, ''), nullif(trim(coalesce(first_name, '') || ' ' || coalesce(last_name, '')), ''), contact_person, email, 'Kunde')
+    into resolved_customer_name
+  from public.customers
+  where id = p_customer_id
+    and company_id = p_company_id
+    and archived_at is null;
+
+  if resolved_customer_name is null then
+    raise exception 'Kunde wurde nicht gefunden.';
+  end if;
+
+  if exists (
+    select 1
+    from unnest(safe_assigned_employee_ids) as assigned(profile_id)
+    left join public.profiles p
+      on p.id = assigned.profile_id
+     and p.company_id = p_company_id
+     and p.active = true
+     and p.role in ('mitarbeiter', 'vorarbeiter')
+    where p.id is null
+  ) then
+    raise exception 'Nur aktive Mitarbeiter oder Vorarbeiter dieser Firma duerfen zugeordnet werden.';
+  end if;
+
+  generated_order_number := public.generate_order_number(p_company_id);
+
+  insert into public.jobsites (
+    company_id,
+    name,
+    customer,
+    address,
+    start_date,
+    status,
+    notes,
+    assigned_employee_ids,
+    created_by
+  )
+  values (
+    p_company_id,
+    trim(p_title),
+    resolved_customer_name,
+    trim(p_jobsite_address),
+    p_start_date,
+    case
+      when p_status = 'in_arbeit' then 'aktiv'
+      when p_status in ('fertig', 'abgerechnet') then 'abgeschlossen'
+      else 'geplant'
+    end,
+    p_description,
+    safe_assigned_employee_ids,
+    p_created_by
+  )
+  returning id into created_jobsite_id;
+
+  insert into public.orders (
+    company_id,
+    customer_id,
+    jobsite_id,
+    order_number,
+    title,
+    order_type,
+    status,
+    priority,
+    jobsite_address,
+    start_date,
+    end_date,
+    description,
+    internal_notes,
+    assigned_employee_ids,
+    has_dimensions,
+    created_by
+  )
+  values (
+    p_company_id,
+    p_customer_id,
+    created_jobsite_id,
+    generated_order_number,
+    trim(p_title),
+    p_order_type,
+    p_status,
+    p_priority,
+    trim(p_jobsite_address),
+    p_start_date,
+    p_end_date,
+    p_description,
+    p_internal_notes,
+    safe_assigned_employee_ids,
+    coalesce(p_has_dimensions, false),
+    p_created_by
+  )
+  returning id into created_order_id;
+
+  return query select created_order_id, created_jobsite_id, generated_order_number;
+end;
+$$;
+
+grant execute on function public.create_order_with_jobsite(
+  uuid,
+  uuid,
+  text,
+  text,
+  text,
+  text,
+  text,
+  date,
+  date,
+  text,
+  text,
+  uuid[],
+  boolean,
+  uuid
+) to authenticated;
+
+-- Dashboard-Buendelabfrage: reduziert viele einzelne Supabase-Requests auf einen RPC.
+-- Die Funktion prueft den angemeldeten Nutzer explizit gegen profiles, damit p_company_id
+-- und p_can_manage nicht durch manipulierte Client-Daten missbraucht werden koennen.
+
+create or replace function public.get_dashboard_summary(
+  p_company_id uuid,
+  p_user_id uuid,
+  p_can_manage boolean,
+  p_today date
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_role text;
+  v_can_manage boolean;
+  v_jobsites_count integer := 0;
+  v_jobsites_list jsonb := '[]'::jsonb;
+  v_weather_jobsites_list jsonb := '[]'::jsonb;
+  v_reports_count integer := 0;
+  v_reports_list jsonb := '[]'::jsonb;
+  v_tasks_count integer := 0;
+  v_tasks_list jsonb := '[]'::jsonb;
+  v_time_entries_count integer := 0;
+  v_time_entries_net_minutes integer := 0;
+  v_time_entries_list jsonb := '[]'::jsonb;
+  v_employees_count integer := 0;
+  v_employees_list jsonb := '[]'::jsonb;
+  v_low_stock_count integer := 0;
+  v_material_alerts_count integer := 0;
+  v_material_alerts_list jsonb := '[]'::jsonb;
+  v_purchase_suggestions_count integer := 0;
+  v_purchase_suggestions_list jsonb := '[]'::jsonb;
+  v_bring_lists_count integer := 0;
+  v_weather_orders_list jsonb := '[]'::jsonb;
+  v_today_reports_count integer := 0;
+  v_today_reports_list jsonb := '[]'::jsonb;
+begin
+  if auth.uid() is null or p_user_id is distinct from auth.uid() then
+    raise exception 'dashboard access denied' using errcode = '42501';
+  end if;
+
+  select p.role::text
+    into v_role
+    from public.profiles p
+   where p.id = auth.uid()
+     and p.company_id = p_company_id
+     and p.active = true;
+
+  if v_role is null then
+    raise exception 'dashboard company access denied' using errcode = '42501';
+  end if;
+
+  v_can_manage := v_role = 'chef';
+
+  if coalesce(p_can_manage, false) and not v_can_manage then
+    raise exception 'dashboard role access denied' using errcode = '42501';
+  end if;
+
+  select count(*)
+    into v_jobsites_count
+    from public.jobsites j
+   where j.company_id = p_company_id
+     and j.status in ('geplant', 'aktiv')
+     and (v_can_manage or p_user_id = any(coalesce(j.assigned_employee_ids, array[]::uuid[])));
+
+  select coalesce(jsonb_agg(to_jsonb(row_data) order by row_data.start_date asc nulls last), '[]'::jsonb)
+    into v_jobsites_list
+    from (
+      select j.id, j.company_id, j.name, j.customer, j.address, j.start_date, j.status, j.notes,
+             j.assigned_employee_ids, j.latitude, j.longitude, j.weather_last_checked_at, j.created_at
+        from public.jobsites j
+       where j.company_id = p_company_id
+         and j.status in ('geplant', 'aktiv')
+         and (v_can_manage or p_user_id = any(coalesce(j.assigned_employee_ids, array[]::uuid[])))
+       order by j.start_date asc nulls last
+       limit 5
+    ) row_data;
+
+  if v_can_manage then
+    select coalesce(jsonb_agg(to_jsonb(row_data) order by row_data.start_date asc nulls last), '[]'::jsonb)
+      into v_weather_jobsites_list
+      from (
+        select j.id, j.company_id, j.name, j.customer, j.address, j.start_date, j.status, j.notes,
+               j.assigned_employee_ids, j.latitude, j.longitude, j.weather_last_checked_at, j.created_at
+          from public.jobsites j
+         where j.company_id = p_company_id
+           and j.status in ('geplant', 'aktiv')
+         order by j.start_date asc nulls last
+         limit 80
+      ) row_data;
+
+    select count(*)
+      into v_employees_count
+      from public.profiles p
+     where p.company_id = p_company_id
+       and p.active = true
+       and p.role in ('mitarbeiter', 'vorarbeiter');
+
+    select coalesce(jsonb_agg(to_jsonb(row_data) order by row_data.full_name asc nulls last), '[]'::jsonb)
+      into v_employees_list
+      from (
+        select p.id, p.company_id, p.email, p.full_name, p.role, p.active
+          from public.profiles p
+         where p.company_id = p_company_id
+           and p.active = true
+           and p.role in ('mitarbeiter', 'vorarbeiter')
+         order by p.full_name asc nulls last
+      ) row_data;
+
+    select count(*)
+      into v_low_stock_count
+      from public.inventory_items i
+     where i.company_id = p_company_id
+       and i.stock <= i.minimum_stock;
+
+    select count(*)
+      into v_material_alerts_count
+      from public.material_alerts ma
+     where ma.company_id = p_company_id
+       and ma.status = 'open';
+
+    select coalesce(jsonb_agg(item order by created_at desc), '[]'::jsonb)
+      into v_material_alerts_list
+      from (
+        select ma.created_at,
+               jsonb_build_object(
+                 'id', ma.id,
+                 'company_id', ma.company_id,
+                 'material_id', ma.material_id,
+                 'inventory_item_id', ma.inventory_item_id,
+                 'job_id', ma.job_id,
+                 'bring_list_id', ma.bring_list_id,
+                 'alert_type', ma.alert_type,
+                 'severity', ma.severity,
+                 'message', ma.message,
+                 'required_quantity', ma.required_quantity,
+                 'available_quantity', ma.available_quantity,
+                 'missing_quantity', ma.missing_quantity,
+                 'unit', ma.unit,
+                 'status', ma.status,
+                 'created_by_system', ma.created_by_system,
+                 'assigned_to_admin', ma.assigned_to_admin,
+                 'created_at', ma.created_at,
+                 'acknowledged_at', ma.acknowledged_at,
+                 'resolved_at', ma.resolved_at,
+                 'inventory_items',
+                   case when i.id is null then null else jsonb_build_object('id', i.id, 'name', i.name, 'unit', i.unit, 'stock', i.stock, 'minimum_stock', i.minimum_stock) end,
+                 'jobsites',
+                   case when j.id is null then null else jsonb_build_object('id', j.id, 'name', j.name, 'address', j.address, 'customer', j.customer) end,
+                 'bring_lists',
+                   case when bl.id is null then null else jsonb_build_object('id', bl.id, 'title', bl.title, 'date', bl.date) end
+               ) as item
+          from public.material_alerts ma
+          left join public.inventory_items i on i.id = ma.inventory_item_id and i.company_id = ma.company_id
+          left join public.jobsites j on j.id = ma.job_id and j.company_id = ma.company_id
+          left join public.bring_lists bl on bl.id = ma.bring_list_id and bl.company_id = ma.company_id
+         where ma.company_id = p_company_id
+           and ma.status = 'open'
+         order by ma.created_at desc
+         limit 6
+      ) alerts;
+
+    select count(*)
+      into v_purchase_suggestions_count
+      from public.purchase_suggestions ps
+     where ps.company_id = p_company_id
+       and ps.status = 'open';
+
+    select coalesce(jsonb_agg(item order by created_at desc), '[]'::jsonb)
+      into v_purchase_suggestions_list
+      from (
+        select ps.created_at,
+               jsonb_build_object(
+                 'id', ps.id,
+                 'company_id', ps.company_id,
+                 'material_id', ps.material_id,
+                 'inventory_item_id', ps.inventory_item_id,
+                 'job_id', ps.job_id,
+                 'bring_list_id', ps.bring_list_id,
+                 'quantity_needed', ps.quantity_needed,
+                 'unit', ps.unit,
+                 'reason', ps.reason,
+                 'status', ps.status,
+                 'created_at', ps.created_at,
+                 'updated_at', ps.updated_at,
+                 'inventory_items',
+                   case when i.id is null then null else jsonb_build_object('id', i.id, 'name', i.name, 'unit', i.unit, 'stock', i.stock, 'minimum_stock', i.minimum_stock) end,
+                 'jobsites',
+                   case when j.id is null then null else jsonb_build_object('id', j.id, 'name', j.name, 'address', j.address, 'customer', j.customer) end,
+                 'bring_lists',
+                   case when bl.id is null then null else jsonb_build_object('id', bl.id, 'title', bl.title, 'date', bl.date) end
+               ) as item
+          from public.purchase_suggestions ps
+          left join public.inventory_items i on i.id = ps.inventory_item_id and i.company_id = ps.company_id
+          left join public.jobsites j on j.id = ps.job_id and j.company_id = ps.company_id
+          left join public.bring_lists bl on bl.id = ps.bring_list_id and bl.company_id = ps.company_id
+         where ps.company_id = p_company_id
+           and ps.status = 'open'
+         order by ps.created_at desc
+         limit 6
+      ) suggestions;
+
+    select coalesce(jsonb_agg(to_jsonb(row_data)), '[]'::jsonb)
+      into v_weather_orders_list
+      from (
+        select o.id, o.jobsite_id, o.status, o.priority, o.start_date, o.end_date
+          from public.orders o
+         where o.company_id = p_company_id
+           and o.status in ('geplant', 'in_arbeit')
+         limit 100
+      ) row_data;
+  else
+    select count(*)
+      into v_bring_lists_count
+      from public.bring_lists bl
+     where bl.company_id = p_company_id
+       and bl.date >= p_today
+       and (bl.assigned_to = p_user_id or bl.created_by = p_user_id);
+  end if;
+
+  select count(*)
+    into v_reports_count
+    from public.reports r
+   where r.company_id = p_company_id
+     and r.archived_at is null
+     and (v_can_manage or r.created_by = p_user_id);
+
+  select coalesce(jsonb_agg(item order by report_date desc), '[]'::jsonb)
+    into v_reports_list
+    from (
+      select r.report_date,
+             jsonb_build_object(
+               'id', r.id,
+               'company_id', r.company_id,
+               'jobsite_id', r.jobsite_id,
+               'report_date', r.report_date,
+               'weather', r.weather,
+               'weather_summary', r.weather_summary,
+               'weather_temperature_c', r.weather_temperature_c,
+               'weather_precipitation_mm', r.weather_precipitation_mm,
+               'weather_wind_kmh', r.weather_wind_kmh,
+               'weather_source', r.weather_source,
+               'weather_fetched_at', r.weather_fetched_at,
+               'weather_lat', r.weather_lat,
+               'weather_lng', r.weather_lng,
+               'work_start', r.work_start,
+               'work_end', r.work_end,
+               'employee_ids', r.employee_ids,
+               'activities', r.activities,
+               'material_usage', r.material_usage,
+               'issues', r.issues,
+               'signature_name', r.signature_name,
+               'created_by', r.created_by,
+               'created_at', r.created_at,
+               'jobsites',
+                 case when j.id is null then null else jsonb_build_object('id', j.id, 'name', j.name, 'customer', j.customer, 'address', j.address) end
+             ) as item
+        from public.reports r
+        left join public.jobsites j on j.id = r.jobsite_id and j.company_id = r.company_id
+       where r.company_id = p_company_id
+         and r.archived_at is null
+         and (v_can_manage or r.created_by = p_user_id)
+       order by r.report_date desc
+       limit 5
+    ) reports;
+
+  select count(*)
+    into v_tasks_count
+    from public.tasks t
+   where t.company_id = p_company_id
+     and t.archived_at is null
+     and t.status <> 'erledigt'
+     and (v_can_manage or t.assigned_to = p_user_id);
+
+  select coalesce(jsonb_agg(item order by due_date asc nulls last), '[]'::jsonb)
+    into v_tasks_list
+    from (
+      select t.due_date,
+             jsonb_build_object(
+               'id', t.id,
+               'company_id', t.company_id,
+               'jobsite_id', t.jobsite_id,
+               'title', t.title,
+               'description', t.description,
+               'assigned_to', t.assigned_to,
+               'due_date', t.due_date,
+               'status', t.status,
+               'jobsites',
+                 case when j.id is null then null else jsonb_build_object('id', j.id, 'name', j.name) end,
+               'profiles',
+                 case when p.id is null then null else jsonb_build_object('id', p.id, 'full_name', p.full_name, 'email', p.email) end
+             ) as item
+        from public.tasks t
+        left join public.jobsites j on j.id = t.jobsite_id and j.company_id = t.company_id
+        left join public.profiles p on p.id = t.assigned_to and p.company_id = t.company_id
+       where t.company_id = p_company_id
+         and t.archived_at is null
+         and t.status <> 'erledigt'
+         and (v_can_manage or t.assigned_to = p_user_id)
+       order by t.due_date asc nulls last
+       limit 8
+    ) tasks;
+
+  select count(*), coalesce(sum(te.net_minutes), 0)
+    into v_time_entries_count, v_time_entries_net_minutes
+    from public.time_entries te
+   where te.company_id = p_company_id
+     and te.date = p_today
+     and (v_can_manage or te.employee_id = p_user_id);
+
+  select coalesce(jsonb_agg(to_jsonb(row_data)), '[]'::jsonb)
+    into v_time_entries_list
+    from (
+      select te.id, te.company_id, te.employee_id, te.job_id, te.date, te.status, te.net_minutes
+        from public.time_entries te
+       where te.company_id = p_company_id
+         and te.date = p_today
+         and (v_can_manage or te.employee_id = p_user_id)
+       limit 200
+    ) row_data;
+
+  select count(*)
+    into v_today_reports_count
+    from public.reports r
+   where r.company_id = p_company_id
+     and r.archived_at is null
+     and r.report_date = p_today
+     and (v_can_manage or r.created_by = p_user_id);
+
+  select coalesce(jsonb_agg(to_jsonb(row_data)), '[]'::jsonb)
+    into v_today_reports_list
+    from (
+      select r.id, r.jobsite_id, r.report_date
+        from public.reports r
+       where r.company_id = p_company_id
+         and r.archived_at is null
+         and r.report_date = p_today
+         and (v_can_manage or r.created_by = p_user_id)
+       limit 100
+    ) row_data;
+
+  return jsonb_build_object(
+    'jobsites_active', jsonb_build_object('count', v_jobsites_count, 'list', v_jobsites_list),
+    'reports_latest', jsonb_build_object('count', v_reports_count, 'list', v_reports_list),
+    'tasks_open', jsonb_build_object('count', v_tasks_count, 'list', v_tasks_list),
+    'today_time_entries', jsonb_build_object('count', v_time_entries_count, 'net_minutes', v_time_entries_net_minutes, 'list', v_time_entries_list),
+    'employees_active', jsonb_build_object('count', v_employees_count, 'list', v_employees_list),
+    'low_stock_count', v_low_stock_count,
+    'open_alerts_count', v_material_alerts_count,
+    'material_alerts_open', jsonb_build_object('count', v_material_alerts_count, 'list', v_material_alerts_list),
+    'open_suggestions_count', v_purchase_suggestions_count,
+    'purchase_suggestions_open', jsonb_build_object('count', v_purchase_suggestions_count, 'list', v_purchase_suggestions_list),
+    'bring_lists_upcoming', jsonb_build_object('count', v_bring_lists_count),
+    'weather_jobsites', jsonb_build_object('list', v_weather_jobsites_list),
+    'weather_orders', jsonb_build_object('list', v_weather_orders_list),
+    'today_reports_count', v_today_reports_count,
+    'today_reports', jsonb_build_object('count', v_today_reports_count, 'list', v_today_reports_list)
+  );
+end;
+$$;
+
+revoke all on function public.get_dashboard_summary(uuid, uuid, boolean, date) from public;
+revoke all on function public.get_dashboard_summary(uuid, uuid, boolean, date) from anon;
+grant execute on function public.get_dashboard_summary(uuid, uuid, boolean, date) to authenticated;
+
+
+-- BauPro Redteam-Haertung:
+-- Reine Trigger-Funktionen duerfen nicht als direkte RPC-Endpunkte dienen.
+-- Trigger selbst funktionieren weiterhin, auch wenn PUBLIC/anon/authenticated
+-- kein EXECUTE-Recht auf die Trigger-Funktion besitzen.
+revoke all on function public.assert_employee_permission_change_allowed() from public;
+revoke all on function public.assert_employee_permission_change_allowed() from anon;
+revoke all on function public.assert_employee_permission_change_allowed() from authenticated;
+
+revoke all on function public.assert_role_change_allowed() from public;
+revoke all on function public.assert_role_change_allowed() from anon;
+revoke all on function public.assert_role_change_allowed() from authenticated;
+
+revoke all on function public.create_defect_due_notification() from public;
+revoke all on function public.create_defect_due_notification() from anon;
+revoke all on function public.create_defect_due_notification() from authenticated;
+
+revoke all on function public.create_defect_from_checklist_problem() from public;
+revoke all on function public.create_defect_from_checklist_problem() from anon;
+revoke all on function public.create_defect_from_checklist_problem() from authenticated;
+
+revoke all on function public.create_task_for_checklist_problem() from public;
+revoke all on function public.create_task_for_checklist_problem() from anon;
+revoke all on function public.create_task_for_checklist_problem() from authenticated;
+
+revoke all on function public.handle_new_user() from public;
+revoke all on function public.handle_new_user() from anon;
+revoke all on function public.handle_new_user() from authenticated;
+
+revoke all on function public.record_material_movement_from_audit() from public;
+revoke all on function public.record_material_movement_from_audit() from anon;
+revoke all on function public.record_material_movement_from_audit() from authenticated;
+
+revoke all on function public.recalculate_commercial_document_totals_trigger() from public;
+revoke all on function public.recalculate_commercial_document_totals_trigger() from anon;
+revoke all on function public.recalculate_commercial_document_totals_trigger() from authenticated;
+
+revoke all on function public.recalculate_invoice_totals_trigger() from public;
+revoke all on function public.recalculate_invoice_totals_trigger() from anon;
+revoke all on function public.recalculate_invoice_totals_trigger() from authenticated;
+
+revoke all on function public.validate_checklist_tenant() from public;
+revoke all on function public.validate_checklist_tenant() from anon;
+revoke all on function public.validate_checklist_tenant() from authenticated;
+
+revoke all on function public.validate_defect_tenant() from public;
+revoke all on function public.validate_defect_tenant() from anon;
+revoke all on function public.validate_defect_tenant() from authenticated;
+
+revoke all on function public.validate_resource_document_tenant() from public;
+revoke all on function public.validate_resource_document_tenant() from anon;
+revoke all on function public.validate_resource_document_tenant() from authenticated;
 
 select pg_notify('pgrst', 'reload schema');

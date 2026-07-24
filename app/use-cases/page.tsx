@@ -21,7 +21,7 @@ export default function UseCasesPage() {
         <UseCaseGrid />
       </section>
 
-      <section className="border-y border-line bg-surface">
+      <section className="border-y border-line bg-basalt">
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
           <SectionIntro
             kicker="Typische Situationen"
@@ -30,7 +30,7 @@ export default function UseCasesPage() {
           />
           <div className="grid gap-3 md:grid-cols-3">
             {["Morgens ist unklar, was mitgenommen werden muss.", "Fotos liegen irgendwo im Chat und fehlen beim Nachweis.", "Zeiten werden am Freitag aus dem Gedächtnis nachgetragen."].map((text) => (
-              <div key={text} className="surface p-4 text-sm font-semibold leading-6 text-ash">
+              <div key={text} className="border border-line bg-surface-container p-4 text-sm font-semibold leading-6 text-ash">
                 {text}
               </div>
             ))}

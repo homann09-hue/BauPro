@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-async function loadMiddleware() {
+async function loadProxy() {
   vi.resetModules();
   const updateSession = vi.fn(async (_request: NextRequest, requestHeaders: Headers) => {
     const response = NextResponse.next({ request: { headers: requestHeaders } });
@@ -20,9 +20,9 @@ afterEach(() => {
   vi.resetModules();
 });
 
-describe("production middleware", () => {
+describe("production proxy", () => {
   it("blockiert Cross-Origin POST mit Security Headers", async () => {
-    const { proxy, updateSession } = await loadMiddleware();
+    const { proxy, updateSession } = await loadProxy();
     const request = new NextRequest("https://baupro.example/demo", {
       method: "POST",
       headers: {
@@ -40,7 +40,7 @@ describe("production middleware", () => {
   });
 
   it("laesst oeffentliche GET-Seiten durch und refreshed die Supabase Session", async () => {
-    const { proxy, updateSession } = await loadMiddleware();
+    const { proxy, updateSession } = await loadProxy();
 
     for (const route of ["/", "/login", "/demo", "/features", "/use-cases", "/security", "/pricing", "/about"]) {
       const request = new NextRequest(`https://baupro.example${route}`, { method: "GET" });
@@ -56,7 +56,7 @@ describe("production middleware", () => {
   });
 
   it("nimmt statische Assets aus dem Middleware-Matcher aus", async () => {
-    const { config } = await loadMiddleware();
+    const { config } = await loadProxy();
     const matcher = config.matcher[0];
 
     expect(matcher).toContain("_next/static");

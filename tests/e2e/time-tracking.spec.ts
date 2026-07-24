@@ -3,6 +3,8 @@ import { employeeUser, expect, gotoAppPage, login, selectFirstNonEmptyOption, te
 test.use({ viewport: { width: 1440, height: 1000 }, isMobile: false, hasTouch: false });
 
 test("Mitarbeiter legt Arbeitszeit an, Chef genehmigt und exportiert CSV", async ({ page }) => {
+  const activityText = `E2E Test ${Date.now()}: Unterspannbahn verlegt und Baustelle dokumentiert.`;
+
   await login(page, employeeUser);
   await gotoAppPage(page, "/time-tracking/new");
 
@@ -12,7 +14,7 @@ test("Mitarbeiter legt Arbeitszeit an, Chef genehmigt und exportiert CSV", async
 
   await form.locator('input[name="date"]').fill(todayIsoDate());
   const activity = form.locator('textarea[name="activity"]');
-  await activity.fill("E2E Test: Unterspannbahn verlegt und Baustelle dokumentiert.");
+  await activity.fill(activityText);
   await expect(activity).toHaveValue(/Unterspannbahn verlegt/);
   await form.getByRole("button", { name: "Einreichen" }).click();
   await expect(page).toHaveURL(/\/time-tracking\?/, { timeout: 15_000 });
@@ -27,10 +29,14 @@ test("Mitarbeiter legt Arbeitszeit an, Chef genehmigt und exportiert CSV", async
   await gotoAppPage(page, "/time-tracking/daily?range=today");
 
   await expect(page.getByRole("heading", { name: "Tagesstunden" })).toBeVisible();
-  const approveButton = page.getByRole("button", { name: "Genehmigen" }).first();
+  const entryCard = page.getByTestId("daily-time-entry").filter({ hasText: activityText });
+  await expect(entryCard).toBeVisible({ timeout: 15_000 });
+  const approveButton = entryCard.getByRole("button", { name: "Genehmigen" });
   await expect(approveButton).toBeVisible();
   await approveButton.click();
-  await expect(page.locator("span").filter({ hasText: "Genehmigt" }).first()).toBeVisible();
+  await expect(
+    page.getByTestId("daily-time-entry").filter({ hasText: activityText }).locator("span").filter({ hasText: /Freigegeben|Genehmigt/ })
+  ).toBeVisible({ timeout: 20_000 });
 
   const [download] = await Promise.all([
     page.waitForEvent("download"),

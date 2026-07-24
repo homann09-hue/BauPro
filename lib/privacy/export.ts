@@ -271,7 +271,7 @@ export async function buildCompanyDataExport({
     generated_at: new Date().toISOString(),
     company: { id: companyId, name: companyName },
     export_policy: {
-      access: "chef_admin_only",
+      access: "system_admin_only",
       operational_data_is_price_redacted: true,
       restricted_financial_data_contains_prices: true,
       employee_exports_exclude_price_margin_and_supplier_offer_fields: true

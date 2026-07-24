@@ -30,7 +30,9 @@ describe("OpenAI backend adapter", () => {
     });
 
     expect(result.ok).toBe(false);
-    expect(result.disabled).toBe(true);
+    if (!result.ok) {
+      expect(result.disabled).toBe(true);
+    }
   });
 
   it("uses the Responses API and parses structured JSON", async () => {
@@ -48,8 +50,9 @@ describe("OpenAI backend adapter", () => {
 
     expect(result).toMatchObject({ ok: true, data: { answer: "ok" } });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.openai.com/v1/responses");
-    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).headers).toMatchObject({
+    const firstCall = fetchMock.mock.calls[0] as unknown as [string | URL | Request, RequestInit | undefined];
+    expect(firstCall[0]).toBe("https://api.openai.com/v1/responses");
+    expect(firstCall[1]?.headers).toMatchObject({
       Authorization: "Bearer sk-test"
     });
   });

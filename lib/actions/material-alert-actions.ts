@@ -74,5 +74,5 @@ export async function reportMaterialNeedAction(formData: FormData) {
   revalidatePath("/dashboard");
   revalidatePath("/material-melden");
   revalidateDashboardCache(context.companyId);
-  redirect(`${target}?success=${toQuery("Materialmeldung wurde an Chef/Admin gesendet.")}`);
+  redirect(`${target}?success=${toQuery("Materialmeldung wurde an Chef gesendet.")}`);
 }
