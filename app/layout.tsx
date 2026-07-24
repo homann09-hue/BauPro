@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
+import { Analytics } from "@vercel/analytics/next";
 import { ConsentBanner } from "@/components/consent-banner";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { RouteProgress } from "@/components/route-progress";
@@ -64,7 +65,7 @@ export default async function RootLayout({
         {children}
         <PwaInstallPrompt />
         <ConsentBanner />
-        <VercelTelemetry />
+
       </body>
     </html>
   );
