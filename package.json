@@ -81,8 +81,6 @@
   },
   "devDependencies": {
 
-    "eslint": "9.39.4",
-
     "vitest": "^4.1.9"
   },
   "overrides": {
