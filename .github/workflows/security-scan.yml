@@ -75,7 +75,7 @@ jobs:
 
       - name: Create security issue
         if: steps.audit.outputs.has_high_critical == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require("node:fs");
